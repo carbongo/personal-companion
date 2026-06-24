@@ -5,6 +5,12 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-24
 
+- **Web chat: multi-paragraph replies render as separate bubbles.** The built-in web chat now
+  splits an assistant reply on blank lines and shows each paragraph as its own message bubble —
+  the same texting feel the Telegram reply-split produces. Purely presentational (the reply is
+  still stored as one assistant message); applied to both live replies and history on reload.
+  Client-side only (`src/server/web/assets.ts`); no API or schema change.
+
 - **Phase 5 — Data import & adoption.** A way to bring an existing companion's history in:
   - *Importer* (`scripts/import.ts`, `bun run import`) — loads messages, the Core doc,
     memories, daily summaries, and notes into the schema from a neutral, documented

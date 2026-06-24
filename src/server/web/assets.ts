@@ -95,6 +95,16 @@ function el(role, content, kind) {
 }
 function scroll() { msgs.scrollTop = msgs.scrollHeight; }
 
+// An assistant reply can span paragraphs; show each as its own bubble — the same
+// texting feel the Telegram channel produces by splitting on blank lines.
+function splitParas(content) {
+	const parts = String(content).split(/\\n\\s*\\n/).map((s) => s.trim()).filter(Boolean);
+	return parts.length ? parts : [String(content)];
+}
+function appendAssistant(content, kind) {
+	splitParas(content).forEach((p, i) => msgs.appendChild(el('assistant', p, i === 0 ? kind : undefined)));
+}
+
 async function load() {
 	try {
 		const r = await fetch('/api/messages');
@@ -102,7 +112,10 @@ async function load() {
 		const data = await r.json();
 		msgs.innerHTML = '';
 		if (!data.messages.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'Say hello to start the conversation.'; msgs.appendChild(e); }
-		for (const m of data.messages) msgs.appendChild(el(m.role, m.content, m.kind));
+		for (const m of data.messages) {
+			if (m.role === 'assistant') appendAssistant(m.content, m.kind);
+			else msgs.appendChild(el(m.role, m.content, m.kind));
+		}
 		scroll();
 	} catch {}
 }
@@ -118,7 +131,8 @@ async function submit() {
 	try {
 		const r = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
 		const data = await r.json();
-		pending.replaceWith(el('assistant', r.ok ? data.reply : (data.error || 'Something went wrong.')));
+		if (r.ok) { pending.remove(); appendAssistant(data.reply); }
+		else pending.replaceWith(el('assistant', data.error || 'Something went wrong.'));
 	} catch {
 		pending.replaceWith(el('assistant', "Couldn't reach the server."));
 	}

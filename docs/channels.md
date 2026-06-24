@@ -33,7 +33,10 @@ A browser chat served by the same Bun process, so you can use the companion with
 Telegram setup at all**. Open the app in a browser and talk to it. It posts each message to
 `POST /api/chat`, which builds a `turn` and calls `engine.respond` — the same seam Telegram
 uses — so the web chat shares one conversation and memory with every other channel (messages
-persist to the same `messages` table, bucketed by the live day).
+persist to the same `messages` table, bucketed by the live day). A multi-paragraph reply is
+shown as separate bubbles (split on blank lines), the same texting feel the Telegram
+reply-split produces; the reply is still stored as one assistant message, so this is purely a
+display choice (applied both to live replies and to history on reload).
 
 The chat is one screen of a small web interface that also includes:
 
