@@ -9,9 +9,10 @@ Discord or a CLI) without each surface re-implementing memory and prompting.
 
 ## Decision
 
-Define one seam: `engine.respond(turn) -> { reply, actions }`, where a `turn` is
-channel-neutral (`{ text, images?, transcript? }`). Channels are thin adapters that build a
-turn, call the engine, and render the result. The engine knows nothing about any channel.
+Define one seam: `engine.respond(turn) -> { reply }`, where a `turn` is channel-neutral
+(`{ text, images?, kind?, mediaUrl? }`). Sidecar actions are applied inside the engine, so
+channels only render the `reply`. Channels are thin adapters that build a turn, call the
+engine, and send the result. The engine knows nothing about any channel.
 
 ## Consequences
 

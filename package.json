@@ -21,6 +21,7 @@
 	},
 	"dependencies": {
 		"drizzle-orm": "^0.45.1",
+		"grammy": "^1.44.0",
 		"hono": "^4.6.0"
 	},
 	"devDependencies": {

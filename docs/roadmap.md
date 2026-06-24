@@ -19,12 +19,14 @@ Bun + Hono server with `/health`.
 - ✅ The `engine.respond(turn)` seam, with unit + integration tests. A terminal REPL
   (`bun run chat`) exercises it end-to-end.
 
-## Phase 2 — Telegram channel
+## Phase 2 — Telegram channel ✅
 
-- grammY long-polling adapter: allowlist, text/voice/photo, incoming batching, outgoing
-  reply-split.
-- Pluggable STT for voice notes (off / OpenAI / whisper-http).
-- End-to-end on a throwaway bot with a neutral preset.
+- ✅ grammY long-polling adapter (`src/channels/telegram/`): allowlist, text/voice/photo,
+  incoming batching, outgoing reply-split, typing indicator.
+- ✅ Pluggable STT for voice notes (off / OpenAI / whisper-http) in `src/channels/stt.ts`.
+- ✅ Pure, unit-tested reply-splitter and incoming batcher; wired into the server boot.
+- ⏳ Live end-to-end on a throwaway bot needs a BotFather token (owner-supplied); boot and
+  graceful-failure paths are verified.
 
 ## Phase 3 — Web interface
 

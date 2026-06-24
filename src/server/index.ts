@@ -1,14 +1,18 @@
 /**
  * HTTP entry point. A single long-lived Bun process serves the web interface
- * (admin + built-in chat) and — in later phases — runs the Telegram channel and
- * the nightly memory roll-up in the same process.
+ * (admin + built-in chat), runs the Telegram channel, and — in a later phase —
+ * the nightly memory roll-up, all in the same process.
  *
- * Importing the db here applies migrations on boot. Phase 1: the engine exists
- * and is reachable from a terminal (`bun run chat`); the web chat/admin SPA and
- * the JSON API mount here in Phase 3 (see docs/roadmap.md).
+ * Importing the db here applies migrations on boot. The engine is reachable from
+ * a terminal (`bun run chat`) and over Telegram (Phase 2); the web chat/admin
+ * SPA and the JSON API mount here in Phase 3 (see docs/roadmap.md).
  */
 import { Hono } from "hono";
 
+import {
+	startTelegram,
+	telegramConfigured,
+} from "#/channels/telegram/index.ts";
 import { config } from "#/config/index.ts";
 import "#/db/index.ts"; // open + migrate the database on boot
 import { provider } from "#/llm/index.ts";
@@ -33,6 +37,13 @@ console.log(
 	`[companion] "${config.app.name}" — brain: ${brain.provider}/${brain.model}` +
 		(brain.endpoint ? ` @ ${brain.endpoint}` : ""),
 );
+
+if (telegramConfigured()) {
+	console.log("[companion] Telegram channel: enabled");
+	startTelegram();
+} else {
+	console.log("[companion] Telegram channel: disabled (no TELEGRAM_BOT_TOKEN)");
+}
 
 const port = config.app.port;
 console.log(`[companion] listening on http://localhost:${port}`);

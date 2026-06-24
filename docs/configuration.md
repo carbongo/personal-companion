@@ -43,6 +43,41 @@ All vars are documented in [`.env.example`](../.env.example). The ones you'll us
 
 See [decisions/llm-provider-abstraction.md](./decisions/llm-provider-abstraction.md).
 
+## Talking over Telegram (optional)
+
+The companion runs a [grammY](https://grammy.dev) bot over long-polling — no public URL
+needed. To enable it:
+
+1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the token into
+   `TELEGRAM_BOT_TOKEN`. (Empty token = Telegram off; use the built-in web chat instead.)
+2. Get your numeric ID from [@userinfobot](https://t.me/userinfobot) and put it in
+   `TELEGRAM_ALLOWED_USER_IDS` (comma-separated for more than one). **Only listed IDs are
+   answered** — everyone else is silently ignored. An empty allowlist ignores everyone.
+
+Behaviour knobs (all optional, sensible defaults):
+
+| Var                       | Default | What it does |
+| ------------------------- | ------- | ------------ |
+| `TELEGRAM_REPLY_SPLIT`    | `true`  | Send a long reply as paragraph-sized messages, like texting. |
+| `TELEGRAM_BATCH_IDLE_MS`  | `2500`  | Flush a burst of quick messages into one turn after this silence. |
+| `TELEGRAM_BATCH_MAX_MS`   | `15000` | Hard cap: never hold a batch open longer than this. |
+
+See [channels.md](./channels.md) for how the adapter maps onto the engine seam.
+
+### Voice notes (speech-to-text)
+
+Voice notes are transcribed before they reach the engine — pick a backend with
+`STT_PROVIDER`:
+
+- `off` (default) — voice notes get a polite "text me instead" reply.
+- `openai` — the hosted Whisper API; set `STT_API_KEY` (and optionally `STT_MODEL`,
+  default `whisper-1`).
+- `whisper-http` — any OpenAI-compatible `/audio/transcriptions` endpoint (e.g. a local
+  faster-whisper server); set `STT_API_URL` (and `STT_API_KEY`/`STT_MODEL` if it needs
+  them). Keeps voice local-first.
+
+Photos are forwarded as images to vision-capable models regardless of STT.
+
 ## The persona
 
 The persona defines identity, relationship, tone, interests, language, and hard style

@@ -28,4 +28,34 @@ describe("loadConfig", () => {
 
 		process.env = prev;
 	});
+
+	it("parses the Telegram allowlist into numbers, ignoring junk", () => {
+		const prev = { ...process.env };
+		process.env.TELEGRAM_ALLOWED_USER_IDS = "111, 222  333,,x,444";
+
+		const { telegram } = loadConfig();
+		expect(telegram.allowedUserIds).toEqual([111, 222, 333, 444]);
+
+		process.env = prev;
+	});
+
+	it("defaults the Telegram channel off with sane batch knobs", () => {
+		const prev = { ...process.env };
+		for (const k of [
+			"TELEGRAM_BOT_TOKEN",
+			"TELEGRAM_ALLOWED_USER_IDS",
+			"STT_PROVIDER",
+		])
+			delete process.env[k];
+
+		const { telegram, stt } = loadConfig();
+		expect(telegram.botToken).toBe("");
+		expect(telegram.allowedUserIds).toEqual([]);
+		expect(telegram.replySplit).toBe(true);
+		expect(telegram.batchIdleMs).toBe(2500);
+		expect(telegram.batchMaxMs).toBe(15000);
+		expect(stt.provider).toBe("off");
+
+		process.env = prev;
+	});
 });

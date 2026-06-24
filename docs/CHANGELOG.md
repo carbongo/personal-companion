@@ -5,6 +5,22 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-24
 
+- **Phase 2 — Telegram channel.** First real channel over the `engine.respond` seam:
+  - grammY long-polling adapter (`src/channels/telegram/`): numeric-ID allowlist (others
+    silently ignored), text + photo (forwarded as images) + voice notes.
+  - *Incoming batching* (`batcher.ts`): a burst of quick messages debounces into one turn
+    (`TELEGRAM_BATCH_IDLE_MS` idle window, `TELEGRAM_BATCH_MAX_MS` hard cap).
+  - *Outgoing reply-split* (`split.ts`): long replies sent as paragraph-sized messages with
+    a typing indicator; always hard-wrapped under Telegram's 4096-char limit
+    (`TELEGRAM_REPLY_SPLIT`).
+  - Pluggable speech-to-text (`src/channels/stt.ts`): `off` / `openai` / `whisper-http`
+    (`STT_PROVIDER`, `STT_API_URL`, `STT_API_KEY`, `STT_MODEL`).
+  - Wired into the server boot (enabled only when `TELEGRAM_BOT_TOKEN` is set; failures are
+    caught so the web process stays up). Added dependency: `grammy`.
+  - Tests now total 42 (added reply-split, batcher, and Telegram/STT config parsing).
+  - Simplified the batch knobs to `TELEGRAM_BATCH_IDLE_MS` + `TELEGRAM_BATCH_MAX_MS`
+    (replacing the earlier window/step/max sketch in `.env.example`).
+
 - **Phase 1 — generic engine.** The companion now works end-to-end (verified against a
   local Ollama via `bun run chat`):
   - SQLite schema + Drizzle migrations (tables: `messages`, `core`, `memories`,

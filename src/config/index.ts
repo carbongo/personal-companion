@@ -31,6 +31,18 @@ function optNum(key: string): number | null {
 	return Number.isFinite(n) ? n : null;
 }
 
+/** Parse a comma/space-separated list of integers (e.g. an allowlist of IDs). */
+function intList(key: string): number[] {
+	const v = process.env[key];
+	if (v == null || v === "") return [];
+	return v
+		.split(/[\s,]+/)
+		.map((s) => s.trim())
+		.filter(Boolean)
+		.map(Number)
+		.filter((n) => Number.isFinite(n));
+}
+
 export interface AppConfig {
 	/** Display name the companion goes by (feeds the persona). */
 	name: string;
@@ -67,6 +79,29 @@ export interface LlmConfig {
 	historyLimit: number;
 }
 
+export interface TelegramConfig {
+	/** BotFather token; empty disables the Telegram channel entirely. */
+	botToken: string;
+	/** Numeric Telegram user IDs allowed to talk to it; everyone else is ignored. */
+	allowedUserIds: number[];
+	/** Send a long reply as paragraph-sized messages, like a person texting. */
+	replySplit: boolean;
+	/** Flush a burst into one turn after this much silence (debounce window). */
+	batchIdleMs: number;
+	/** Never hold a batch open longer than this from its first message. */
+	batchMaxMs: number;
+}
+
+export type SttProviderName = "off" | "openai" | "whisper-http";
+
+export interface SttConfig {
+	provider: SttProviderName;
+	/** Full transcription endpoint URL (provider "whisper-http"). */
+	apiUrl: string;
+	apiKey: string;
+	model: string;
+}
+
 export interface MemoryConfig {
 	contextDays: number;
 	memoryLimit: number;
@@ -100,6 +135,8 @@ export interface PersonaConfig {
 export interface Config {
 	app: AppConfig;
 	llm: LlmConfig;
+	telegram: TelegramConfig;
+	stt: SttConfig;
 	memory: MemoryConfig;
 	web: WebConfig;
 	weather: WeatherConfig;
@@ -131,6 +168,19 @@ export function loadConfig(): Config {
 			think: str("LLM_THINK", "true"),
 			timeoutMs: num("LLM_TIMEOUT_MS", 120000),
 			historyLimit: num("LLM_HISTORY_LIMIT", 60),
+		},
+		telegram: {
+			botToken: str("TELEGRAM_BOT_TOKEN", ""),
+			allowedUserIds: intList("TELEGRAM_ALLOWED_USER_IDS"),
+			replySplit: bool("TELEGRAM_REPLY_SPLIT", true),
+			batchIdleMs: num("TELEGRAM_BATCH_IDLE_MS", 2500),
+			batchMaxMs: num("TELEGRAM_BATCH_MAX_MS", 15000),
+		},
+		stt: {
+			provider: str("STT_PROVIDER", "off") as SttProviderName,
+			apiUrl: str("STT_API_URL", "").replace(/\/+$/, ""),
+			apiKey: str("STT_API_KEY", ""),
+			model: str("STT_MODEL", "whisper-1"),
 		},
 		memory: {
 			contextDays: num("MEMORY_CONTEXT_DAYS", 7),

@@ -5,8 +5,9 @@
 **Engine** — the channel- and provider-agnostic core (`companion-core/`) that turns a
 `turn` into a reply plus actions. The seam everything plugs into.
 
-**Turn** — one neutral unit of input: `{ text, images?, transcript? }`. Channels build a
-turn; the engine consumes it.
+**Turn** — one neutral unit of input: `{ text, images?, kind?, mediaUrl? }` (voice notes
+arrive as text once the channel transcribes them). Channels build a turn; the engine
+consumes it.
 
 **Channel** — how you talk to the companion (Telegram, built-in web chat). A thin adapter
 over the engine.
