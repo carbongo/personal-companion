@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.output/
+web/dist/
+*.db
+*.db-shm
+*.db-wal
+data/
+uploads/
+persona/
+*.local.md
+.env
+.env.*
+!.env.example
+.claude/
+.DS_Store
+*.log
