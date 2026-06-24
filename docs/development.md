@@ -26,10 +26,12 @@ curl localhost:8080/health    # {"status":"ok",...}
 | ------------------- | ------------ |
 | `bun run dev`       | Server in watch mode. |
 | `bun run start`     | Server, once. |
+| `bun run chat`      | Terminal REPL to talk to the engine (needs a model). |
+| `bun run db:generate` | Regenerate Drizzle migrations after a schema change. |
 | `bun run check`     | Biome lint + format check. |
 | `bun run format`    | Biome format, write. |
 | `bun run typecheck` | `tsc --noEmit`. |
-| `bun test`          | Run tests. |
+| `bun test`          | Run tests (in-memory DB via `bunfig.toml` preload). |
 
 CI (`.github/workflows/ci.yml`) runs `check`, `typecheck`, `bun test`, and a Docker build
 on every push and PR.
@@ -43,9 +45,10 @@ on every push and PR.
 
 ## Database & migrations
 
-Schema lives in `src/db/` (Drizzle). Migrations are generated from the schema and applied
-on startup against the SQLite file in `DATA_DIR`. (Lands in Phase 1 — see
-[data-model.md](./data-model.md).)
+Schema lives in `src/db/schema.ts` (Drizzle). After changing it, run `bun run db:generate`
+to write a new migration into `drizzle/`, and commit it. Migrations are applied on first DB
+open (including on startup), against the SQLite file in `DATA_DIR`. Tests use an in-memory
+DB. See [data-model.md](./data-model.md).
 
 ## Importing existing companion data
 

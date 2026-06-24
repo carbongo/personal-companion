@@ -4,7 +4,7 @@ Memory is what makes it a companion rather than a chatbot: it carries continuity
 of starting fresh each conversation. There are four moving parts, all in SQLite (see
 [data-model.md](./data-model.md)).
 
-> Status: lands in Phase 1.
+> Status: implemented (Phase 1) in `src/companion-core/memory/`.
 
 ## The four parts
 

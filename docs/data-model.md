@@ -4,8 +4,9 @@ All state is one **SQLite** file under `DATA_DIR`, managed with **Drizzle**. The
 is single-user: there is exactly one companion per deployment. Tables use generic names
 (no persona-specific naming).
 
-> Status: schema lands in Phase 1. This page is the design contract; update it in the
-> same change as any schema edit (see [AGENTS.md](../AGENTS.md)).
+> Status: implemented (Phase 1). Schema lives in `src/db/schema.ts`; migrations are
+> generated into `drizzle/` (`bun run db:generate`) and applied on first open. Update
+> this page in the same change as any schema edit (see [AGENTS.md](../AGENTS.md)).
 
 ## Tables
 
@@ -66,8 +67,9 @@ feature works without any external app.
 | created_at | integer | timestamp |
 
 ### `settings` — persisted configuration edited in the UI
-Persona text and owner facts can be edited in the web UI and persisted here, overlaying
-the file/env defaults. (Key/value or a small typed row — finalized in Phase 1.)
+A simple key/value store. Persona text and owner facts edited in the web UI persist here
+(e.g. a `persona` key), overlaying the file/env defaults. Columns: `key` (pk), `value`,
+`updated_at`.
 
 ## Provenance
 

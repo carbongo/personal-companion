@@ -25,7 +25,7 @@ All vars are documented in [`.env.example`](../.env.example). The ones you'll us
 | `PORT`                    | `8080`               | Web interface port. |
 | `WEB_AUTH_PASSWORD`       | (empty)              | Protects the web UI. Set it unless behind a trusted network. |
 | `LLM_PROVIDER`            | `ollama`             | `ollama` \| `openai-compatible` \| `anthropic`. |
-| `LLM_MODEL`               | `gemma3:12b`         | Model name for the chosen provider. |
+| `LLM_MODEL`               | `gemma4:12b`         | Model name for the chosen provider (recommended local default). |
 | `LLM_OLLAMA_URL`          | `http://localhost:11434` | Local Ollama endpoint. |
 | `LLM_API_KEY` / `LLM_BASE_URL` | (empty)         | For hosted providers. |
 | `TELEGRAM_BOT_TOKEN`      | (empty)              | Enables the Telegram channel; empty = web chat only. |
@@ -33,10 +33,13 @@ All vars are documented in [`.env.example`](../.env.example). The ones you'll us
 
 ## Choosing a brain (provider)
 
-- **Local (default):** install [Ollama](https://ollama.com), `ollama pull <model>`, set
-  `LLM_PROVIDER=ollama` and `LLM_MODEL`. Nothing leaves your machine.
-- **Hosted:** set `LLM_PROVIDER=openai-compatible` (or `anthropic`), `LLM_BASE_URL`, and
-  `LLM_API_KEY`. Works with OpenAI, OpenRouter, Groq, LM Studio, vLLM, and similar.
+- **Local (default):** install [Ollama](https://ollama.com), `ollama pull gemma4:12b`
+  (or another model), set `LLM_PROVIDER=ollama` and `LLM_MODEL`. Nothing leaves your
+  machine.
+- **Hosted:** set `LLM_PROVIDER=openai-compatible`, `LLM_BASE_URL`, and `LLM_API_KEY`.
+  Works with OpenAI, OpenRouter, Groq, LM Studio, vLLM, and similar. (Native `anthropic`
+  is planned; until then, reach Anthropic models through an OpenAI-compatible gateway such
+  as OpenRouter.)
 
 See [decisions/llm-provider-abstraction.md](./decisions/llm-provider-abstraction.md).
 

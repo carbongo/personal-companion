@@ -87,6 +87,11 @@ docs/
 - **Imports:** use the `#/` alias for `src/` (e.g. `import { config } from "#/config/index.ts"`).
 - **Env access** goes through `src/config/` only; the rest of the code takes a typed
   `config` object.
+- **The engine is the seam.** Channels build a `Turn` and call
+  `companion-core/engine.respond` — keep channel- and provider-specific code out of the
+  core (see [`docs/architecture.md`](./docs/architecture.md)).
+- **DB changes:** edit `src/db/schema.ts`, then `bun run db:generate` and commit the new
+  migration in `drizzle/`. Update [`docs/data-model.md`](./docs/data-model.md).
 - **Comments** explain *why*, in the calm register the rest of the file uses. Match the
   surrounding style.
 - **Secrets** never get a real default. Optional features degrade gracefully when unset.

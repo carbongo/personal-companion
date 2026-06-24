@@ -2,21 +2,22 @@
 
 Phased plan. Each phase is a usable increment; the docs stay in sync as each lands.
 
-## Phase 0 — Scaffold ✅ (in progress)
+## Phase 0 — Scaffold ✅
 
 Repo, license, CI, Docker, `.env.example`, the docs wiki, `AGENTS.md`, and a bootable
-Bun + Hono server with `/health`. No companion behaviour yet.
+Bun + Hono server with `/health`.
 
-## Phase 1 — Generic engine
+## Phase 1 — Generic engine ✅
 
-- SQLite schema + Drizzle migrations (see [data-model.md](./data-model.md)).
-- Memory layer: live day, Core, memories, daily summaries, nightly roll-up.
-- Persona assembled from configuration (no hardcoded character).
-- Context providers: date/time + weather.
-- Sidecar actions: `<remember>` / `<core>` / `<note>`.
-- Bounded web access: `<search>` / `<fetch>` with the SSRF guard.
-- **LLM provider abstraction**: Ollama + OpenAI-compatible.
-- The `engine.respond(turn)` seam, with unit tests.
+- ✅ SQLite schema + Drizzle migrations (see [data-model.md](./data-model.md)).
+- ✅ Memory layer: live day, Core, memories, daily summaries, nightly roll-up.
+- ✅ Persona assembled from configuration + neutral presets (no hardcoded character).
+- ✅ Context providers: date/time + weather (Open-Meteo).
+- ✅ Sidecar actions: `<remember>` / `<core>` / `<note>`.
+- ✅ Bounded web access: `<search>` / `<fetch>` with the SSRF guard.
+- ✅ **LLM provider abstraction**: Ollama + OpenAI-compatible (`anthropic` planned).
+- ✅ The `engine.respond(turn)` seam, with unit + integration tests. A terminal REPL
+  (`bun run chat`) exercises it end-to-end.
 
 ## Phase 2 — Telegram channel
 

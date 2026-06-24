@@ -11,6 +11,8 @@
 	"scripts": {
 		"dev": "bun --watch src/server/index.ts",
 		"start": "bun src/server/index.ts",
+		"chat": "bun scripts/chat.ts",
+		"db:generate": "drizzle-kit generate",
 		"typecheck": "tsc --noEmit",
 		"lint": "biome lint .",
 		"format": "biome format --write .",
@@ -18,11 +20,13 @@
 		"test": "bun test"
 	},
 	"dependencies": {
+		"drizzle-orm": "^0.45.1",
 		"hono": "^4.6.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.5",
 		"@types/bun": "^1.3.14",
+		"drizzle-kit": "^0.31.9",
 		"typescript": "^5.7.0"
 	},
 	"engines": {

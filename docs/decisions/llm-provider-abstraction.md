@@ -12,9 +12,10 @@ without the rest of the code caring which.
 Put every model behind one interface — roughly `chat(messages, opts) -> text` — with
 built-in providers:
 
-- **Ollama** (local, the default),
-- **OpenAI-compatible** (OpenAI, OpenRouter, Groq, LM Studio, vLLM, …),
-- **Anthropic** (native).
+- **Ollama** (local, the default) — implemented,
+- **OpenAI-compatible** (OpenAI, OpenRouter, Groq, LM Studio, vLLM, …) — implemented,
+- **Anthropic** (native) — planned; until then, Anthropic models are reachable through an
+  OpenAI-compatible gateway (e.g. OpenRouter).
 
 Provider and model are chosen by config (`LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`,
 `LLM_API_KEY`). The engine depends only on the interface.

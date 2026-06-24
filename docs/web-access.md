@@ -4,7 +4,7 @@ By default the brain has no internet. Web access is a **deliberate, bounded, opt
 exception: the companion can look something up or read a link you shared, and only then
 write its real reply.
 
-> Status: lands with the engine in Phase 1. Toggle with `WEB_ACCESS`.
+> Status: implemented (Phase 1) in `src/companion-core/web.ts`. Toggle with `WEB_ACCESS`.
 
 ## How it works
 
