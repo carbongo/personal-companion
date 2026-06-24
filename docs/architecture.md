@@ -26,8 +26,8 @@ llm/               provider abstraction: chat(messages, opts) -> text
 
 db/                SQLite via Drizzle (data lives in DATA_DIR)
 config/            the only place env is read; hands a typed object around
-server/            Bun + Hono: serves the web SPA, the JSON API, and the bot
-web/               the admin + chat SPA (React + Vite)
+server/            Bun + Hono entry point; boots the channels and the web layer
+   └─ web/         server-rendered pages (Hono JSX) + JSON API + auth (no build step)
 ```
 
 ## The engine seam
@@ -68,6 +68,24 @@ round is wasteful. Instead, context is **injected** and the model **acts via tin
 tags** that the engine parses. Hosted providers may use real tool-calling later as an
 opt-in, but the sidecar path is the portable default. (See
 [decisions/sidecar-tags-not-tool-calling.md](./decisions/sidecar-tags-not-tool-calling.md).)
+
+## The web layer
+
+`server/web/` mounts the whole browser-facing surface onto the same Hono app via one
+`mountWeb(app)` call:
+
+- **Pages** (`pages.tsx`) are server-rendered with Hono JSX — chat, memory admin, setup
+  wizard, login. No SPA bundler; interactivity is a stylesheet and three small scripts
+  served as routes from `assets.ts`. (See
+  [decisions/web-ui-server-rendered-no-build.md](./decisions/web-ui-server-rendered-no-build.md).)
+- **JSON API** (`api.ts`) is the seam those scripts call. The built-in chat (`POST /api/chat`)
+  builds a `turn` and calls `engine.respond` — the exact same path Telegram uses — so the
+  web chat shares one conversation and memory with every other channel.
+- **Auth** (`auth.ts`) gates pages and API behind a `WEB_AUTH_PASSWORD` session cookie, and
+  is a no-op when the password is unset (trusted network). (See [security.md](./security.md).)
+- **Setup wizard** persists persona and owner facts to the DB (live, read every turn) and
+  writes model/name/channel choices to `.env` (applied on restart), after a live model
+  connection test. (See [configuration.md](./configuration.md).)
 
 ## Process model
 

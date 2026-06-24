@@ -28,13 +28,18 @@ Bun + Hono server with `/health`.
 - ⏳ Live end-to-end on a throwaway bot needs a BotFather token (owner-supplied); boot and
   graceful-failure paths are verified.
 
-## Phase 3 — Web interface
+## Phase 3 — Web interface ✅
 
-- Built-in browser chat (no Telegram required).
-- Memory admin: view/edit Core + memories + summaries, trigger roll-up.
-- First-run **setup wizard**: persona, owner facts, model choice + connection test,
-  optional Telegram token.
-- Web auth (`WEB_AUTH_PASSWORD`).
+- ✅ Built-in browser chat (no Telegram required), over the same `engine.respond` seam.
+- ✅ Memory admin (`src/server/web/`): view/edit Core, add/search/delete memories, read
+  daily summaries, and trigger the roll-up on demand.
+- ✅ First-run **setup wizard**: name/owner, persona (preset or custom), owner facts, and
+  a model choice with a live **connection test**, plus an optional Telegram token. Persona
+  and facts apply immediately; model/name/channel changes are written to `.env`.
+- ✅ Web auth (`WEB_AUTH_PASSWORD`): a shared-password session cookie gating pages + API;
+  a no-op on a trusted network when unset.
+- ✅ Server-rendered with **Hono JSX, no build step** (no SPA bundler) — see
+  [decisions/web-ui-server-rendered-no-build.md](./decisions/web-ui-server-rendered-no-build.md).
 
 ## Phase 4 — Package & deploy
 

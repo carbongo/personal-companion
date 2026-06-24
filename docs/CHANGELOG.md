@@ -5,6 +5,27 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-24
 
+- **Phase 3 — Web interface.** A full browser UI served by the same Bun process, with no
+  front-end build step (`src/server/web/`, mounted via `mountWeb(app)`):
+  - *Built-in chat* — `POST /api/chat` builds a `turn` and calls `engine.respond`, the same
+    seam Telegram uses, so the web chat shares one conversation and memory with every channel.
+  - *Memory admin* (`/memory`) — view/edit the Core, add/search/delete memories, read daily
+    summaries, and trigger the roll-up on demand, over a small JSON API (`api.ts`).
+  - *First-run setup wizard* (`/setup`) — name/owner, persona (preset or custom), owner
+    facts, and a model choice with a **live connection test**, plus an optional Telegram
+    token. Persona + facts apply immediately (DB); model/name/channel choices are written to
+    `.env` via a merge-in-place writer (`env-file.ts`) and apply on restart.
+  - *Web auth* (`auth.ts`) — `WEB_AUTH_PASSWORD` gates pages + API behind an `httpOnly`
+    session cookie (HMAC-derived, constant-time check); a no-op when unset (trusted network).
+  - Rendered with **Hono JSX** — `tsconfig.json` gains `jsx`/`jsxImportSource`; one
+    stylesheet + three dependency-free scripts served as routes (`assets.ts`). No new
+    runtime dependency. New ADR:
+    [web-ui-server-rendered-no-build](./decisions/web-ui-server-rendered-no-build.md)
+    (supersedes the earlier React+Vite+Tailwind+shadcn SPA sketch in `tech-stack.md`).
+  - New `settings` key `setup_complete`. Tests now total 53 (added `.env`-writer and
+    session-token units); verified end-to-end over HTTP (read/write API, auth flow,
+    setup save, asset serving).
+
 - **Phase 2 — Telegram channel.** First real channel over the `engine.respond` seam:
   - grammY long-polling adapter (`src/channels/telegram/`): numeric-ID allowlist (others
     silently ignored), text + photo (forwarded as images) + voice notes.

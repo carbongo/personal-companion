@@ -9,9 +9,9 @@ coach, a sounding board.
 nothing leaves your machine. Prefer a hosted model? Drop in any OpenAI-compatible or
 Anthropic key instead. One deployment = one person's companion.
 
-> **Status: early development.** Phase 0 (project scaffold) is in place. The engine,
-> channels, and web interface are landing phase by phase — see
-> [docs/roadmap.md](./docs/roadmap.md).
+> **Status: working, still maturing.** The engine, the Telegram channel, and the web
+> interface (chat + memory admin + first-run setup wizard) are all in place (Phases 0–3).
+> Packaging polish and a data importer are next — see [docs/roadmap.md](./docs/roadmap.md).
 
 ---
 
@@ -21,7 +21,7 @@ Most "AI companion" products are someone else's persona on someone else's server
 reading your conversations. This is the opposite: **your companion, your data, your
 rules**, running on hardware you control, shaped by a persona you write.
 
-## Features (target)
+## Features
 
 - 🧠 **Persistent memory** — a living "Core" doc, discrete saved facts, and a nightly
   roll-up that compresses each day into a summary it reads on later days.
@@ -35,15 +35,19 @@ rules**, running on hardware you control, shaped by a persona you write.
 - 🌐 **Optional web access** — it can search and read links you share, when you let it.
 - 🐳 **One-command deploy** — Docker Compose, with an optional bundled Ollama.
 
-## Quickstart (preview)
+## Quickstart
 
 ```bash
 git clone https://github.com/carbongo/personal-companion
 cd personal-companion
-cp .env.example .env      # edit COMPANION_NAME, your model, etc.
 bun install
-bun run dev               # boots the server (web UI lands in Phase 3)
+bun run dev               # boots the server on http://localhost:8080
 ```
+
+Then open `http://localhost:8080` — with nothing configured yet, you land on the **setup
+wizard**: name your companion, pick a personality, point it at a model (with a live
+connection test), and you're talking. No front-end build step. Prefer the terminal?
+`bun run chat`.
 
 Full setup, configuration, and deployment live in the **[docs wiki](./docs/README.md)**.
 

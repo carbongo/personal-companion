@@ -7,11 +7,11 @@ That favors a small dependency surface, zero-config storage, and a single proces
 | -------------- | ------------------------------- | --- |
 | Runtime        | [Bun](https://bun.sh)           | Fast, batteries-included (test runner, TS, SQLite driver). One toolchain. |
 | Language       | TypeScript                      | Types across the engine/channel/provider seams; ships without a build step on Bun. |
-| HTTP server    | [Hono](https://hono.dev)        | Tiny, fast, runs natively on Bun; serves the API and the web SPA. |
+| HTTP server    | [Hono](https://hono.dev)        | Tiny, fast, runs natively on Bun; serves the JSON API and the web pages. |
 | Telegram       | [grammY](https://grammy.dev)    | Mature, typed Telegram bot framework; long-polling needs no public URL. |
 | Database       | SQLite (`bun:sqlite`)           | Zero-config, single file, perfect for a single-user app. |
 | ORM/migrations | [Drizzle](https://orm.drizzle.team) | Typed schema + migrations without heavyweight tooling. |
-| Web UI         | React + Vite + Tailwind + shadcn/ui | Familiar, self-contained SPA for setup, chat, and memory admin. |
+| Web UI         | Hono JSX (server-rendered) + a little vanilla JS | Setup, chat, and memory admin with **no build step and no SPA bundler** — one stylesheet and three small scripts, served straight from the Bun process. |
 | Lint/format    | [Biome](https://biomejs.dev)    | One fast tool for both; no ESLint+Prettier sprawl. |
 | LLM (default)  | [Ollama](https://ollama.com)    | Local-first brain, no key, no egress. |
 | LLM (hosted)   | OpenAI-compatible / Anthropic   | Bring your own key for a hosted model. |
@@ -23,6 +23,12 @@ That favors a small dependency surface, zero-config storage, and a single proces
 - **One process, one file.** The bot, the cron roll-up, and the web server share a
   process; all state is one SQLite file under `DATA_DIR`. This is what makes deployment a
   single container with a single volume.
+- **No front-end build.** The web UI is rendered with Hono's JSX on the server, styled by
+  one small stylesheet, and made interactive by three dependency-free scripts — all served
+  as routes (see `src/server/web/`). There is no `npm install` of a front-end toolchain, no
+  Vite/Tailwind/PostCSS, and nothing to compile before `bun start`. This keeps the
+  "one command, one process" promise intact. (See
+  [decisions/web-ui-server-rendered-no-build.md](./decisions/web-ui-server-rendered-no-build.md).)
 - **Provider/channel seams keep dependencies optional.** grammY is only needed if you use
   Telegram; a hosted-provider SDK is only needed if you choose it. The core depends on
   none of them directly.

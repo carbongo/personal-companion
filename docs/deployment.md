@@ -4,8 +4,9 @@ One long-lived process serves the web interface and runs the Telegram channel + 
 roll-up. State is one SQLite file under `DATA_DIR`. That makes deployment a single
 container with a single volume.
 
-> Status: the server boots today (Phase 0). The web UI and channels fill in over Phases
-> 2–3; this page describes the intended deployment shape.
+> Status: live through Phase 3 — the server, the Telegram channel, and the web interface
+> (chat + memory admin + setup wizard) all run today. There is **no front-end build step**:
+> the web UI is served straight from the Bun process.
 
 ## Docker Compose (recommended)
 
@@ -25,6 +26,11 @@ Then `ollama pull` your model into that service.
 
 The `./data` volume holds the SQLite DB and uploads — back it up to keep your companion's
 memory.
+
+**First run:** open `http://<host>:<PORT>` in a browser; with nothing configured yet it
+lands on the **setup wizard**, which tests your model and writes a `.env`. Set
+`WEB_AUTH_PASSWORD` if the port is reachable by anyone but you (see
+[security.md](./security.md)).
 
 ## Bare Bun
 

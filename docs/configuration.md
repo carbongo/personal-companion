@@ -5,8 +5,8 @@ There are three layers, in order of precedence (later overrides earlier):
 1. **Defaults** — sensible built-ins, so it runs with almost no config.
 2. **Environment** (`.env`) — operational settings and secrets.
    See the fully-commented [`.env.example`](../.env.example).
-3. **Persona** — *who the companion is*: a file (and, once the UI lands, editable in the
-   browser and persisted to the `settings` table).
+3. **Persona** — *who the companion is*: editable in the browser (setup wizard) and
+   persisted to the `settings` table, or a `persona/persona.md` file, or a preset.
 
 > The full personality is **configuration, never code.** The repo ships neutral presets;
 > you adapt one or write your own. Your filled-in `.env` and `persona/` are gitignored —
@@ -30,6 +30,19 @@ All vars are documented in [`.env.example`](../.env.example). The ones you'll us
 | `LLM_API_KEY` / `LLM_BASE_URL` | (empty)         | For hosted providers. |
 | `TELEGRAM_BOT_TOKEN`      | (empty)              | Enables the Telegram channel; empty = web chat only. |
 | `TELEGRAM_ALLOWED_USER_IDS` | (empty)            | Comma-separated allowlist of Telegram user IDs. |
+
+## The web interface
+
+The app serves a browser UI on `PORT` (default `8080`): the built-in **chat**, a **memory
+admin**, and a first-run **setup wizard**. There is nothing to build or install — it is
+rendered server-side and served straight from the Bun process.
+
+- **First run:** with no setup saved yet, the root path redirects to `/setup`. Fill it in,
+  test your model, and finish. The wizard writes a `.env` for you, so subsequent edits live
+  there (or back in `/setup`).
+- **Auth:** set `WEB_AUTH_PASSWORD` to require a password (a session cookie gates the whole
+  interface and API). Leave it empty only behind a trusted network (a tailnet, localhost) —
+  see [security.md](./security.md).
 
 ## Choosing a brain (provider)
 
@@ -81,13 +94,19 @@ Photos are forwarded as images to vision-capable models regardless of STT.
 ## The persona
 
 The persona defines identity, relationship, tone, interests, language, and hard style
-rules. It is assembled into the system prompt at runtime. You set it by:
+rules. It is assembled into the system prompt at runtime, resolved in this order of
+precedence: a **settings override saved in the web UI**, then a **`persona/persona.md`
+file**, then the chosen **preset**. You set it by:
 
-- **Setup wizard** (Phase 3): a first-run flow in the web UI that asks the key questions
-  and writes the persona for you, including a "test your model connection" step.
-- **Persona file** (advanced): edit `persona/` directly.
-- **Web UI** (Phase 3): edit persona and owner facts in the browser; persisted to the
-  `settings` table, overlaying file/env.
+- **Setup wizard** (`/setup`): a first-run flow in the web UI that asks the key questions —
+  name, what it calls you, a preset or a custom persona, a few facts about you, and your
+  model — including a live "test your model connection" step. Persona and facts take effect
+  immediately; model/name/channel choices are written to your `.env` and apply on restart.
+- **Web UI** (`/setup` again any time): edit persona and owner facts in the browser; the
+  persona is persisted to the `settings` table (overlaying the file/preset) and the facts
+  seed the Core. The wizard doubles as the settings screen.
+- **Persona file** (advanced): edit `persona/persona.md` directly. `{{name}}` / `{{owner}}`
+  placeholders are interpolated.
 
 ### Presets
 

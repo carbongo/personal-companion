@@ -89,7 +89,13 @@ docs/
   `config` object.
 - **The engine is the seam.** Channels build a `Turn` and call
   `companion-core/engine.respond` — keep channel- and provider-specific code out of the
-  core (see [`docs/architecture.md`](./docs/architecture.md)).
+  core (see [`docs/architecture.md`](./docs/architecture.md)). The built-in web chat is a
+  channel like any other: it calls `respond` too.
+- **The web UI has no build step.** It lives in `src/server/web/`, rendered server-side
+  with Hono JSX (files with JSX use `.tsx`; `tsconfig.json` sets `jsxImportSource`). The
+  one stylesheet and the page scripts are strings in `assets.ts` served as routes — do
+  **not** add Vite/Tailwind/a bundler or a front-end `node_modules` (see
+  [`docs/decisions/web-ui-server-rendered-no-build.md`](./docs/decisions/web-ui-server-rendered-no-build.md)).
 - **DB changes:** edit `src/db/schema.ts`, then `bun run db:generate` and commit the new
   migration in `drizzle/`. Update [`docs/data-model.md`](./docs/data-model.md).
 - **Comments** explain *why*, in the calm register the rest of the file uses. Match the

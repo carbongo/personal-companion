@@ -14,5 +14,6 @@ engineer. Keep them short: Context, Decision, Consequences, and Alternatives con
 - [channel-abstraction](./channel-abstraction.md) — the `engine.respond(turn)` seam
 - [persona-as-configuration](./persona-as-configuration.md) — personality is config, not code
 - [local-first-default-and-web-auth](./local-first-default-and-web-auth.md) — privacy posture
+- [web-ui-server-rendered-no-build](./web-ui-server-rendered-no-build.md) — Hono JSX, no SPA bundler
 - [sidecar-tags-not-tool-calling](./sidecar-tags-not-tool-calling.md) — how the model acts
 - [bounded-web-access](./bounded-web-access.md) — deliberate, guarded egress

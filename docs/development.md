@@ -20,6 +20,12 @@ Check it's alive:
 curl localhost:8080/health    # {"status":"ok",...}
 ```
 
+Then open `http://localhost:8080` for the web interface (setup wizard, chat, memory admin).
+It is server-rendered with Hono JSX and has **no front-end build step** — edit the pages in
+`src/server/web/pages.tsx` and the CSS/JS strings in `src/server/web/assets.ts`, and
+`bun run dev` reloads. JSX needs `jsx`/`jsxImportSource` in `tsconfig.json` (already set);
+files containing JSX use the `.tsx` extension.
+
 ## Scripts
 
 | Command             | What it does |

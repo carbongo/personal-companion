@@ -16,9 +16,14 @@ stays on your infrastructure, and the few ways in are locked down.**
 
 ## The ways in, and how they're guarded
 
-- **Web interface** — protected by `WEB_AUTH_PASSWORD`. Unlike a Tailscale-only setup,
-  this project assumes you *might* expose the port, so set a password. For extra safety,
-  put it behind Tailscale or a reverse proxy with TLS. (Web auth lands in Phase 3.)
+- **Web interface** — protected by `WEB_AUTH_PASSWORD`. When set, every page and API route
+  sits behind a login; a correct password issues an `httpOnly`, `SameSite=Lax` session
+  cookie whose value is an HMAC derived from the password (the password itself never travels
+  in the cookie, and rotating it invalidates old sessions). The password is checked in
+  constant time. When the password is **empty there is no app-level auth** — appropriate
+  only on a trusted network, since the project assumes you *might* expose the port. For
+  extra safety, put it behind Tailscale or a reverse proxy with TLS. `/health` and the
+  static assets stay open so health checks and the login page work.
 - **Telegram** — an **allowlist** (`TELEGRAM_ALLOWED_USER_IDS`); messages from anyone not
   listed are silently ignored. The bot token is the one required secret for that channel.
 - **Web access egress** — off-by-config-able, bounded, and behind an **SSRF guard** that

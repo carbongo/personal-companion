@@ -67,9 +67,11 @@ feature works without any external app.
 | created_at | integer | timestamp |
 
 ### `settings` — persisted configuration edited in the UI
-A simple key/value store. Persona text and owner facts edited in the web UI persist here
-(e.g. a `persona` key), overlaying the file/env defaults. Columns: `key` (pk), `value`,
-`updated_at`.
+A simple key/value store. Keys in use today: `persona` (a persona override saved from the
+web UI, overlaying the file/preset and read every turn) and `setup_complete` (`"1"` once
+the setup wizard has been saved, which is what flips the root path from the wizard to the
+chat). Owner facts from the wizard seed the `core` doc rather than living here. Columns:
+`key` (pk), `value`, `updated_at`.
 
 ## Provenance
 

@@ -5,8 +5,8 @@ neutral `turn` (`{ text, images?, kind?, mediaUrl? }`), calls `engine.respond`, 
 the `{ reply }` it returns. The engine is channel-agnostic, so channels are thin adapters.
 (See the seam in [architecture.md](./architecture.md).)
 
-> Status: the terminal REPL (`bun run chat`) and Telegram are live (Phase 2); the built-in
-> web chat lands in Phase 3.
+> Status: all three channels are live — the terminal REPL (`bun run chat`), Telegram
+> (Phase 2), and the built-in web chat (Phase 3).
 
 ## Telegram (optional)
 
@@ -30,9 +30,23 @@ needed, so it runs from anywhere, including behind NAT.
 ## Built-in web chat
 
 A browser chat served by the same Bun process, so you can use the companion with **no
-Telegram setup at all**. It uses the same engine and memory; messages persist to the same
-`messages` table. The web chat shares the web interface with the setup wizard and memory
-admin, behind `WEB_AUTH_PASSWORD`. (See [security.md](./security.md).)
+Telegram setup at all**. Open the app in a browser and talk to it. It posts each message to
+`POST /api/chat`, which builds a `turn` and calls `engine.respond` — the same seam Telegram
+uses — so the web chat shares one conversation and memory with every other channel (messages
+persist to the same `messages` table, bucketed by the live day).
+
+The chat is one screen of a small web interface that also includes:
+
+- **Memory admin** (`/memory`) — read and edit the Core, add / search / delete saved
+  memories, read the daily summaries, and trigger the nightly roll-up on demand. (See
+  [memory.md](./memory.md).)
+- **Setup wizard** (`/setup`) — a first-run flow (name, owner, persona, owner facts, model
+  with a live connection test, optional Telegram token). (See
+  [configuration.md](./configuration.md).)
+
+The whole interface sits behind `WEB_AUTH_PASSWORD` and is rendered server-side with Hono
+JSX — no build step (see [security.md](./security.md) and
+[architecture.md](./architecture.md)).
 
 ## Adding a channel
 
