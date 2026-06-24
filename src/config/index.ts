@@ -92,7 +92,7 @@ export interface TelegramConfig {
 	batchMaxMs: number;
 }
 
-export type SttProviderName = "off" | "openai" | "whisper-http";
+export type SttProviderName = "off" | "openai" | "whisper-http" | "local";
 
 export interface SttConfig {
 	provider: SttProviderName;
@@ -100,6 +100,14 @@ export interface SttConfig {
 	apiUrl: string;
 	apiKey: string;
 	model: string;
+	/** whisper.cpp CLI binary (provider "local"); resolved on PATH if bare. */
+	localBin: string;
+	/** Path to a ggml/gguf whisper model file (provider "local"). */
+	localModel: string;
+	/** ffmpeg binary used to normalize audio to 16 kHz mono wav (provider "local"). */
+	ffmpegBin: string;
+	/** Spoken-language hint, or "auto" to detect (provider "local"). */
+	language: string;
 }
 
 export interface MemoryConfig {
@@ -181,6 +189,10 @@ export function loadConfig(): Config {
 			apiUrl: str("STT_API_URL", "").replace(/\/+$/, ""),
 			apiKey: str("STT_API_KEY", ""),
 			model: str("STT_MODEL", "whisper-1"),
+			localBin: str("STT_LOCAL_BIN", "whisper-cli"),
+			localModel: str("STT_LOCAL_MODEL", ""),
+			ffmpegBin: str("STT_FFMPEG_BIN", "ffmpeg"),
+			language: str("STT_LANGUAGE", "auto"),
 		},
 		memory: {
 			contextDays: num("MEMORY_CONTEXT_DAYS", 7),

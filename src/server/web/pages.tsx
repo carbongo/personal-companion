@@ -79,7 +79,31 @@ export const ChatPage = (props: {
 				Talking to {props.name} — {props.brain.provider}/{props.brain.model}
 			</div>
 			<div class="msgs" id="msgs" />
+			<div class="attachments hidden" id="attachments" />
 			<div class="composer">
+				<input
+					type="file"
+					id="file"
+					accept="image/*,audio/*"
+					multiple
+					class="hidden"
+				/>
+				<button
+					type="button"
+					id="attach"
+					class="ghost icon"
+					title="Attach an image or audio file"
+				>
+					+
+				</button>
+				<button
+					type="button"
+					id="mic"
+					class="ghost icon hidden"
+					title="Record a voice note"
+				>
+					🎤
+				</button>
 				<textarea id="text" placeholder="Message…" rows={1} />
 				<button type="button" id="send">
 					Send
@@ -533,8 +557,13 @@ export const SetupPage = (props: {
 					>
 						Whisper (OpenAI-compatible HTTP)
 					</option>
+					<option value="local" selected={v.sttProvider === "local"}>
+						Local (whisper.cpp on this machine)
+					</option>
 				</select>
-				<label for="sttApiUrl">Transcription endpoint URL</label>
+				<label for="sttApiUrl">
+					Transcription endpoint URL (HTTP provider)
+				</label>
 				<input
 					type="text"
 					id="sttApiUrl"
@@ -550,13 +579,36 @@ export const SetupPage = (props: {
 					placeholder={v.sttConfigured ? "•".repeat(12) : ""}
 					autocomplete="off"
 				/>
-				<label for="sttModel">Model</label>
+				<label for="sttModel">Model (HTTP provider)</label>
 				<input
 					type="text"
 					id="sttModel"
 					value={v.sttModel}
 					placeholder="whisper-1"
 				/>
+				<label for="sttLocalModel">
+					Local model file (whisper.cpp ggml/gguf — Local provider)
+				</label>
+				<input
+					type="text"
+					id="sttLocalModel"
+					value={v.sttLocalModel}
+					placeholder="./data/models/ggml-base.bin"
+				/>
+				<label for="sttLanguage">
+					Spoken language (Local provider; "auto" detects)
+				</label>
+				<input
+					type="text"
+					id="sttLanguage"
+					value={v.sttLanguage}
+					placeholder="auto"
+				/>
+				<p class="sub">
+					Local needs <code>whisper-cli</code> and <code>ffmpeg</code> on PATH
+					(override with <code>STT_LOCAL_BIN</code> /{" "}
+					<code>STT_FFMPEG_BIN</code>).
+				</p>
 			</div>
 
 			<h2>Weather (optional)</h2>

@@ -6,6 +6,7 @@
  * ./index.ts. See docs/channels.md and docs/configuration.md.
  */
 import { Hono } from "hono";
+import { sttConfigured, transcribe } from "#/channels/stt.ts";
 import { telegramConfigured } from "#/channels/telegram/index.ts";
 import { companionConfigured, respond } from "#/companion-core/engine.ts";
 import { runDailyRollup } from "#/companion-core/memory/rollup.ts";
@@ -79,6 +80,8 @@ interface SetupBody {
 	sttApiUrl?: string;
 	sttApiKey?: string;
 	sttModel?: string;
+	sttLocalModel?: string;
+	sttLanguage?: string;
 	// weather
 	weatherLat?: string;
 	weatherLon?: string;
@@ -118,6 +121,13 @@ api.get("/state", (c) => {
 		companionConfigured: companionConfigured(),
 		channels: { telegram: telegramConfigured() },
 		web: { enabled: config.web.enabled },
+		// So the browser chat behaves like Telegram: the same burst-batching
+		// window, and whether voice notes can be transcribed.
+		chat: {
+			batchIdleMs: config.telegram.batchIdleMs,
+			batchMaxMs: config.telegram.batchMaxMs,
+			voice: sttConfigured(),
+		},
 	});
 });
 
@@ -136,14 +146,56 @@ api.get("/messages", (c) => {
 });
 
 api.post("/chat", async (c) => {
-	const body = (await c.req.json().catch(() => ({}))) as { text?: string };
+	const body = (await c.req.json().catch(() => ({}))) as {
+		text?: string;
+		images?: string[];
+		kind?: "text" | "voice" | "photo";
+	};
 	const text = (body.text ?? "").trim();
-	if (!text) return c.json({ error: "text is required" }, 400);
+	// base64 image data (no data: prefix), one entry per attached image.
+	const images = Array.isArray(body.images)
+		? body.images.filter((s) => typeof s === "string" && s.length > 0)
+		: [];
+	if (!text && !images.length)
+		return c.json({ error: "text or an image is required" }, 400);
 	if (!companionConfigured())
 		return c.json({ error: "No model is configured yet. Visit Setup." }, 503);
+	const kind = images.length ? "photo" : (body.kind ?? "text");
 	try {
-		const { reply } = await respond({ text, kind: "text" });
+		const { reply } = await respond({
+			text,
+			images: images.length ? images : undefined,
+			kind,
+		});
 		return c.json({ reply });
+	} catch (err) {
+		return c.json({ error: (err as Error).message }, 500);
+	}
+});
+
+// Transcribe an uploaded/recorded voice note to text, so the browser chat can
+// send voice the way Telegram does. Shares one STT backend with every channel.
+api.post("/transcribe", async (c) => {
+	if (!sttConfigured())
+		return c.json(
+			{ error: "Voice isn't set up. Configure speech-to-text in Settings." },
+			503,
+		);
+	let bytes: Uint8Array;
+	let filename = "voice.webm";
+	try {
+		const form = await c.req.parseBody();
+		const file = form.file;
+		if (!(file instanceof File)) return c.json({ error: "no audio file" }, 400);
+		filename = file.name || filename;
+		bytes = new Uint8Array(await file.arrayBuffer());
+	} catch {
+		return c.json({ error: "could not read the audio" }, 400);
+	}
+	if (!bytes.length) return c.json({ error: "empty audio" }, 400);
+	try {
+		const text = await transcribe(bytes, filename);
+		return c.json({ text });
 	} catch (err) {
 		return c.json({ error: (err as Error).message }, 500);
 	}
@@ -274,6 +326,8 @@ api.post("/setup", async (c) => {
 		STT_PROVIDER: opt(b.sttProvider),
 		STT_API_URL: opt(b.sttApiUrl),
 		STT_MODEL: opt(b.sttModel),
+		STT_LOCAL_MODEL: opt(b.sttLocalModel),
+		STT_LANGUAGE: opt(b.sttLanguage),
 		WEATHER_LAT: opt(b.weatherLat),
 		WEATHER_LON: opt(b.weatherLon),
 		WEATHER_LOCATION_NAME: opt(b.weatherLocationName),

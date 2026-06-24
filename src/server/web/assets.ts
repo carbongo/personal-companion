@@ -67,9 +67,18 @@ button:disabled { opacity: .5; cursor: default; }
 .msg.user { align-self: flex-end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; }
 .msg.assistant { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
 .msg.kind { font-size: 11px; opacity: .7; }
-.composer { display: flex; gap: 10px; padding: 12px 0 4px; border-top: 1px solid var(--line); }
+.composer { display: flex; gap: 8px; padding: 12px 0 4px; border-top: 1px solid var(--line); align-items: flex-end; }
 .composer textarea { min-height: 0; height: 44px; max-height: 160px; }
+.composer .icon { width: 44px; height: 44px; padding: 0; font-size: 18px; line-height: 1; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+.composer .icon.recording { background: var(--bad); color: #fff; border-color: var(--bad); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 .empty { color: var(--muted); text-align: center; margin-top: 40px; }
+.msg .thumb { display: block; margin-top: 6px; max-width: 220px; max-height: 220px; border-radius: 8px; }
+.msg.info { background: var(--panel-2); color: var(--muted); font-size: 13px; }
+.attachments { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 0 0; }
+.attachments .chip { position: relative; width: 56px; height: 56px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+.attachments .chip img { width: 100%; height: 100%; object-fit: cover; }
+.attachments .chip button { position: absolute; top: 1px; right: 1px; width: 18px; height: 18px; padding: 0; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; line-height: 1; border: 0; }
 
 /* lists */
 .mem { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); }
@@ -102,15 +111,36 @@ export const CHAT_JS = `
 const msgs = document.getElementById('msgs');
 const ta = document.getElementById('text');
 const send = document.getElementById('send');
+const fileInput = document.getElementById('file');
+const attachBtn = document.getElementById('attach');
+const micBtn = document.getElementById('mic');
+const attachRow = document.getElementById('attachments');
+
+// Behaves like the Telegram channel: a burst of quick messages folds into one
+// turn after a short idle window (never one reply per line), the reply splits
+// into separate bubbles, images attach, and voice notes are transcribed. The
+// window matches Telegram's — both are fetched from /api/state below.
+const cfg = { idle: 2500, max: 15000, voice: false };
+
+let staged = [];       // images staged for the next message: { b64, url }
+let voiceFlag = false; // the next send originated from a voice note
+let buffer = [];       // lines waiting to be folded into one turn
+let idleTimer = null, maxTimer = null, flushing = false;
 
 function el(role, content, kind) {
 	const d = document.createElement('div');
 	d.className = 'msg ' + (role === 'user' ? 'user' : 'assistant');
 	if (kind && kind !== 'text') { const k = document.createElement('div'); k.className = 'kind'; k.textContent = kind; d.appendChild(k); }
-	d.appendChild(document.createTextNode(content));
+	if (content) d.appendChild(document.createTextNode(content));
+	return d;
+}
+function userBubble(text, urls, kind) {
+	const d = el('user', text, kind);
+	for (const url of (urls || [])) { const img = document.createElement('img'); img.className = 'thumb'; img.src = url; d.appendChild(img); }
 	return d;
 }
 function scroll() { msgs.scrollTop = msgs.scrollHeight; }
+function note(text) { const n = document.createElement('div'); n.className = 'msg assistant info'; n.textContent = text; msgs.appendChild(n); scroll(); return n; }
 
 // An assistant reply can span paragraphs; show each as its own bubble — the same
 // texting feel the Telegram channel produces by splitting on blank lines.
@@ -120,6 +150,56 @@ function splitParas(content) {
 }
 function appendAssistant(content, kind) {
 	splitParas(content).forEach((p, i) => msgs.appendChild(el('assistant', p, i === 0 ? kind : undefined)));
+}
+
+function readAsBase64(file) {
+	return new Promise((resolve, reject) => {
+		const fr = new FileReader();
+		fr.onload = () => { const s = String(fr.result); resolve(s.slice(s.indexOf(',') + 1)); };
+		fr.onerror = reject;
+		fr.readAsDataURL(file);
+	});
+}
+
+function renderStaged() {
+	attachRow.innerHTML = '';
+	attachRow.classList.toggle('hidden', staged.length === 0);
+	staged.forEach((a, i) => {
+		const chip = document.createElement('div'); chip.className = 'chip';
+		const img = document.createElement('img'); img.src = a.url; chip.appendChild(img);
+		const x = document.createElement('button'); x.type = 'button'; x.textContent = '×';
+		x.addEventListener('click', () => { staged.splice(i, 1); renderStaged(); });
+		chip.appendChild(x); attachRow.appendChild(chip);
+	});
+}
+
+async function addFiles(files) {
+	for (const file of files) {
+		if (file.type.indexOf('image/') === 0) {
+			const b64 = await readAsBase64(file);
+			staged.push({ b64: b64, url: 'data:' + file.type + ';base64,' + b64 });
+			renderStaged();
+		} else if (file.type.indexOf('audio/') === 0) {
+			await transcribeInto(file, file.name || 'audio');
+		}
+	}
+}
+
+// Send a voice note to the shared STT backend and drop the transcript into the
+// composer for a quick review before sending (the send is tagged 'voice').
+async function transcribeInto(blob, name) {
+	if (!cfg.voice) { note("Voice isn't set up — turn on speech-to-text in Settings."); return; }
+	const n = note('Transcribing voice note…');
+	try {
+		const fd = new FormData(); fd.append('file', blob, name);
+		const r = await fetch('/api/transcribe', { method: 'POST', body: fd });
+		const data = await r.json();
+		n.remove();
+		if (r.ok && data.text) {
+			ta.value = (ta.value ? ta.value + ' ' : '') + data.text; voiceFlag = true;
+			ta.style.height = '44px'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; ta.focus();
+		} else { note(data.error || "I couldn't make out that voice note."); }
+	} catch { n.remove(); note("Couldn't reach the server for transcription."); }
 }
 
 async function load() {
@@ -137,29 +217,90 @@ async function load() {
 	} catch {}
 }
 
-async function submit() {
+function armTimers() {
+	if (idleTimer) clearTimeout(idleTimer);
+	idleTimer = setTimeout(flush, cfg.idle);
+	if (!maxTimer) maxTimer = setTimeout(flush, cfg.max);
+}
+
+// Stage one composed line (text + any images) into the current burst, show it
+// immediately like a sent message, and (re)arm the batch window.
+function submit() {
 	const text = ta.value.trim();
-	if (!text) return;
-	ta.value = ''; ta.style.height = '44px';
+	const images = staged.map((a) => a.b64);
+	const urls = staged.map((a) => a.url);
+	if (!text && !images.length) return;
+	const kind = voiceFlag ? 'voice' : (images.length ? 'photo' : 'text');
 	const empty = msgs.querySelector('.empty'); if (empty) empty.remove();
-	msgs.appendChild(el('user', text)); scroll();
-	send.disabled = true; ta.disabled = true;
+	msgs.appendChild(userBubble(text, urls, kind)); scroll();
+	buffer.push({ text: text, images: images, kind: kind });
+	ta.value = ''; ta.style.height = '44px'; staged = []; voiceFlag = false; renderStaged();
+	armTimers();
+}
+
+async function flush() {
+	if (flushing) return; // a send is in flight; its finally re-arms if needed
+	if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+	if (maxTimer) { clearTimeout(maxTimer); maxTimer = null; }
+	if (!buffer.length) return;
+
+	const items = buffer; buffer = [];
+	const text = items.map((i) => i.text).filter(Boolean).join('\\n');
+	const images = items.reduce((acc, i) => acc.concat(i.images), []);
+	const kind = images.length ? 'photo' : (items.some((i) => i.kind === 'voice') ? 'voice' : 'text');
+
+	flushing = true; send.disabled = true;
 	const pending = el('assistant', '…'); msgs.appendChild(pending); scroll();
 	try {
-		const r = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+		const r = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: text, images: images, kind: kind }) });
 		const data = await r.json();
 		if (r.ok) { pending.remove(); appendAssistant(data.reply); }
 		else pending.replaceWith(el('assistant', data.error || 'Something went wrong.'));
 	} catch {
 		pending.replaceWith(el('assistant', "Couldn't reach the server."));
 	}
-	send.disabled = false; ta.disabled = false; scroll(); ta.focus();
+	flushing = false; send.disabled = false; scroll(); ta.focus();
+	if (buffer.length) armTimers(); // messages arrived mid-flight → next turn
 }
 
+// --- voice recording (works on secure origins incl. localhost) ---------------
+let recorder = null, chunks = [];
+async function toggleRecord() {
+	if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
+	if (!navigator.mediaDevices || !window.MediaRecorder) { note('Recording needs a secure (https or localhost) connection — attach an audio file instead.'); return; }
+	try {
+		const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+		recorder = new MediaRecorder(stream); chunks = [];
+		recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+		recorder.onstop = () => {
+			micBtn.classList.remove('recording');
+			stream.getTracks().forEach((t) => t.stop());
+			const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+			if (blob.size) transcribeInto(blob, 'voice.webm');
+		};
+		recorder.start(); micBtn.classList.add('recording');
+	} catch { note("Couldn't access the microphone."); }
+}
+
+attachBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { addFiles(Array.from(fileInput.files)); fileInput.value = ''; });
+micBtn.addEventListener('click', toggleRecord);
 send.addEventListener('click', submit);
 ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
 ta.addEventListener('input', () => { ta.style.height = '44px'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; });
-load();
+ta.addEventListener('paste', (e) => { const files = Array.from((e.clipboardData && e.clipboardData.files) || []); if (files.length) { e.preventDefault(); addFiles(files); } });
+
+async function init() {
+	try {
+		const r = await fetch('/api/state');
+		if (r.ok) {
+			const s = await r.json();
+			if (s.chat) { cfg.idle = s.chat.batchIdleMs || cfg.idle; cfg.max = s.chat.batchMaxMs || cfg.max; cfg.voice = !!s.chat.voice; }
+		}
+	} catch {}
+	micBtn.classList.toggle('hidden', !cfg.voice);
+}
+init(); load();
 `;
 
 export const ADMIN_JS = `
@@ -341,6 +482,8 @@ function body() {
 		sttApiUrl: val('sttApiUrl'),
 		sttApiKey: raw('sttApiKey'),
 		sttModel: val('sttModel'),
+		sttLocalModel: val('sttLocalModel'),
+		sttLanguage: val('sttLanguage'),
 		weatherLat: val('weatherLat'),
 		weatherLon: val('weatherLon'),
 		weatherLocationName: val('weatherLocationName'),

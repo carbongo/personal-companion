@@ -5,6 +5,30 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-24
 
+- **Roll-up scheduler — the nightly summary is now actually driven (and downtime-resilient).**
+  Until now nothing called `runDailyRollup` automatically (only the web button did);
+  `MEMORY_SUMMARY_CRON` was read and shown in Settings but never acted on. New
+  `src/companion-core/memory/scheduler.ts` runs in-process: a once-a-minute tick matches the
+  cron (dependency-free 5-field matcher, in `TZ`) and wraps the day that's ending. Resilient
+  to a laptop that's asleep/off at the scheduled minute — it backfills missed days **on boot**
+  and on a **periodic safety tick (~30 min)**, so "yesterday" gets summarized the moment the
+  box is back up; the in-progress day is never wrapped early. `rollup.ts` split into
+  `runDailyRollup()` (includes today) and `backfillPastDays()` (finished days only). Wired in
+  `server/index.ts` (no-op when no model is configured). +21 tests (scheduler + rollup).
+- **Local speech-to-text via whisper.cpp (`STT_PROVIDER=local`).** A fourth STT backend that
+  shells out to `whisper-cli` with `ffmpeg` normalizing the audio — no daemon, no network,
+  nothing leaves the box (and nothing to restart after a reboot). New env
+  `STT_LOCAL_MODEL` / `STT_LOCAL_BIN` / `STT_FFMPEG_BIN` / `STT_LANGUAGE`; surfaced in
+  Settings. `sttConfigured()` reports ready only when the model file exists, so voice degrades
+  gracefully to "text me instead". Pure arg-builders + an injected runner keep it unit-tested.
+- **Web chat reaches Telegram parity: batching, images, voice.** The browser chat now folds a
+  burst of quick messages into one turn (client-side debounce using the same
+  `batchIdleMs`/`batchMaxMs`, now exposed on `/api/state`), shows a typing bubble, attaches or
+  pastes **images** (sent as base64 to vision models), and records from the **mic** / uploads
+  **audio** which POSTs to the new `POST /api/transcribe` (shared STT backend). `POST /api/chat`
+  now accepts `images`. Telegram gains a `[telegram] batched N messages into one turn` log so
+  the batching is observable.
+
 - **Web UI: the Settings page now exposes the full `.env` configuration.** The nav item and
   page are renamed **Settings** (the heading already read "Settings" after first run; the
   `/setup` route is unchanged). Every variable in `.env.example` is now editable in the

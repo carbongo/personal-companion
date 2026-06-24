@@ -31,10 +31,25 @@ without limit. This is the same frugal model that lets a small local model keep 
 
 ## The nightly roll-up
 
-On `MEMORY_SUMMARY_CRON` (default `55 23 * * *`, in `TZ`), the engine summarizes the day
-that's ending and **backfills** any earlier day that has messages but no summary yet
-(e.g. a night the box was off). The roll-up runs in-process; if the model is unreachable
-it pauses and catches up on the next run.
+A scheduler runs in-process (`src/companion-core/memory/scheduler.ts`) — no external cron.
+On a once-a-minute tick it matches `MEMORY_SUMMARY_CRON` (default `55 23 * * *`, in `TZ`,
+via a small dependency-free 5-field matcher) and summarizes the day that's ending. Every
+run also **backfills** any earlier day that has messages but no summary yet. If the model
+is unreachable it pauses and catches up on the next run.
+
+**Resilient to downtime.** A laptop is often asleep or shut down at the scheduled minute,
+so the schedule alone isn't enough. Two safety nets cover that without any "wake the box"
+trickery:
+
+- **on boot** — the scheduler immediately backfills any finished past day that has no
+  summary, so "yesterday" is wrapped the moment the box is back up;
+- **a periodic safety tick** — every ~30 minutes it backfills past days again, covering the
+  case where the box slept straight through the nightly minute and never restarted.
+
+The in-progress day is never summarized early — backfill only touches finished past days;
+the nightly run is the only one that wraps *today*, as the day closes. The new day begins on
+its own: messages are bucketed by the live local day (`TZ`), so the first message after
+midnight simply lands in the new day's bucket.
 
 ## Token frugality
 

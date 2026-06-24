@@ -21,7 +21,7 @@ The current day is the live working memory; past days live on only as their summ
 | role       | text      | `user` \| `assistant` |
 | kind       | text      | `text` \| `voice` \| `photo` |
 | content    | text      | what gets persisted and shown back as context |
-| media_url  | text null | `/uploads/…` path for an attachment, if any |
+| media_url  | text null | reserved for a future attachment path; **not yet wired** — no channel populates it and nothing serves `/uploads` (importers may set it, but it isn't read back yet) |
 | created_at | integer   | timestamp, indexed |
 
 ### `core` — the living "Core" document

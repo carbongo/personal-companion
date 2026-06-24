@@ -1,7 +1,7 @@
 /**
  * HTTP entry point. A single long-lived Bun process serves the web interface
- * (setup wizard + built-in chat + memory admin), runs the Telegram channel,
- * and — in a later phase — the nightly memory roll-up, all in the same process.
+ * (setup wizard + built-in chat + memory admin), runs the Telegram channel, and
+ * drives the nightly memory roll-up, all in the same process.
  *
  * Importing the db here applies migrations on boot. The engine is reachable from
  * a terminal (`bun run chat`), over Telegram, and through the web interface and
@@ -13,6 +13,12 @@ import {
 	startTelegram,
 	telegramConfigured,
 } from "#/channels/telegram/index.ts";
+import { companionConfigured } from "#/companion-core/engine.ts";
+import {
+	backfillPastDays,
+	runDailyRollup,
+} from "#/companion-core/memory/rollup.ts";
+import { RollupScheduler } from "#/companion-core/memory/scheduler.ts";
 import { config } from "#/config/index.ts";
 import "#/db/index.ts"; // open + migrate the database on boot
 import { provider } from "#/llm/index.ts";
@@ -44,6 +50,26 @@ console.log(
 	`[companion] Web interface: enabled (auth ${webAuthEnabled() ? "on" : "off"}` +
 		`${isSetupComplete() ? "" : ", first-run setup pending"})`,
 );
+
+// Nightly roll-up — driven in-process so it needs no external cron, and resilient
+// to the box being off at the scheduled minute: it catches up missed days on boot
+// and on a periodic safety tick. No-op while no model is configured.
+if (companionConfigured()) {
+	const scheduler = new RollupScheduler({
+		cron: config.memory.summaryCron,
+		tz: config.app.timezone,
+		runDailyRollup,
+		backfillPastDays,
+		log: (m) => console.log(m),
+	});
+	void scheduler.boot();
+	scheduler.start();
+	console.log(
+		`[companion] roll-up scheduler: on (cron "${config.memory.summaryCron}", ${config.app.timezone}; catches up on boot)`,
+	);
+} else {
+	console.log("[companion] roll-up scheduler: off (no model configured)");
+}
 
 const port = config.app.port;
 console.log(`[companion] listening on http://localhost:${port}`);

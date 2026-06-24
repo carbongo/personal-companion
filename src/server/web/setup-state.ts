@@ -63,6 +63,8 @@ export interface SetupValues {
 	sttApiUrl: string;
 	sttConfigured: boolean;
 	sttModel: string;
+	sttLocalModel: string;
+	sttLanguage: string;
 	// weather
 	weatherLat: string;
 	weatherLon: string;
@@ -131,6 +133,8 @@ export function currentSetupValues(): SetupValues {
 		sttApiUrl: config.stt.apiUrl,
 		sttConfigured: !!config.stt.apiKey,
 		sttModel: config.stt.model,
+		sttLocalModel: config.stt.localModel,
+		sttLanguage: config.stt.language,
 		weatherLat: config.weather.lat == null ? "" : String(config.weather.lat),
 		weatherLon: config.weather.lon == null ? "" : String(config.weather.lon),
 		weatherLocationName: config.weather.locationName,

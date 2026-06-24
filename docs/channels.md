@@ -30,13 +30,27 @@ needed, so it runs from anywhere, including behind NAT.
 ## Built-in web chat
 
 A browser chat served by the same Bun process, so you can use the companion with **no
-Telegram setup at all**. Open the app in a browser and talk to it. It posts each message to
+Telegram setup at all**. Open the app in a browser and talk to it. It posts to
 `POST /api/chat`, which builds a `turn` and calls `engine.respond` — the same seam Telegram
 uses — so the web chat shares one conversation and memory with every other channel (messages
-persist to the same `messages` table, bucketed by the live day). A multi-paragraph reply is
-shown as separate bubbles (split on blank lines), the same texting feel the Telegram
-reply-split produces; the reply is still stored as one assistant message, so this is purely a
-display choice (applied both to live replies and to history on reload).
+persist to the same `messages` table, bucketed by the live day).
+
+The web chat deliberately mirrors the Telegram channel:
+
+- **Incoming batching** — a burst of quick messages is debounced into one turn rather than
+  answered line-by-line. Each line shows immediately (like a sent message), then after a short
+  idle window (or a hard cap) they fold into a single `turn`. The window matches Telegram's —
+  the client reads `batchIdleMs`/`batchMaxMs` from `/api/state` (sourced from
+  `TELEGRAM_BATCH_IDLE_MS`/`_MAX_MS`), so a reply only starts once you've actually paused.
+- **Typing + reply-split** — a "…" bubble shows while the model works, and a multi-paragraph
+  reply is shown as separate bubbles (split on blank lines). The reply is still stored as one
+  assistant message, so this is purely display (applied to live replies and to history).
+- **Images** — attach (or paste) one or more images; they're sent as base64 `images` on the
+  turn to vision-capable models, exactly like a Telegram photo.
+- **Voice** — record from the mic (shown only when STT is configured; needs a secure origin
+  such as `https`/`localhost`) or attach an audio file. It POSTs to `POST /api/transcribe`,
+  which runs the same STT backend every channel uses, and drops the transcript into the
+  composer to review before sending.
 
 The chat is one screen of a small web interface that also includes:
 

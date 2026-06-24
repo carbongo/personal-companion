@@ -87,6 +87,12 @@ export function startTelegram(): void {
 		const turn = combine(items);
 		if (!turn.text && !turn.images?.length) return;
 
+		// Visibility that batching actually folded a burst: only the flush (not
+		// each message) reaches here, and typing starts now — after the window —
+		// never per-message.
+		if (items.length > 1)
+			console.log(`[telegram] batched ${items.length} messages into one turn`);
+
 		const stopTyping = startTyping(chatId);
 		try {
 			const { reply } = await respond(turn);

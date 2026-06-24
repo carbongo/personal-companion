@@ -44,14 +44,20 @@ export async function summarizeDay(
 }
 
 /**
- * Summarize today and backfill any earlier day with messages but no summary.
- * Returns the count of days (re)summarized.
+ * Roll up days into durable summaries. With `includeToday` (the nightly run),
+ * today is (re)summarized as the day closes; without it (the boot / safety-net
+ * backfill) only finished past days are wrapped, so an in-progress day is never
+ * summarized prematurely. Either way, every earlier day that has messages but no
+ * summary is caught up — e.g. a night the box was off — and the run pauses
+ * gracefully if the model is unreachable, catching up next time. Returns the
+ * count of days (re)summarized.
  */
-export async function runDailyRollup(): Promise<number> {
+async function rollup(includeToday: boolean): Promise<number> {
 	const today = todayKey();
 	let done = 0;
 	for (const day of distinctMessageDays()) {
 		const isToday = day === today;
+		if (isToday && !includeToday) continue;
 		if (!isToday && getDailySummary(day)) continue;
 		const msgs = messagesForDay(day);
 		if (!msgs.length) continue;
@@ -73,4 +79,19 @@ export async function runDailyRollup(): Promise<number> {
 	}
 	if (done) console.log(`[companion] roll-up summarized ${done} day(s)`);
 	return done;
+}
+
+/** The nightly roll-up: wrap today and backfill any missed earlier day. */
+export function runDailyRollup(): Promise<number> {
+	return rollup(true);
+}
+
+/**
+ * Wrap any finished past day that has messages but no summary yet — without
+ * touching the in-progress day. Run on boot and on a periodic safety tick so
+ * "yesterday" still gets summarized after the box was asleep through its nightly
+ * time, the moment it's back up. Idempotent: a no-op when nothing is pending.
+ */
+export function backfillPastDays(): Promise<number> {
+	return rollup(false);
 }

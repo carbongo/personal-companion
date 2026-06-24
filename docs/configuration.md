@@ -21,10 +21,10 @@ All vars are documented in [`.env.example`](../.env.example). The ones you'll us
 | `COMPANION_NAME`          | `Companion`          | Display name it goes by. |
 | `COMPANION_OWNER`         | `friend`             | What it calls you. |
 | `TZ`                      | `UTC`                | Timezone for days, summaries, the date it sees. |
-| `DATA_DIR`                | `./data`             | Where the SQLite DB and uploads live. |
+| `DATA_DIR`                | `./data`             | Where the SQLite DB lives (and, by convention, local models under `data/models/`). |
 | `PORT`                    | `8080`               | Web interface port. |
 | `WEB_AUTH_PASSWORD`       | (empty)              | Protects the web UI. Set it unless behind a trusted network. |
-| `LLM_PROVIDER`            | `ollama`             | `ollama` \| `openai-compatible` \| `anthropic`. |
+| `LLM_PROVIDER`            | `ollama`             | `ollama` \| `openai-compatible` \| `anthropic` (planned — not yet implemented; use `openai-compatible` against an Anthropic-compatible gateway). |
 | `LLM_MODEL`               | `gemma4:12b`         | Model name for the chosen provider (recommended local default). |
 | `LLM_OLLAMA_URL`          | `http://localhost:11434` | Local Ollama endpoint. |
 | `LLM_API_KEY` / `LLM_BASE_URL` | (empty)         | For hosted providers. |
@@ -95,8 +95,20 @@ Voice notes are transcribed before they reach the engine — pick a backend with
 - `whisper-http` — any OpenAI-compatible `/audio/transcriptions` endpoint (e.g. a local
   faster-whisper server); set `STT_API_URL` (and `STT_API_KEY`/`STT_MODEL` if it needs
   them). Keeps voice local-first.
+- `local` — [whisper.cpp](https://github.com/ggerganov/whisper.cpp) run on this machine,
+  with `ffmpeg` normalizing the audio first. No daemon and no network — nothing leaves the
+  box, and there is no second service to bring back up after a reboot. Set `STT_LOCAL_MODEL`
+  to a ggml/gguf model file (e.g. `./data/models/ggml-base.bin`); `whisper-cli` and `ffmpeg`
+  must be on `PATH` (override with `STT_LOCAL_BIN` / `STT_FFMPEG_BIN`). `STT_LANGUAGE`
+  hints the spoken language (`auto` detects). On macOS: `brew install whisper-cpp ffmpeg`,
+  then download a model, e.g.
+  `curl -L -o data/models/ggml-base.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin`.
 
-Photos are forwarded as images to vision-capable models regardless of STT.
+The same backend serves every channel: Telegram voice notes, and the web chat's mic
+recording / audio-file upload (which POST to `/api/transcribe`).
+
+Photos are forwarded as images to vision-capable models regardless of STT — on Telegram
+and in the web chat (attach button / paste).
 
 ## The persona
 
