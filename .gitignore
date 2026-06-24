@@ -8,6 +8,7 @@ web/dist/
 data/
 uploads/
 persona/
+import/
 *.local.md
 .env
 .env.*

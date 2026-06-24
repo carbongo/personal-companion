@@ -31,6 +31,7 @@ files containing JSX use the `.tsx` extension.
 | Command             | What it does |
 | ------------------- | ------------ |
 | `bun run init`      | First-run bootstrap for a bare install: `.env` + data dir. |
+| `bun run import`    | Import an existing history (see [importing.md](./importing.md)). |
 | `bun run dev`       | Server in watch mode. |
 | `bun run start`     | Server, once. |
 | `bun run chat`      | Terminal REPL to talk to the engine (needs a model). |
@@ -59,9 +60,10 @@ DB. See [data-model.md](./data-model.md).
 
 ## Importing existing companion data
 
-A one-off importer under `scripts/` can copy an existing single-user companion's history
-(daily messages, Core, memories, summaries) into this schema. Imported personal data
-stays in your local `*.db` and is never committed (see [AGENTS.md](../AGENTS.md)).
+`bun run import` (`scripts/import.ts`) copies an existing single-user history (messages,
+Core, memories, daily summaries, notes) into this schema from a neutral, documented
+interchange format — start at [importing.md](./importing.md). Imported personal data stays
+in your local `*.db` and is never committed (see [AGENTS.md](../AGENTS.md)).
 
 ## The docs contract
 

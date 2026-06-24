@@ -10,6 +10,7 @@
 	},
 	"scripts": {
 		"init": "bun scripts/init.ts",
+		"import": "bun scripts/import.ts",
 		"dev": "bun --watch src/server/index.ts",
 		"start": "bun src/server/index.ts",
 		"chat": "bun scripts/chat.ts",

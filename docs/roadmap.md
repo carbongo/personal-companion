@@ -53,10 +53,13 @@ Bun + Hono server with `/health`.
 - ✅ README polish: a "Deploy" section and an honest, prose first-run walkthrough.
   (Screenshots are owner-captured against a live model, so they're not committed here.)
 
-## Phase 5 — Data import & adoption
+## Phase 5 — Data import & adoption ✅
 
-- One-off importer for an existing single-user companion's history.
-- Migration guide.
+- ✅ One-off importer (`scripts/import.ts`, `bun run import`) for an existing single-user
+  history, via a neutral, documented interchange format — decoupled from any source system.
+  Preserves timestamps/day-buckets, validates records, runs in one transaction, and refuses
+  to duplicate existing history without `--force`.
+- ✅ Migration guide: [importing.md](./importing.md).
 
 ## Later (ideas, not committed)
 

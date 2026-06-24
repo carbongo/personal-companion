@@ -26,6 +26,7 @@ Pages cross-link each other and use flat, descriptive names (no number prefixes)
 
 - [deployment](./deployment.md) — Docker, Compose, bare Bun
 - [development](./development.md) — local setup, scripts, testing
+- [importing](./importing.md) — bringing an existing history in (the interchange format)
 - [roadmap](./roadmap.md) — the phased plan and current status
 - [glossary](./glossary.md) — shared vocabulary
 

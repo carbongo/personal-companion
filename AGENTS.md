@@ -45,8 +45,8 @@ a user's companion is the engine *plus their private configuration*.
   hardcoded.
 - **Shipped presets stay neutral and original** — generic archetypes (calm mentor,
   upbeat friend, blunt coach, neutral default), not a specific character.
-- A user's filled-in `.env`, their `persona/`, and their `*.db` are **gitignored** and
-  must stay that way.
+- A user's filled-in `.env`, their `persona/`, their `*.db`, and their `import/` staging
+  directory are **gitignored** and must stay that way.
 
 If you are tempted to hardcode anything personal, make it a config field instead.
 
@@ -72,6 +72,7 @@ docs/
   security.md        auth, allowlists, SSRF guard, privacy posture
   deployment.md      Docker / Compose / bare Bun
   development.md      local dev, scripts, testing
+  importing.md        bringing an existing history in (interchange format)
   roadmap.md         phased plan and status
   glossary.md        shared vocabulary
   CHANGELOG.md       newest-first log of every major change
@@ -102,6 +103,10 @@ docs/
   idempotent and never have it overwrite a user's `.env`. Deployment is one Docker image +
   `docker-compose.yml`; the bundled Ollama stays behind the `ollama` compose profile so the
   default `up` is the app alone (see [`docs/deployment.md`](./docs/deployment.md)).
+- **Adoption/import:** `bun run import` (`scripts/import.ts`) reads a neutral, documented
+  interchange format (`docs/importing.md`) — never another system's schema. Keep it that
+  way: imported data is the user's, lands only in their gitignored `*.db`, and the importer
+  must keep refusing to duplicate existing history without `--force`.
 - **Comments** explain *why*, in the calm register the rest of the file uses. Match the
   surrounding style.
 - **Secrets** never get a real default. Optional features degrade gracefully when unset.

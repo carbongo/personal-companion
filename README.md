@@ -10,9 +10,9 @@ nothing leaves your machine. Prefer a hosted model? Drop in any OpenAI-compatibl
 Anthropic key instead. One deployment = one person's companion.
 
 > **Status: working, still maturing.** The engine, the Telegram channel, the web
-> interface (chat + memory admin + first-run setup wizard), and packaging (Docker image +
-> Compose with an optional bundled Ollama) are all in place (Phases 0–4). A data importer
-> for moving an existing companion's history in is next — see
+> interface (chat + memory admin + first-run setup wizard), packaging (Docker image +
+> Compose with an optional bundled Ollama), and a history importer for adopting it
+> (`bun run import`) are all in place (Phases 0–5) — see
 > [docs/roadmap.md](./docs/roadmap.md).
 
 ---

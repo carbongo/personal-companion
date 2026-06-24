@@ -5,6 +5,21 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-24
 
+- **Phase 5 — Data import & adoption.** A way to bring an existing companion's history in:
+  - *Importer* (`scripts/import.ts`, `bun run import`) — loads messages, the Core doc,
+    memories, daily summaries, and notes into the schema from a neutral, documented
+    **interchange format** (a directory: `core.md`, `messages.jsonl`, `memories.json`,
+    `daily-summaries.json`, `notes.json`). Decoupled from any source system, so the project
+    ships only the importer and the spec — never another system's schema.
+  - Preserves original timestamps and day-buckets (deriving `day` from `createdAt` when
+    absent), validates each record (`--strict` to abort, otherwise skip + report), writes in
+    a single transaction, and **refuses to duplicate** existing history without `--force`
+    (daily summaries upsert by day; the Core is only overwritten with `--force`). `--dry-run`
+    validates and reports without writing.
+  - *Migration guide*: new [importing.md](./importing.md). The `./import` staging directory
+    is now gitignored alongside `*.db`/`persona/`, so imported personal data never leaves the
+    machine. No new dependency; **62 tests** (was 53 — +9 for the importer).
+
 - **Phase 4 — Package & deploy.** Made the project easy to stand up, by Docker or bare Bun:
   - *`init` CLI* (`scripts/init.ts`, `bun run init`) — first-run bootstrap for a bare
     install: copies `.env.example` → `.env` (never clobbering an existing `.env`), ensures

@@ -82,6 +82,7 @@ the companion is fully standalone.
 
 ## Migrating in existing data
 
-A one-off script (`scripts/`) can import an existing companion's history into these
-tables. See [development.md](./development.md). Personal data imported this way stays in
-your local `*.db` — never committed (see [AGENTS.md](../AGENTS.md)).
+`bun run import` (`scripts/import.ts`) loads an existing companion's history into these
+tables from a neutral, documented interchange format — see [importing.md](./importing.md).
+Personal data imported this way stays in your local `*.db` — never committed (see
+[AGENTS.md](../AGENTS.md)).
