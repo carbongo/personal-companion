@@ -286,6 +286,9 @@ const hostedRows = document.getElementById('hostedRows');
 const testNote = document.getElementById('testNote');
 const saveNote = document.getElementById('saveNote');
 const presetRadios = () => Array.from(document.querySelectorAll('input[name=preset]'));
+// Trimmed value (text/number/select) and raw value (secrets, kept as typed).
+const val = (id) => document.getElementById(id).value.trim();
+const raw = (id) => document.getElementById(id).value;
 
 function syncProvider() {
 	const ollama = provider.value === 'ollama';
@@ -296,18 +299,51 @@ provider.addEventListener('change', syncProvider); syncProvider();
 
 function body() {
 	return {
-		name: document.getElementById('name').value.trim(),
-		owner: document.getElementById('owner').value.trim(),
+		name: val('name'),
+		owner: val('owner'),
 		preset: (presetRadios().find(r => r.checked) || {}).value || 'companion',
-		persona: document.getElementById('persona').value.trim(),
-		coreSeed: document.getElementById('coreSeed').value.trim(),
+		persona: val('persona'),
+		coreSeed: val('coreSeed'),
+		timezone: val('timezone'),
+		dataDir: val('dataDir'),
+		port: val('port'),
+		webAuthPassword: raw('webAuthPassword'),
 		provider: provider.value,
-		model: document.getElementById('model').value.trim(),
-		ollamaUrl: document.getElementById('ollamaUrl').value.trim(),
-		baseUrl: document.getElementById('baseUrl').value.trim(),
-		apiKey: document.getElementById('apiKey').value,
-		telegramToken: document.getElementById('telegramToken').value.trim(),
-		telegramAllowedIds: document.getElementById('telegramAllowedIds').value.trim(),
+		model: val('model'),
+		ollamaUrl: val('ollamaUrl'),
+		baseUrl: val('baseUrl'),
+		apiKey: raw('apiKey'),
+		temperature: val('temperature'),
+		numCtx: val('numCtx'),
+		maxTokens: val('maxTokens'),
+		think: val('think'),
+		timeoutMs: val('timeoutMs'),
+		historyLimit: val('historyLimit'),
+		telegramToken: val('telegramToken'),
+		telegramAllowedIds: val('telegramAllowedIds'),
+		telegramReplySplit: val('telegramReplySplit'),
+		telegramBatchIdleMs: val('telegramBatchIdleMs'),
+		telegramBatchMaxMs: val('telegramBatchMaxMs'),
+		memoryContextDays: val('memoryContextDays'),
+		memoryLimit: val('memoryLimit'),
+		memoryNoteTitles: val('memoryNoteTitles'),
+		memorySummaryCron: val('memorySummaryCron'),
+		webEnabled: val('webEnabled'),
+		webSearchProvider: val('webSearchProvider'),
+		tavilyKey: raw('tavilyKey'),
+		webSteps: val('webSteps'),
+		webResults: val('webResults'),
+		webPageChars: val('webPageChars'),
+		webSearchTimeoutMs: val('webSearchTimeoutMs'),
+		webFetchTimeoutMs: val('webFetchTimeoutMs'),
+		webMaxReqs: val('webMaxReqs'),
+		sttProvider: val('sttProvider'),
+		sttApiUrl: val('sttApiUrl'),
+		sttApiKey: raw('sttApiKey'),
+		sttModel: val('sttModel'),
+		weatherLat: val('weatherLat'),
+		weatherLon: val('weatherLon'),
+		weatherLocationName: val('weatherLocationName'),
 	};
 }
 
@@ -328,7 +364,7 @@ document.getElementById('save').addEventListener('click', async (e) => {
 		const r = await fetch('/api/setup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body()) });
 		const data = await r.json();
 		if (r.ok) {
-			saveNote.innerHTML = 'Saved. Persona and facts apply now; model, name, and channel changes take effect after a restart (e.g. <code>bun start</code> or <code>docker compose restart</code>). <a href="/">Open the chat →</a>';
+			saveNote.innerHTML = 'Saved. Persona and facts apply now; other changes take effect after a restart (e.g. <code>bun start</code> or <code>docker compose restart</code>). <a href="/">Open the chat →</a>';
 			saveNote.className = 'note ok';
 		} else { saveNote.textContent = data.error || 'Save failed.'; saveNote.className = 'note bad'; }
 		saveNote.classList.remove('hidden');

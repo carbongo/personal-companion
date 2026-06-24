@@ -5,6 +5,20 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-24
 
+- **Web UI: the Settings page now exposes the full `.env` configuration.** The nav item and
+  page are renamed **Settings** (the heading already read "Settings" after first run; the
+  `/setup` route is unchanged). Every variable in `.env.example` is now editable in the
+  browser, grouped to match the file: app & access (`TZ`, `DATA_DIR`, `PORT`,
+  `WEB_AUTH_PASSWORD`), LLM tuning (`LLM_TEMPERATURE`, `LLM_NUM_CTX`, `LLM_MAX_TOKENS`,
+  `LLM_THINK`, `LLM_TIMEOUT_MS`, `LLM_HISTORY_LIMIT`), Telegram batching
+  (`TELEGRAM_REPLY_SPLIT`, `TELEGRAM_BATCH_IDLE_MS`, `TELEGRAM_BATCH_MAX_MS`), memory
+  (`MEMORY_*`), web access (`WEB_ACCESS`, `WEB_SEARCH_PROVIDER`, `TAVILY_API_KEY`,
+  `WEB_STEPS`/`WEB_RESULTS`/`WEB_PAGE_CHARS`/timeouts/`WEB_MAX_REQS`), speech-to-text
+  (`STT_*`), and weather (`WEATHER_*`). Fields prefill from the live config; secrets stay
+  write-only (shown only as "set"); an empty optional field is left untouched so saving never
+  wipes an existing value. Touches `setup-state.ts`, `pages.tsx`, `assets.ts`, `api.ts` — no
+  schema change, all writes go through the existing `.env` merge writer.
+
 - **Web UI: setup doubles as a settings editor, and memory renders Markdown.** The setup
   page now prefills from the live configuration so it can be re-opened to edit settings, not
   just run once: the persona field falls back to the `persona/persona.md` file when no DB

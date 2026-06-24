@@ -22,7 +22,7 @@ const NAV: Array<{ href: string; key: LayoutProps["active"]; label: string }> =
 	[
 		{ href: "/", key: "chat", label: "Chat" },
 		{ href: "/memory", key: "memory", label: "Memory" },
-		{ href: "/setup", key: "setup", label: "Setup" },
+		{ href: "/setup", key: "setup", label: "Settings" },
 	];
 
 export const Layout = (props: PropsWithChildren<LayoutProps>) => (
@@ -182,7 +182,7 @@ export const SetupPage = (props: {
 		v.provider !== "openai-compatible" && v.provider !== "anthropic";
 	return (
 		<Layout
-			title={`${props.name} — Setup`}
+			title={`${props.name} — Settings`}
 			name={props.name}
 			active="setup"
 			authEnabled={props.authEnabled}
@@ -191,9 +191,10 @@ export const SetupPage = (props: {
 				{props.complete ? "Settings" : "Welcome — let's set up your companion"}
 			</h1>
 			<p class="sub">
-				Persona and facts apply immediately. Model, name, and channel changes
-				are saved to your
-				<code> .env</code> and take effect after a restart.
+				Persona and facts apply immediately. Everything else is saved to your
+				<code> .env</code> and takes effect after a restart. Empty optional
+				fields are left untouched; secrets are never shown back, only whether
+				one is set.
 			</p>
 
 			<h2>Identity</h2>
@@ -290,6 +291,54 @@ export const SetupPage = (props: {
 					/>
 				</div>
 
+				<p class="caption">Generation tuning</p>
+				<label for="think">Reasoning / thinking</label>
+				<select id="think">
+					{["true", "false", "low", "medium", "high"].map((o) => (
+						<option value={o} selected={v.think === o}>
+							{o}
+						</option>
+					))}
+				</select>
+				<label for="temperature">Temperature</label>
+				<input
+					type="number"
+					id="temperature"
+					step="0.1"
+					value={String(v.temperature)}
+					placeholder="0.7"
+				/>
+				<label for="numCtx">Context window (num_ctx, tokens)</label>
+				<input
+					type="number"
+					id="numCtx"
+					value={String(v.numCtx)}
+					placeholder="8192"
+				/>
+				<label for="maxTokens">Max reply tokens</label>
+				<input
+					type="number"
+					id="maxTokens"
+					value={String(v.maxTokens)}
+					placeholder="1000"
+				/>
+				<label for="historyLimit">
+					History limit (prior messages sent each turn)
+				</label>
+				<input
+					type="number"
+					id="historyLimit"
+					value={String(v.historyLimit)}
+					placeholder="60"
+				/>
+				<label for="timeoutMs">Request timeout (ms)</label>
+				<input
+					type="number"
+					id="timeoutMs"
+					value={String(v.timeoutMs)}
+					placeholder="120000"
+				/>
+
 				<div class="row" style="margin-top:12px">
 					<button type="button" id="test" class="ghost">
 						Test connection
@@ -321,6 +370,254 @@ export const SetupPage = (props: {
 					id="telegramAllowedIds"
 					value={v.telegramAllowedIds}
 					placeholder="e.g. 12345678"
+				/>
+				<label for="telegramReplySplit">
+					Send each paragraph as its own message
+				</label>
+				<select id="telegramReplySplit">
+					<option value="true" selected={v.telegramReplySplit}>
+						Yes — text like a person
+					</option>
+					<option value="false" selected={!v.telegramReplySplit}>
+						No — one message per reply
+					</option>
+				</select>
+				<label for="telegramBatchIdleMs">
+					Batch idle flush (ms of silence before a burst is answered)
+				</label>
+				<input
+					type="number"
+					id="telegramBatchIdleMs"
+					value={String(v.telegramBatchIdleMs)}
+					placeholder="2500"
+				/>
+				<label for="telegramBatchMaxMs">Batch max wait (ms cap)</label>
+				<input
+					type="number"
+					id="telegramBatchMaxMs"
+					value={String(v.telegramBatchMaxMs)}
+					placeholder="15000"
+				/>
+			</div>
+
+			<h2>Memory</h2>
+			<div class="card">
+				<label for="memoryContextDays">
+					Daily summaries kept in context (days)
+				</label>
+				<input
+					type="number"
+					id="memoryContextDays"
+					value={String(v.memoryContextDays)}
+					placeholder="7"
+				/>
+				<label for="memoryLimit">Saved memories surfaced in context</label>
+				<input
+					type="number"
+					id="memoryLimit"
+					value={String(v.memoryLimit)}
+					placeholder="40"
+				/>
+				<label for="memoryNoteTitles">Note titles surfaced in context</label>
+				<input
+					type="number"
+					id="memoryNoteTitles"
+					value={String(v.memoryNoteTitles)}
+					placeholder="12"
+				/>
+				<label for="memorySummaryCron">Nightly roll-up schedule (cron)</label>
+				<input
+					type="text"
+					id="memorySummaryCron"
+					value={v.memorySummaryCron}
+					placeholder="55 23 * * *"
+				/>
+			</div>
+
+			<h2>Web access (optional)</h2>
+			<div class="card">
+				<p class="sub">
+					Lets the companion search the web and read links during a reply.
+				</p>
+				<label for="webEnabled">Web access</label>
+				<select id="webEnabled">
+					<option value="true" selected={v.webEnabled}>
+						On
+					</option>
+					<option value="false" selected={!v.webEnabled}>
+						Off
+					</option>
+				</select>
+				<label for="webSearchProvider">Search provider</label>
+				<select id="webSearchProvider">
+					<option
+						value="duckduckgo"
+						selected={v.webSearchProvider === "duckduckgo"}
+					>
+						DuckDuckGo (keyless)
+					</option>
+					<option value="tavily" selected={v.webSearchProvider === "tavily"}>
+						Tavily (needs key, better)
+					</option>
+				</select>
+				<label for="tavilyKey">
+					Tavily API key{" "}
+					{v.tavilyConfigured ? "(set — enter a new one to replace)" : ""}
+				</label>
+				<input
+					type="password"
+					id="tavilyKey"
+					placeholder={v.tavilyConfigured ? "•".repeat(12) : "tvly-…"}
+					autocomplete="off"
+				/>
+				<label for="webSteps">Max lookup rounds per turn</label>
+				<input
+					type="number"
+					id="webSteps"
+					value={String(v.webSteps)}
+					placeholder="3"
+				/>
+				<label for="webResults">Results per search</label>
+				<input
+					type="number"
+					id="webResults"
+					value={String(v.webResults)}
+					placeholder="5"
+				/>
+				<label for="webPageChars">Characters per fetched page</label>
+				<input
+					type="number"
+					id="webPageChars"
+					value={String(v.webPageChars)}
+					placeholder="6000"
+				/>
+				<label for="webSearchTimeoutMs">Search timeout (ms)</label>
+				<input
+					type="number"
+					id="webSearchTimeoutMs"
+					value={String(v.webSearchTimeoutMs)}
+					placeholder="12000"
+				/>
+				<label for="webFetchTimeoutMs">Fetch timeout (ms)</label>
+				<input
+					type="number"
+					id="webFetchTimeoutMs"
+					value={String(v.webFetchTimeoutMs)}
+					placeholder="12000"
+				/>
+				<label for="webMaxReqs">Max concurrent lookups per round</label>
+				<input
+					type="number"
+					id="webMaxReqs"
+					value={String(v.webMaxReqs)}
+					placeholder="3"
+				/>
+			</div>
+
+			<h2>Speech-to-text (optional)</h2>
+			<div class="card">
+				<p class="sub">
+					Transcribes voice notes before the companion reads them.
+				</p>
+				<label for="sttProvider">Provider</label>
+				<select id="sttProvider">
+					<option value="off" selected={v.sttProvider === "off"}>
+						Off
+					</option>
+					<option value="openai" selected={v.sttProvider === "openai"}>
+						OpenAI
+					</option>
+					<option
+						value="whisper-http"
+						selected={v.sttProvider === "whisper-http"}
+					>
+						Whisper (OpenAI-compatible HTTP)
+					</option>
+				</select>
+				<label for="sttApiUrl">Transcription endpoint URL</label>
+				<input
+					type="text"
+					id="sttApiUrl"
+					value={v.sttApiUrl}
+					placeholder="https://…/v1/audio/transcriptions"
+				/>
+				<label for="sttApiKey">
+					API key {v.sttConfigured ? "(set — enter a new one to replace)" : ""}
+				</label>
+				<input
+					type="password"
+					id="sttApiKey"
+					placeholder={v.sttConfigured ? "•".repeat(12) : ""}
+					autocomplete="off"
+				/>
+				<label for="sttModel">Model</label>
+				<input
+					type="text"
+					id="sttModel"
+					value={v.sttModel}
+					placeholder="whisper-1"
+				/>
+			</div>
+
+			<h2>Weather (optional)</h2>
+			<div class="card">
+				<p class="sub">
+					If set, the companion knows your local weather (Open-Meteo, no key).
+				</p>
+				<label for="weatherLat">Latitude</label>
+				<input
+					type="text"
+					id="weatherLat"
+					value={v.weatherLat}
+					placeholder="e.g. 52.52"
+				/>
+				<label for="weatherLon">Longitude</label>
+				<input
+					type="text"
+					id="weatherLon"
+					value={v.weatherLon}
+					placeholder="e.g. 13.41"
+				/>
+				<label for="weatherLocationName">
+					Location name (shown in context)
+				</label>
+				<input
+					type="text"
+					id="weatherLocationName"
+					value={v.weatherLocationName}
+					placeholder="e.g. Berlin"
+				/>
+			</div>
+
+			<h2>App &amp; access</h2>
+			<div class="card">
+				<label for="timezone">Timezone (IANA)</label>
+				<input type="text" id="timezone" value={v.timezone} placeholder="UTC" />
+				<label for="dataDir">Data directory</label>
+				<input
+					type="text"
+					id="dataDir"
+					value={v.dataDir}
+					placeholder="./data"
+				/>
+				<label for="port">Web interface port</label>
+				<input
+					type="number"
+					id="port"
+					value={String(v.port)}
+					placeholder="8080"
+				/>
+				<label for="webAuthPassword">
+					Web UI password{" "}
+					{v.webAuthConfigured
+						? "(set — enter a new one to replace)"
+						: "(leave blank only behind a trusted network)"}
+				</label>
+				<input
+					type="password"
+					id="webAuthPassword"
+					placeholder={v.webAuthConfigured ? "•".repeat(12) : ""}
+					autocomplete="off"
 				/>
 			</div>
 

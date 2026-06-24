@@ -43,11 +43,13 @@ The chat is one screen of a small web interface that also includes:
 - **Memory admin** (`/memory`) — read and edit the Core (with an Edit/Preview toggle that
   renders Markdown), add / search / delete saved memories, read the daily summaries (rendered
   as Markdown), and trigger the nightly roll-up on demand. (See [memory.md](./memory.md).)
-- **Setup / settings** (`/setup`) — the first-run flow (name, owner, persona, owner facts,
-  model with a live connection test, optional Telegram token + allowed user IDs) that doubles
-  as a settings editor afterwards: it prefills from the live configuration, including the
-  persona (falling back to the `persona/persona.md` file) and the allowed user IDs. The bot
-  token and API key are write-only — never echoed back, only shown as "set." (See
+- **Settings** (`/setup`, nav label "Settings") — the first-run flow (name, owner, persona,
+  owner facts, model with a live connection test, optional Telegram token + allowed user IDs)
+  that doubles as a full settings editor afterwards: it prefills from the live configuration
+  and exposes every variable in `.env.example` — model tuning, Telegram batching, memory, web
+  access, speech-to-text, weather, and app/access — grouped to match the file. Secrets (bot
+  token, API keys, `WEB_AUTH_PASSWORD`) are write-only — never echoed back, only shown as
+  "set"; blank optional fields are left untouched on save. (See
   [configuration.md](./configuration.md).)
 
 The whole interface sits behind `WEB_AUTH_PASSWORD` and is rendered server-side with Hono

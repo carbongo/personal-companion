@@ -30,18 +30,59 @@ import { writeEnvFile } from "./env-file.ts";
 import { currentSetupValues, isSetupComplete } from "./setup-state.ts";
 
 interface SetupBody {
+	// identity
 	name?: string;
 	owner?: string;
 	preset?: string;
 	persona?: string;
 	coreSeed?: string;
+	// app
+	timezone?: string;
+	dataDir?: string;
+	port?: string;
+	webAuthPassword?: string;
+	// brain (LLM)
 	provider?: string;
 	model?: string;
 	ollamaUrl?: string;
 	baseUrl?: string;
 	apiKey?: string;
+	temperature?: string;
+	numCtx?: string;
+	maxTokens?: string;
+	think?: string;
+	timeoutMs?: string;
+	historyLimit?: string;
+	// Telegram
 	telegramToken?: string;
 	telegramAllowedIds?: string;
+	telegramReplySplit?: string;
+	telegramBatchIdleMs?: string;
+	telegramBatchMaxMs?: string;
+	// memory
+	memoryContextDays?: string;
+	memoryLimit?: string;
+	memoryNoteTitles?: string;
+	memorySummaryCron?: string;
+	// web access
+	webEnabled?: string;
+	webSearchProvider?: string;
+	tavilyKey?: string;
+	webSteps?: string;
+	webResults?: string;
+	webPageChars?: string;
+	webSearchTimeoutMs?: string;
+	webFetchTimeoutMs?: string;
+	webMaxReqs?: string;
+	// speech-to-text
+	sttProvider?: string;
+	sttApiUrl?: string;
+	sttApiKey?: string;
+	sttModel?: string;
+	// weather
+	weatherLat?: string;
+	weatherLon?: string;
+	weatherLocationName?: string;
 }
 
 const trimEnd = (s: string) => s.replace(/\/+$/, "");
@@ -194,13 +235,48 @@ api.post("/setup/test", async (c) => {
 api.post("/setup", async (c) => {
 	const b = (await c.req.json().catch(() => ({}))) as SetupBody;
 
+	// A blank optional field is left untouched (never clobbers an existing value);
+	// selects and numbers always carry a value, so they are always written.
+	const opt = (s?: string) => (s?.trim() ? s.trim() : undefined);
+
 	const providerName = (b.provider as LlmProviderName) || config.llm.provider;
 	const env: Record<string, string | undefined> = {
-		COMPANION_NAME: b.name?.trim() || undefined,
-		COMPANION_OWNER: b.owner?.trim() || undefined,
-		COMPANION_PRESET: b.preset?.trim() || undefined,
+		COMPANION_NAME: opt(b.name),
+		COMPANION_OWNER: opt(b.owner),
+		COMPANION_PRESET: opt(b.preset),
+		TZ: opt(b.timezone),
+		DATA_DIR: opt(b.dataDir),
+		PORT: opt(b.port),
 		LLM_PROVIDER: providerName,
-		LLM_MODEL: b.model?.trim() || undefined,
+		LLM_MODEL: opt(b.model),
+		LLM_TEMPERATURE: opt(b.temperature),
+		LLM_NUM_CTX: opt(b.numCtx),
+		LLM_MAX_TOKENS: opt(b.maxTokens),
+		LLM_THINK: opt(b.think),
+		LLM_TIMEOUT_MS: opt(b.timeoutMs),
+		LLM_HISTORY_LIMIT: opt(b.historyLimit),
+		TELEGRAM_ALLOWED_USER_IDS: opt(b.telegramAllowedIds),
+		TELEGRAM_REPLY_SPLIT: opt(b.telegramReplySplit),
+		TELEGRAM_BATCH_IDLE_MS: opt(b.telegramBatchIdleMs),
+		TELEGRAM_BATCH_MAX_MS: opt(b.telegramBatchMaxMs),
+		MEMORY_CONTEXT_DAYS: opt(b.memoryContextDays),
+		MEMORY_LIMIT: opt(b.memoryLimit),
+		MEMORY_NOTE_TITLES: opt(b.memoryNoteTitles),
+		MEMORY_SUMMARY_CRON: opt(b.memorySummaryCron),
+		WEB_ACCESS: opt(b.webEnabled),
+		WEB_SEARCH_PROVIDER: opt(b.webSearchProvider),
+		WEB_STEPS: opt(b.webSteps),
+		WEB_RESULTS: opt(b.webResults),
+		WEB_PAGE_CHARS: opt(b.webPageChars),
+		WEB_SEARCH_TIMEOUT_MS: opt(b.webSearchTimeoutMs),
+		WEB_FETCH_TIMEOUT_MS: opt(b.webFetchTimeoutMs),
+		WEB_MAX_REQS: opt(b.webMaxReqs),
+		STT_PROVIDER: opt(b.sttProvider),
+		STT_API_URL: opt(b.sttApiUrl),
+		STT_MODEL: opt(b.sttModel),
+		WEATHER_LAT: opt(b.weatherLat),
+		WEATHER_LON: opt(b.weatherLon),
+		WEATHER_LOCATION_NAME: opt(b.weatherLocationName),
 	};
 	if (providerName === "ollama") {
 		env.LLM_OLLAMA_URL = trimEnd(b.ollamaUrl?.trim() ?? "") || undefined;
@@ -208,13 +284,12 @@ api.post("/setup", async (c) => {
 		env.LLM_BASE_URL = trimEnd(b.baseUrl?.trim() ?? "") || undefined;
 		if (b.apiKey) env.LLM_API_KEY = b.apiKey;
 	}
-	// Only touch the Telegram keys when the owner actually supplied a token, so
-	// re-running the wizard never silently wipes an existing channel.
-	if (b.telegramToken?.trim()) {
-		env.TELEGRAM_BOT_TOKEN = b.telegramToken.trim();
-		if (b.telegramAllowedIds?.trim())
-			env.TELEGRAM_ALLOWED_USER_IDS = b.telegramAllowedIds.trim();
-	}
+	// Secrets are only written when actually re-entered, so saving never wipes an
+	// existing one that the page (which never echoes secrets) couldn't show back.
+	if (b.telegramToken?.trim()) env.TELEGRAM_BOT_TOKEN = b.telegramToken.trim();
+	if (b.webAuthPassword) env.WEB_AUTH_PASSWORD = b.webAuthPassword;
+	if (b.tavilyKey) env.TAVILY_API_KEY = b.tavilyKey;
+	if (b.sttApiKey) env.STT_API_KEY = b.sttApiKey;
 
 	try {
 		writeEnvFile(".env", env);
