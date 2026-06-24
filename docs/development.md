@@ -10,7 +10,7 @@
 
 ```bash
 bun install
-cp .env.example .env
+bun run init       # scaffolds .env from the template + the data dir (idempotent)
 bun run dev        # watch mode; boots the server on $PORT (default 8080)
 ```
 
@@ -30,6 +30,7 @@ files containing JSX use the `.tsx` extension.
 
 | Command             | What it does |
 | ------------------- | ------------ |
+| `bun run init`      | First-run bootstrap for a bare install: `.env` + data dir. |
 | `bun run dev`       | Server in watch mode. |
 | `bun run start`     | Server, once. |
 | `bun run chat`      | Terminal REPL to talk to the engine (needs a model). |

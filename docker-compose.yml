@@ -1,31 +1,49 @@
 # personal-companion — Docker Compose.
 #
-# Default: runs just the companion, expecting an Ollama you already have
-# (set LLM_OLLAMA_URL in .env, e.g. http://host.docker.internal:11434).
+#   docker compose up -d                    # the companion alone
+#   docker compose --profile ollama up -d   # companion + a bundled Ollama
 #
-# Fully-local stack: uncomment the `ollama` service below to run the model
-# alongside the app, and set LLM_OLLAMA_URL=http://ollama:11434 in .env.
+# Default (no profile): the companion expects an Ollama you already run — set
+# LLM_OLLAMA_URL in .env (e.g. http://host.docker.internal:11434).
+#
+# Bundled stack (`--profile ollama`): runs Ollama alongside the app. Set
+# LLM_OLLAMA_URL=http://ollama:11434 in .env, then pull your model into it:
+#   docker compose exec ollama ollama pull gemma4:12b
 
 services:
   companion:
     build: .
     image: personal-companion:latest
     env_file: .env
+    # The container always listens on 8080 internally; the host port is what
+    # you change (PORT in .env, read by compose for the mapping below).
+    environment:
+      PORT: "8080"
     ports:
       - "${PORT:-8080}:8080"
     volumes:
       - ./data:/data
     restart: unless-stopped
-    # depends_on:
-    #   - ollama
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "const r = await fetch('http://localhost:8080/health').catch(() => null); process.exit(r?.ok ? 0 : 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   ports:
-  #     - "11434:11434"
-  #   volumes:
-  #     - ollama:/root/.ollama
-  #   restart: unless-stopped
+  # Optional bundled model server. Only starts with `--profile ollama`.
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
 
-# volumes:
-#   ollama:
+volumes:
+  ollama:

@@ -98,6 +98,10 @@ docs/
   [`docs/decisions/web-ui-server-rendered-no-build.md`](./docs/decisions/web-ui-server-rendered-no-build.md)).
 - **DB changes:** edit `src/db/schema.ts`, then `bun run db:generate` and commit the new
   migration in `drizzle/`. Update [`docs/data-model.md`](./docs/data-model.md).
+- **Packaging:** `bun run init` (`scripts/init.ts`) is the bare-install bootstrap — keep it
+  idempotent and never have it overwrite a user's `.env`. Deployment is one Docker image +
+  `docker-compose.yml`; the bundled Ollama stays behind the `ollama` compose profile so the
+  default `up` is the app alone (see [`docs/deployment.md`](./docs/deployment.md)).
 - **Comments** explain *why*, in the calm register the rest of the file uses. Match the
   surrounding style.
 - **Secrets** never get a real default. Optional features degrade gracefully when unset.

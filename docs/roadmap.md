@@ -41,12 +41,17 @@ Bun + Hono server with `/health`.
 - ✅ Server-rendered with **Hono JSX, no build step** (no SPA bundler) — see
   [decisions/web-ui-server-rendered-no-build.md](./decisions/web-ui-server-rendered-no-build.md).
 
-## Phase 4 — Package & deploy
+## Phase 4 — Package & deploy ✅
 
-- Docker/Compose polish; optional bundled Ollama.
-- `init` CLI for bare installs.
-- Neutral presets (Sage / Pip / Coach / Companion).
-- README polish: screenshots / a short demo.
+- ✅ Docker/Compose polish: a `/health` healthcheck (image + compose), a fixed internal
+  port so the mapping is unambiguous, and an **optional bundled Ollama** behind a compose
+  profile (`docker compose --profile ollama up -d`).
+- ✅ `init` CLI for bare installs (`bun run init`): scaffolds `.env` from the template
+  (never clobbering an existing one), ensures the data directory, and prints next steps.
+- ✅ Neutral presets (Companion / Sage / Pip / Coach) — delivered in Phase 1
+  (`src/companion-core/presets.ts`); parameterized by name/owner, no fixed character.
+- ✅ README polish: a "Deploy" section and an honest, prose first-run walkthrough.
+  (Screenshots are owner-captured against a live model, so they're not committed here.)
 
 ## Phase 5 — Data import & adoption
 

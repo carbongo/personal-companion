@@ -9,6 +9,7 @@
 		"#/*": "./src/*"
 	},
 	"scripts": {
+		"init": "bun scripts/init.ts",
 		"dev": "bun --watch src/server/index.ts",
 		"start": "bun src/server/index.ts",
 		"chat": "bun scripts/chat.ts",

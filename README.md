@@ -9,9 +9,11 @@ coach, a sounding board.
 nothing leaves your machine. Prefer a hosted model? Drop in any OpenAI-compatible or
 Anthropic key instead. One deployment = one person's companion.
 
-> **Status: working, still maturing.** The engine, the Telegram channel, and the web
-> interface (chat + memory admin + first-run setup wizard) are all in place (Phases 0–3).
-> Packaging polish and a data importer are next — see [docs/roadmap.md](./docs/roadmap.md).
+> **Status: working, still maturing.** The engine, the Telegram channel, the web
+> interface (chat + memory admin + first-run setup wizard), and packaging (Docker image +
+> Compose with an optional bundled Ollama) are all in place (Phases 0–4). A data importer
+> for moving an existing companion's history in is next — see
+> [docs/roadmap.md](./docs/roadmap.md).
 
 ---
 
@@ -41,6 +43,7 @@ rules**, running on hardware you control, shaped by a persona you write.
 git clone https://github.com/carbongo/personal-companion
 cd personal-companion
 bun install
+bun run init              # scaffolds .env + the data dir (idempotent)
 bun run dev               # boots the server on http://localhost:8080
 ```
 
@@ -49,7 +52,38 @@ wizard**: name your companion, pick a personality, point it at a model (with a l
 connection test), and you're talking. No front-end build step. Prefer the terminal?
 `bun run chat`.
 
-Full setup, configuration, and deployment live in the **[docs wiki](./docs/README.md)**.
+### First run, step by step
+
+1. **Bring a brain.** Run [Ollama](https://ollama.com) locally and `ollama pull gemma4:12b`
+   (the default), or have an OpenAI-compatible endpoint + key ready.
+2. **Open the app** at `http://localhost:8080`. You land on the **setup wizard**.
+3. **Name it and shape it.** Give your companion a name, say what it should call you, and
+   pick a starting personality — *Companion* (warm default), *Sage* (calm mentor), *Pip*
+   (upbeat friend), or *Coach* (blunt and accountable) — or paste your own persona.
+4. **Point it at the model** and hit **Test connection** — it does a real round-trip and
+   tells you if the model answers.
+5. **Save.** Persona and facts apply immediately; model/name choices are written to `.env`.
+   Now use the **built-in chat**, manage what it remembers under **Memory**, and (optionally)
+   add a Telegram bot token to also talk to it from your phone.
+
+## Deploy
+
+Single image, single SQLite volume — `docker compose` is the short path:
+
+```bash
+cp .env.example .env            # set COMPANION_NAME, your model, secrets
+docker compose up -d            # the companion (expects an Ollama you already run)
+```
+
+Want the model bundled too? Bring up Ollama alongside it with the compose profile:
+
+```bash
+docker compose --profile ollama up -d
+docker compose exec ollama ollama pull gemma4:12b   # set LLM_OLLAMA_URL=http://ollama:11434
+```
+
+Full setup, configuration, and deployment live in the **[docs wiki](./docs/README.md)**
+([deployment](./docs/deployment.md) · [configuration](./docs/configuration.md)).
 
 ## Documentation
 

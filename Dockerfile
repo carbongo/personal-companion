@@ -19,4 +19,8 @@ VOLUME ["/data"]
 ENV PORT=8080
 EXPOSE 8080
 
+# Liveness: the web server answers /health once it's up.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD bun -e "const r = await fetch('http://localhost:8080/health').catch(() => null); process.exit(r?.ok ? 0 : 1)"
+
 CMD ["bun", "src/server/index.ts"]

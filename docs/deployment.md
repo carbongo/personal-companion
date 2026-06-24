@@ -4,9 +4,10 @@ One long-lived process serves the web interface and runs the Telegram channel + 
 roll-up. State is one SQLite file under `DATA_DIR`. That makes deployment a single
 container with a single volume.
 
-> Status: live through Phase 3 — the server, the Telegram channel, and the web interface
-> (chat + memory admin + setup wizard) all run today. There is **no front-end build step**:
-> the web UI is served straight from the Bun process.
+> Status: live through Phase 4 — the server, the Telegram channel, and the web interface
+> (chat + memory admin + setup wizard) all run today, and packaging is in place (Docker
+> image + Compose with an optional bundled Ollama, plus a `bun run init` bootstrap). There
+> is **no front-end build step**: the web UI is served straight from the Bun process.
 
 ## Docker Compose (recommended)
 
@@ -17,15 +18,24 @@ cp .env.example .env        # set COMPANION_NAME, your model, secrets
 docker compose up -d
 ```
 
+The image carries a `/health` healthcheck and always listens on `8080` internally; the
+host port comes from `PORT` in `.env` (mapped to `8080`).
+
 By default the companion expects an Ollama you already run — set
 `LLM_OLLAMA_URL` (e.g. `http://host.docker.internal:11434`).
 
-**Fully-local stack:** uncomment the `ollama` service in
-[`docker-compose.yml`](../docker-compose.yml) and set `LLM_OLLAMA_URL=http://ollama:11434`.
-Then `ollama pull` your model into that service.
+**Bundled Ollama (fully-local stack):** bring the model up alongside the app with the
+`ollama` compose profile, then pull a model into it:
+
+```bash
+docker compose --profile ollama up -d
+docker compose exec ollama ollama pull gemma4:12b
+```
+
+Set `LLM_OLLAMA_URL=http://ollama:11434` in `.env` so the app reaches that service.
 
 The `./data` volume holds the SQLite DB and uploads — back it up to keep your companion's
-memory.
+memory. The named `ollama` volume (with the profile) keeps pulled models.
 
 **First run:** open `http://<host>:<PORT>` in a browser; with nothing configured yet it
 lands on the **setup wizard**, which tests your model and writes a `.env`. Set
@@ -36,11 +46,12 @@ lands on the **setup wizard**, which tests your model and writes a `.env`. Set
 
 ```bash
 bun install
-cp .env.example .env
+bun run init           # scaffolds .env from the template + the data dir
 bun run start          # or: bun run dev  (watch mode)
 ```
 
-Run it under a process manager (systemd, pm2, a container) so it restarts on reboot.
+`bun run init` is idempotent — it won't overwrite an existing `.env`. Run it under a
+process manager (systemd, pm2, a container) so it restarts on reboot.
 
 ## Choosing where it runs
 

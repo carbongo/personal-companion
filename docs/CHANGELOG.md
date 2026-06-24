@@ -5,6 +5,22 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-24
 
+- **Phase 4 — Package & deploy.** Made the project easy to stand up, by Docker or bare Bun:
+  - *`init` CLI* (`scripts/init.ts`, `bun run init`) — first-run bootstrap for a bare
+    install: copies `.env.example` → `.env` (never clobbering an existing `.env`), ensures
+    the data directory, and prints next steps. Idempotent, dependency-free.
+  - *Docker/Compose polish* — a `/health` healthcheck in both the `Dockerfile` and
+    `docker-compose.yml`; the container's internal port is pinned to `8080` so the host
+    mapping (`PORT` in `.env` → `8080`) is unambiguous.
+  - *Optional bundled Ollama* — the commented-out service is now a real `ollama` service
+    behind a compose **profile**: `docker compose up -d` runs the app alone;
+    `docker compose --profile ollama up -d` adds Ollama (named volume for pulled models,
+    set `LLM_OLLAMA_URL=http://ollama:11434`).
+  - *Neutral presets* (Companion / Sage / Pip / Coach) — confirmed shipped in Phase 1
+    (`src/companion-core/presets.ts`); no change needed.
+  - *README polish* — a "Deploy" section and an honest, prose first-run walkthrough.
+    No new dependency; tests unchanged at 53.
+
 - **Phase 3 — Web interface.** A full browser UI served by the same Bun process, with no
   front-end build step (`src/server/web/`, mounted via `mountWeb(app)`):
   - *Built-in chat* — `POST /api/chat` builds a `turn` and calls `engine.respond`, the same
