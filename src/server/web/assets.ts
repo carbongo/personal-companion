@@ -78,7 +78,24 @@ button:disabled { opacity: .5; cursor: default; }
 .mem button { background: transparent; color: var(--bad); border: 1px solid var(--line); padding: 4px 9px; font-weight: 500; }
 .day { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .day .d { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
-.day .s { white-space: pre-wrap; }
+
+/* edit/preview tabs */
+.tabs { gap: 4px; margin-bottom: 6px; }
+.tab { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 4px 12px; font-weight: 500; }
+.tab.on { background: var(--panel-2); color: var(--text); }
+
+/* rendered markdown */
+.md { line-height: 1.55; word-wrap: break-word; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md h1, .md h2, .md h3, .md h4 { margin: 14px 0 6px; line-height: 1.25; }
+.md h1 { font-size: 1.4em; } .md h2 { font-size: 1.2em; } .md h3 { font-size: 1.05em; } .md h4 { font-size: 1em; }
+.md p { margin: 8px 0; }
+.md ul, .md ol { margin: 8px 0; padding-left: 22px; }
+.md li { margin: 2px 0; }
+.md a { color: var(--accent); }
+.md blockquote { margin: 8px 0; padding: 2px 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.md.summary { white-space: normal; }
 `;
 
 export const CHAT_JS = `
@@ -157,7 +174,60 @@ const rollupNote = document.getElementById('rollupNote');
 
 function note(node, msg, kind) { node.textContent = msg; node.className = 'note ' + kind; node.classList.remove('hidden'); setTimeout(() => node.classList.add('hidden'), 4000); }
 
-async function loadCore() { const r = await fetch('/api/core'); if (r.ok) core.value = (await r.json()).contentMd; }
+// Minimal, safe Markdown renderer (prose only). HTML is escaped first, so the
+// output is injection-safe; then headings, bold/italic, links, lists, and
+// block-quotes are formatted. No code spans (the companion's prose has none).
+function mdToHtml(src) {
+	var esc = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+	var inline = function (s) {
+		return esc(s)
+			.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>')
+			.replace(/\\*([^*]+)\\*/g, '<em>$1</em>')
+			.replace(/\\[([^\\]]+)\\]\\((https?:\\/\\/[^)\\s]+)\\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+	};
+	var lines = String(src).replace(/\\r\\n/g, '\\n').split('\\n');
+	var out = '', i = 0;
+	while (i < lines.length) {
+		var line = lines[i];
+		if (/^\\s*$/.test(line)) { i++; continue; }
+		var h = line.match(/^(#{1,6})\\s+(.*)$/);
+		if (h) { var lv = h[1].length; out += '<h' + lv + '>' + inline(h[2]) + '</h' + lv + '>'; i++; continue; }
+		if (/^\\s*[-*+]\\s+/.test(line)) {
+			out += '<ul>';
+			while (i < lines.length && /^\\s*[-*+]\\s+/.test(lines[i])) { out += '<li>' + inline(lines[i].replace(/^\\s*[-*+]\\s+/, '')) + '</li>'; i++; }
+			out += '</ul>'; continue;
+		}
+		if (/^\\s*\\d+\\.\\s+/.test(line)) {
+			out += '<ol>';
+			while (i < lines.length && /^\\s*\\d+\\.\\s+/.test(lines[i])) { out += '<li>' + inline(lines[i].replace(/^\\s*\\d+\\.\\s+/, '')) + '</li>'; i++; }
+			out += '</ol>'; continue;
+		}
+		if (/^\\s*>\\s?/.test(line)) {
+			var q = [];
+			while (i < lines.length && /^\\s*>\\s?/.test(lines[i])) { q.push(inline(lines[i].replace(/^\\s*>\\s?/, ''))); i++; }
+			out += '<blockquote>' + q.join('<br>') + '</blockquote>'; continue;
+		}
+		var para = [];
+		while (i < lines.length && !/^\\s*$/.test(lines[i]) && !/^(#{1,6})\\s|^\\s*[-*+]\\s|^\\s*\\d+\\.\\s|^\\s*>/.test(lines[i])) { para.push(lines[i]); i++; }
+		out += '<p>' + inline(para.join(' ')) + '</p>';
+	}
+	return out;
+}
+
+const corePreview = document.getElementById('corePreview');
+const coreEditTab = document.getElementById('coreEditTab');
+const corePreviewTab = document.getElementById('corePreviewTab');
+function showCoreTab(preview) {
+	corePreview.classList.toggle('hidden', !preview);
+	core.classList.toggle('hidden', preview);
+	coreEditTab.classList.toggle('on', !preview);
+	corePreviewTab.classList.toggle('on', preview);
+	if (preview) corePreview.innerHTML = mdToHtml(core.value);
+}
+coreEditTab.addEventListener('click', () => showCoreTab(false));
+corePreviewTab.addEventListener('click', () => showCoreTab(true));
+
+async function loadCore() { const r = await fetch('/api/core'); if (r.ok) { core.value = (await r.json()).contentMd; if (!corePreview.classList.contains('hidden')) corePreview.innerHTML = mdToHtml(core.value); } }
 document.getElementById('saveCore').addEventListener('click', async () => {
 	const r = await fetch('/api/core', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: core.value }) });
 	note(coreNote, r.ok ? 'Core saved.' : 'Save failed.', r.ok ? 'ok' : 'bad');
@@ -171,7 +241,7 @@ async function loadMemories(q) {
 	for (const m of data.memories) {
 		const row = document.createElement('div'); row.className = 'mem';
 		const body = document.createElement('div'); body.className = 'body';
-		body.appendChild(document.createTextNode(m.content));
+		const c = document.createElement('div'); c.className = 'md'; c.innerHTML = mdToHtml(m.content); body.appendChild(c);
 		if (m.tags) { const t = document.createElement('div'); t.className = 'tags'; t.textContent = m.tags; body.appendChild(t); }
 		const del = document.createElement('button'); del.textContent = 'Delete';
 		del.addEventListener('click', async () => { if (await fetch('/api/memories/' + m.id, { method: 'DELETE' }).then(r => r.ok)) row.remove(); });
@@ -192,7 +262,7 @@ async function loadSummaries() {
 	for (const s of data.summaries) {
 		const row = document.createElement('div'); row.className = 'day';
 		const d = document.createElement('div'); d.className = 'd'; d.textContent = s.day;
-		const body = document.createElement('div'); body.className = 's'; body.textContent = s.summaryMd;
+		const body = document.createElement('div'); body.className = 's md summary'; body.innerHTML = mdToHtml(s.summaryMd);
 		row.appendChild(d); row.appendChild(body); sumList.appendChild(row);
 	}
 }

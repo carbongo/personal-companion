@@ -108,7 +108,16 @@ export const MemoryPage = (props: { name: string; authEnabled: boolean }) => (
 			<p class="sub">
 				The living spine of who you two are. Edited here, read every turn.
 			</p>
-			<textarea id="core" rows={8} placeholder="The Core is empty." />
+			<div class="row tabs">
+				<button type="button" id="coreEditTab" class="tab on">
+					Edit
+				</button>
+				<button type="button" id="corePreviewTab" class="tab">
+					Preview
+				</button>
+			</div>
+			<textarea id="core" rows={10} placeholder="The Core is empty." />
+			<div id="corePreview" class="md hidden" />
 			<div class="row" style="margin-top:10px">
 				<button type="button" id="saveCore">
 					Save Core
@@ -215,7 +224,7 @@ export const SetupPage = (props: {
 				</label>
 				<textarea
 					id="persona"
-					rows={6}
+					rows={10}
 					placeholder="Describe who your companion is, in your own words…"
 				>
 					{v.persona}
@@ -310,6 +319,7 @@ export const SetupPage = (props: {
 				<input
 					type="text"
 					id="telegramAllowedIds"
+					value={v.telegramAllowedIds}
 					placeholder="e.g. 12345678"
 				/>
 			</div>

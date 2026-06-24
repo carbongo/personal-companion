@@ -5,6 +5,16 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-24
 
+- **Web UI: setup doubles as a settings editor, and memory renders Markdown.** The setup
+  page now prefills from the live configuration so it can be re-opened to edit settings, not
+  just run once: the persona field falls back to the `persona/persona.md` file when no DB
+  override is set (so an existing persona is visible/editable), and the Telegram
+  **allowed-user-IDs** field is prefilled (`src/server/web/setup-state.ts`, `pages.tsx`). The
+  bot token stays write-only (never echoed) with a "token already set" indicator. The Memory
+  admin now renders Markdown: the **Core** has an Edit/Preview toggle, and **saved memories**
+  and **daily summaries** display formatted. Rendering is a small, dependency-free,
+  HTML-escaped (XSS-safe) Markdown function in `assets.ts`; editing stays via the textareas.
+
 - **Web chat: multi-paragraph replies render as separate bubbles.** The built-in web chat now
   splits an assistant reply on blank lines and shows each paragraph as its own message bubble —
   the same texting feel the Telegram reply-split produces. Purely presentational (the reply is
