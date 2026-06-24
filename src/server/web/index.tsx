@@ -29,14 +29,17 @@ export function mountWeb(app: Hono): void {
 	// Gate everything (no-op when WEB_AUTH_PASSWORD is unset).
 	app.use("*", requireAuth);
 
-	// Static assets (one stylesheet + the small page scripts), cached.
+	// Static assets (one stylesheet + the small page scripts). Served with
+	// `no-cache` so the browser revalidates every load: the assets are tiny and
+	// ship inside the app, and `max-age` caching would otherwise serve a stale
+	// stylesheet/script after an update until it expired.
 	app.get("/assets/:file", (c) => {
 		const asset = ASSETS[c.req.param("file")];
 		if (!asset) return c.notFound();
 		const [bodyText, type] = asset;
 		return c.body(bodyText, 200, {
 			"content-type": type,
-			"cache-control": "public, max-age=3600",
+			"cache-control": "no-cache",
 		});
 	});
 
