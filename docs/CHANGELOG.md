@@ -5,6 +5,21 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-25
 
+- **Settings page revamp: every field explained + purpose-built selectors.** Each control
+  now has an inline hint describing what it does and the trade-off. New `Field` helper in
+  `pages.tsx`; raw inputs replaced where a better control exists: a searchable **timezone
+  picker** (SSR from `Intl.supportedValuesOf` + "detect from browser"), a **temperature
+  slider** with live readout, **cron presets** plus a plain-language schedule description, a
+  **model** suggestions datalist, provider-aware **speech-to-text** fields (only the chosen
+  backend's inputs show), and — the headline — a **real location search** for weather: type a
+  city, pick it, and it fills latitude/longitude/name and matches your timezone. Geocoding
+  goes through a new keyless **`GET /api/geocode`** that proxies Open-Meteo server-side
+  (consistent with the weather provider; egress stays off the browser).
+- **Auto-restart on save (`AUTO_RESTART_ON_SAVE`, default off).** With it on (toggle in App &
+  access), saving Settings relaunches the app so the new `.env` applies with no manual step:
+  the process exits and a supervisor (launchd `KeepAlive`, Docker `restart:`, systemd
+  `Restart=`) brings it back; the Settings page polls `/health` and reloads itself once it's
+  up. Off by default — only safe when the process is supervised.
 - **Attachments are now real (`media_url` wired end-to-end).** Previously `media_url` was
   dead plumbing: no channel set it and nothing served `/uploads`. New
   `src/companion-core/media.ts` saves chat images under `DATA_DIR/uploads` and the auth-gated

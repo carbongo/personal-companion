@@ -43,10 +43,21 @@ server-side and served straight from the Bun process.
   (or back in **Settings**).
 - **Settings:** re-open `/setup` any time to edit every variable from `.env.example`
   through the browser — grouped to match the file (identity, model + tuning, Telegram,
-  memory, web access, speech-to-text, weather, app & access). Fields prefill from the live
-  config; secrets are write-only (shown only as "set"); blank optional fields are left
-  untouched so a save never wipes an existing value. Persona and owner facts apply
-  immediately; everything else is written to `.env` and takes effect on restart.
+  memory, web access, speech-to-text, weather, app & access). Every field carries an inline
+  explanation, and the controls are purpose-built: a **searchable timezone picker** (with a
+  "detect from browser" button), a **real location search** for weather (type a city — it
+  fills latitude/longitude/name and can match your timezone, via Open-Meteo's keyless
+  geocoder, proxied through the server), a **temperature slider**, **cron presets** with a
+  plain-language description of the schedule, a **model suggestions** list, and
+  provider-aware speech-to-text fields that show only what the chosen backend needs. Fields
+  prefill from the live config; secrets are write-only (shown only as "set"); blank optional
+  fields are left untouched so a save never wipes an existing value. Persona and owner facts
+  apply immediately; everything else is written to `.env`.
+- **Applying changes:** most settings take effect on restart. Set `AUTO_RESTART_ON_SAVE=true`
+  (or toggle it in **App & access**) and a save relaunches the app for you — it exits and a
+  supervisor brings it back with the new `.env`, and the page reloads itself once it's up.
+  Only enable it where something supervises the process (launchd `KeepAlive`, Docker
+  `restart:`, systemd `Restart=`); otherwise the app would simply stop on save.
 - **Auth:** set `WEB_AUTH_PASSWORD` to require a password (a session cookie gates the whole
   interface and API). Leave it empty only behind a trusted network (a tailnet, localhost) —
   see [security.md](./security.md).

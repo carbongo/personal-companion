@@ -56,6 +56,12 @@ export interface AppConfig {
 	port: number;
 	/** Web UI password; empty means no app-level auth (rely on a trusted network). */
 	webAuthPassword: string;
+	/**
+	 * Exit the process after a Settings save so a supervisor (launchd KeepAlive,
+	 * Docker `restart:`, systemd `Restart=`) relaunches it with the new `.env`.
+	 * Off by default — only safe when something actually supervises the process.
+	 */
+	autoRestartOnSave: boolean;
 }
 
 export type LlmProviderName = "ollama" | "openai-compatible" | "anthropic";
@@ -159,6 +165,7 @@ export function loadConfig(): Config {
 			dataDir: str("DATA_DIR", "./data"),
 			port: num("PORT", 8080),
 			webAuthPassword: str("WEB_AUTH_PASSWORD", ""),
+			autoRestartOnSave: bool("AUTO_RESTART_ON_SAVE", false),
 		},
 		llm: {
 			provider: str("LLM_PROVIDER", "ollama") as LlmProviderName,

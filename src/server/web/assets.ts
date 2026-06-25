@@ -60,6 +60,40 @@ button:disabled { opacity: .5; cursor: default; }
 .note.info { background: var(--panel-2); color: var(--muted); }
 .hidden { display: none !important; }
 
+/* settings form */
+.field { margin: 16px 0 0; }
+.field > label { margin: 0 0 6px; }
+.field .field-actions { margin-top: 8px; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; line-height: 1.5; }
+.hint code { background: var(--panel-2); padding: 1px 5px; border-radius: 5px; font-size: .92em; }
+label.pick { cursor: pointer; }
+.range-row { display: flex; align-items: center; gap: 14px; }
+.range-row input[type=range] { flex: 1; accent-color: var(--accent); }
+.range-row output { min-width: 2.4em; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.cron-human { color: var(--accent); }
+.geo { position: relative; }
+.geo-results {
+	position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20;
+	background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+	overflow: hidden auto; max-height: 280px; box-shadow: 0 10px 28px rgba(0,0,0,.30);
+}
+.geo-results .geo-item {
+	display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+	width: 100%; text-align: left; background: transparent; color: var(--text);
+	border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+	padding: 9px 12px; font-weight: 500;
+}
+.geo-results .geo-item:last-child { border-bottom: 0; }
+.geo-results .geo-item:hover, .geo-results .geo-item:focus { background: var(--panel-2); }
+.geo-results .geo-item .sub { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.geo-chosen {
+	margin-top: 10px; font-size: 13px; padding: 8px 11px;
+	background: rgba(110,168,254,.10); border: 1px solid var(--line); border-radius: 8px;
+}
+details.manual { margin-top: 14px; }
+details.manual > summary { cursor: pointer; color: var(--muted); font-size: 13px; user-select: none; }
+details.manual[open] > summary { margin-bottom: 4px; }
+
 /* chat */
 .chat { display: flex; flex-direction: column; height: calc(100vh - 56px - 44px); }
 .msgs { flex: 1; overflow-y: auto; padding: 8px 0; display: flex; flex-direction: column; gap: 10px; }
@@ -441,6 +475,117 @@ function syncProvider() {
 }
 provider.addEventListener('change', syncProvider); syncProvider();
 
+// --- timezone: detect from this browser ----------------------------------
+function ensureOption(sel, value) {
+	if (!value) return;
+	for (const o of sel.options) if (o.value === value) return;
+	const o = document.createElement('option');
+	o.value = value; o.textContent = value;
+	sel.insertBefore(o, sel.firstChild);
+}
+const tzDetect = document.getElementById('tzDetect');
+if (tzDetect) tzDetect.addEventListener('click', () => {
+	try {
+		const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		const sel = document.getElementById('timezone');
+		if (tz && sel) { ensureOption(sel, tz); sel.value = tz; }
+	} catch (e) {}
+});
+
+// --- temperature: live readout -------------------------------------------
+const tempEl = document.getElementById('temperature');
+const tempOut = document.getElementById('temperatureOut');
+if (tempEl && tempOut) {
+	const syncTemp = () => { tempOut.textContent = Number(tempEl.value).toFixed(1); };
+	tempEl.addEventListener('input', syncTemp); syncTemp();
+}
+
+// --- cron: presets + a plain-language description -------------------------
+const cronEl = document.getElementById('memorySummaryCron');
+const cronPreset = document.getElementById('cronPreset');
+const cronHuman = document.getElementById('cronHuman');
+function pad2(n) { return String(n).length < 2 ? '0' + n : String(n); }
+function cronToText(p) {
+	const mi = p[0], ho = p[1], dom = p[2], mo = p[3], dow = p[4];
+	const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+	const num = (s) => /^\\d+$/.test(s);
+	const at = (num(ho) && num(mi)) ? pad2(ho) + ':' + pad2(mi) : null;
+	const every = ho.match(/^\\*\\/(\\d+)$/);
+	if (every) return 'every ' + every[1] + ' hours';
+	if (dom === '*' && mo === '*' && dow === '*') return at ? 'every day at ' + at : 'multiple times a day';
+	if (dom === '*' && mo === '*' && num(dow)) return 'every ' + (days[Number(dow) % 7] || 'week') + (at ? ' at ' + at : '');
+	return 'custom schedule';
+}
+function describeCron() {
+	if (!cronEl || !cronHuman) return;
+	const p = cronEl.value.trim().split(/\\s+/);
+	cronHuman.textContent = p.length === 5 ? '→ ' + cronToText(p) : '';
+}
+if (cronPreset && cronEl) cronPreset.addEventListener('change', () => {
+	if (cronPreset.value) { cronEl.value = cronPreset.value; cronPreset.value = ''; describeCron(); }
+});
+if (cronEl) { cronEl.addEventListener('input', describeCron); describeCron(); }
+
+// --- speech-to-text: show only the chosen provider's fields --------------
+const sttProvider = document.getElementById('sttProvider');
+function syncStt() {
+	if (!sttProvider) return;
+	const cur = sttProvider.value;
+	const boxes = document.querySelectorAll('[data-stt]');
+	for (const box of boxes) {
+		const need = box.getAttribute('data-stt').split(' ');
+		box.classList.toggle('hidden', need.indexOf(cur) === -1);
+	}
+}
+if (sttProvider) { sttProvider.addEventListener('change', syncStt); syncStt(); }
+
+// --- weather: real geocoding location picker (via /api/geocode) -----------
+const geoSearch = document.getElementById('geoSearch');
+const geoResults = document.getElementById('geoResults');
+let geoTimer = null;
+function setGeo(name, lat, lon, tz) {
+	document.getElementById('weatherLat').value = lat;
+	document.getElementById('weatherLon').value = lon;
+	document.getElementById('weatherLocationName').value = name;
+	const chip = document.getElementById('geoSelected');
+	document.getElementById('geoChosenName').textContent = name;
+	document.getElementById('geoChosenCoords').textContent = '(' + lat + ', ' + lon + ')';
+	if (chip) chip.classList.remove('hidden');
+	if (tz) { const sel = document.getElementById('timezone'); if (sel) { ensureOption(sel, tz); sel.value = tz; } }
+	if (geoResults) { geoResults.classList.add('hidden'); geoResults.innerHTML = ''; }
+	if (geoSearch) geoSearch.value = name;
+}
+async function runGeo() {
+	if (!geoSearch || !geoResults) return;
+	const q = geoSearch.value.trim();
+	if (q.length < 2) { geoResults.classList.add('hidden'); return; }
+	try {
+		const r = await fetch('/api/geocode?q=' + encodeURIComponent(q));
+		const data = await r.json();
+		geoResults.innerHTML = '';
+		const items = (data && data.results) || [];
+		if (!items.length) { geoResults.classList.add('hidden'); return; }
+		for (const g of items) {
+			const label = [g.name, g.admin1, g.country].filter(Boolean).join(', ');
+			const b = document.createElement('button');
+			b.type = 'button'; b.className = 'geo-item';
+			const nameSpan = document.createElement('span'); nameSpan.textContent = label;
+			const coord = document.createElement('span'); coord.className = 'sub';
+			coord.textContent = g.latitude.toFixed(2) + ', ' + g.longitude.toFixed(2);
+			b.appendChild(nameSpan); b.appendChild(coord);
+			b.addEventListener('click', () => setGeo(label, g.latitude, g.longitude, g.timezone));
+			geoResults.appendChild(b);
+		}
+		geoResults.classList.remove('hidden');
+	} catch (e) { geoResults.classList.add('hidden'); }
+}
+if (geoSearch) {
+	geoSearch.addEventListener('input', () => { clearTimeout(geoTimer); geoTimer = setTimeout(runGeo, 300); });
+	document.addEventListener('click', (e) => {
+		if (geoResults && e.target !== geoSearch && !geoResults.contains(e.target)) geoResults.classList.add('hidden');
+	});
+}
+
 function body() {
 	return {
 		name: val('name'),
@@ -452,6 +597,7 @@ function body() {
 		dataDir: val('dataDir'),
 		port: val('port'),
 		webAuthPassword: raw('webAuthPassword'),
+		autoRestartOnSave: val('autoRestartOnSave'),
 		provider: provider.value,
 		model: val('model'),
 		ollamaUrl: val('ollamaUrl'),
@@ -503,12 +649,38 @@ document.getElementById('test').addEventListener('click', async (e) => {
 	e.target.disabled = false;
 });
 
+// Wait for a supervised relaunch: the server exits, its supervisor brings it
+// back. Poll /health until it answers, then reload onto the fresh config. We
+// reload once we've seen it go down and return, or after a short grace window
+// (in case the down moment fell between polls).
+async function waitForRestart() {
+	const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+	let sawDown = false;
+	for (let i = 0; i < 90; i++) {
+		await sleep(1000);
+		try {
+			const h = await fetch('/health', { cache: 'no-store' });
+			if (h.ok) { if (sawDown || i >= 3) { location.reload(); return; } }
+			else sawDown = true;
+		} catch (e) { sawDown = true; }
+	}
+	saveNote.textContent = "Saved, but the app didn't come back on its own — restart it manually.";
+	saveNote.className = 'note bad';
+}
+
 document.getElementById('save').addEventListener('click', async (e) => {
 	e.target.disabled = true; saveNote.classList.add('hidden');
 	try {
 		const r = await fetch('/api/setup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body()) });
 		const data = await r.json();
 		if (r.ok) {
+			if (data.restarting) {
+				saveNote.innerHTML = 'Saved — restarting to apply everything. This page reloads automatically when it\\'s back…';
+				saveNote.className = 'note info';
+				saveNote.classList.remove('hidden');
+				waitForRestart();
+				return; // keep the button disabled while it restarts
+			}
 			saveNote.innerHTML = 'Saved. Persona and facts apply now; other changes take effect after a restart (e.g. <code>bun start</code> or <code>docker compose restart</code>). <a href="/">Open the chat →</a>';
 			saveNote.className = 'note ok';
 		} else { saveNote.textContent = data.error || 'Save failed.'; saveNote.className = 'note bad'; }

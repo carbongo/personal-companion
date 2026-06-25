@@ -26,6 +26,7 @@ export interface SetupValues {
 	dataDir: string;
 	port: number;
 	webAuthConfigured: boolean;
+	autoRestartOnSave: boolean;
 	// brain (LLM)
 	provider: string;
 	model: string;
@@ -100,6 +101,7 @@ export function currentSetupValues(): SetupValues {
 		dataDir: config.app.dataDir,
 		port: config.app.port,
 		webAuthConfigured: !!config.app.webAuthPassword,
+		autoRestartOnSave: config.app.autoRestartOnSave,
 		provider: config.llm.provider,
 		model: config.llm.model,
 		ollamaUrl: config.llm.ollamaUrl,

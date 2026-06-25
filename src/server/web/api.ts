@@ -43,6 +43,7 @@ interface SetupBody {
 	dataDir?: string;
 	port?: string;
 	webAuthPassword?: string;
+	autoRestartOnSave?: string;
 	// brain (LLM)
 	provider?: string;
 	model?: string;
@@ -216,6 +217,45 @@ api.post("/transcribe", async (c) => {
 	}
 });
 
+// Geocode a place name for the Settings location picker. Proxied through the
+// server (not the browser) so egress stays server-side and consistent with the
+// weather provider — both use Open-Meteo, keyless. Auth-gated like the rest of
+// /api. Failures degrade to an empty list, never an error.
+api.get("/geocode", async (c) => {
+	const q = (c.req.query("q") ?? "").trim();
+	if (q.length < 2) return c.json({ results: [] });
+	const url =
+		"https://geocoding-api.open-meteo.com/v1/search" +
+		`?name=${encodeURIComponent(q)}&count=8&language=en&format=json`;
+	try {
+		const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+		if (!res.ok) return c.json({ results: [] });
+		const data = (await res.json()) as {
+			results?: Array<{
+				name?: string;
+				admin1?: string;
+				country?: string;
+				latitude?: number;
+				longitude?: number;
+				timezone?: string;
+			}>;
+		};
+		const results = (data.results ?? [])
+			.filter((r) => typeof r.latitude === "number")
+			.map((r) => ({
+				name: r.name ?? "",
+				admin1: r.admin1 ?? "",
+				country: r.country ?? "",
+				latitude: r.latitude as number,
+				longitude: r.longitude as number,
+				timezone: r.timezone ?? "",
+			}));
+		return c.json({ results });
+	} catch {
+		return c.json({ results: [] });
+	}
+});
+
 // --- memory admin ------------------------------------------------------------
 
 api.get("/core", (c) => c.json({ contentMd: getCore() }));
@@ -314,6 +354,7 @@ api.post("/setup", async (c) => {
 		TZ: opt(b.timezone),
 		DATA_DIR: opt(b.dataDir),
 		PORT: opt(b.port),
+		AUTO_RESTART_ON_SAVE: opt(b.autoRestartOnSave),
 		LLM_PROVIDER: providerName,
 		LLM_MODEL: opt(b.model),
 		LLM_TEMPERATURE: opt(b.temperature),
@@ -374,5 +415,17 @@ api.post("/setup", async (c) => {
 	if (b.coreSeed?.trim()) setCore(b.coreSeed.trim());
 	setSetting("setup_complete", "1");
 
-	return c.json({ ok: true, restartNeeded: true });
+	// Optionally relaunch so the new .env takes effect with no manual step. The
+	// process just exits; a supervisor (launchd KeepAlive, Docker, systemd) brings
+	// it back with the fresh config. We use the value as just saved, so enabling it
+	// takes effect on this very save. Exit is delayed so this response flushes first.
+	const restarting =
+		(b.autoRestartOnSave ??
+			(config.app.autoRestartOnSave ? "true" : "false")) === "true";
+	if (restarting) {
+		console.log("[companion] settings saved — restarting to apply (.env)…");
+		setTimeout(() => process.exit(0), 700);
+	}
+
+	return c.json({ ok: true, restartNeeded: true, restarting });
 });
