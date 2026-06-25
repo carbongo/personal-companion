@@ -30,6 +30,7 @@ export interface SetupValues {
 	// brain (LLM)
 	provider: string;
 	model: string;
+	visionModel: string;
 	ollamaUrl: string;
 	baseUrl: string;
 	temperature: number;
@@ -106,6 +107,7 @@ export function currentSetupValues(): SetupValues {
 		autoRestartOnSave: config.app.autoRestartOnSave,
 		provider: config.llm.provider,
 		model: config.llm.model,
+		visionModel: config.llm.visionModel,
 		ollamaUrl: config.llm.ollamaUrl,
 		baseUrl: config.llm.baseUrl,
 		temperature: config.llm.temperature,

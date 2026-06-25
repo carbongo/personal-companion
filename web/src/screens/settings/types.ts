@@ -13,6 +13,7 @@ export interface Form {
   // Mind (LLM)
   provider: string;
   model: string;
+  visionModel: string;
   ollamaUrl: string;
   baseUrl: string;
   apiKey: string;
@@ -77,6 +78,7 @@ export function formFromValues(v: SetupValues): Form {
     persona: v.persona,
     provider: v.provider,
     model: v.model,
+    visionModel: v.visionModel,
     ollamaUrl: v.ollamaUrl,
     baseUrl: v.baseUrl,
     apiKey: "",
@@ -134,6 +136,7 @@ export function bodyFromForm(f: Form): Record<string, string> {
     persona: f.persona,
     provider: f.provider,
     model: f.model,
+    visionModel: f.visionModel,
     ollamaUrl: f.ollamaUrl,
     baseUrl: f.baseUrl,
     apiKey: f.apiKey,

@@ -45,6 +45,14 @@ export function MindSection({ form, set, values }: SectionProps) {
             <Select label="Provider" value={form.provider} onChange={(v) => set("provider", v)} options={PROVIDERS} />
             <Field label="Model" value={form.model} onChange={(v) => set("model", v)} placeholder="gemma3:12b" mono />
           </Grid>
+          <Field
+            label="Vision model (for images)"
+            value={form.visionModel}
+            onChange={(v) => set("visionModel", v)}
+            placeholder={isOllama ? "qwen2.5vl:7b — leave blank if the model above can see" : "leave blank to use the model above"}
+            mono
+            help="Used only for turns that include an image, when the main model can't see. Leave blank if the main model is already vision-capable."
+          />
           {isOllama ? (
             <Field
               label="Ollama URL"

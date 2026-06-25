@@ -60,6 +60,7 @@ export interface SetupValues {
   autoRestartOnSave: boolean;
   provider: string;
   model: string;
+  visionModel: string;
   ollamaUrl: string;
   baseUrl: string;
   temperature: number;
@@ -140,9 +141,75 @@ const body = (v: unknown) => JSON.stringify(v);
 export const api = {
   state: () => req<AppState>("/api/state"),
 
-  messages: () => req<{ day: string; messages: ChatMessage[] }>("/api/messages"),
+  messages: (day?: string) =>
+    req<{ day: string; messages: ChatMessage[] }>(
+      `/api/messages${day ? `?day=${encodeURIComponent(day)}` : ""}`,
+    ),
+  days: () => req<{ days: string[] }>("/api/days"),
   send: (payload: { text?: string; images?: string[]; kind?: string }) =>
     req<{ reply: string }>("/api/chat", { method: "POST", body: body(payload) }),
+
+  /**
+   * Streaming chat: POSTs the turn and reads newline-delimited JSON back,
+   * calling `onParagraph` for each finished paragraph as it arrives. Resolves
+   * with the full reply once the stream closes.
+   */
+  sendStream: async (
+    payload: { text?: string; images?: string[]; kind?: string },
+    onParagraph: (text: string) => void,
+  ): Promise<{ reply: string }> => {
+    const res = await fetch("/api/chat/stream", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: body(payload),
+    });
+    if (res.status === 401) {
+      window.location.href = "/login";
+      throw new ApiError("Session expired", 401);
+    }
+    if (!res.ok || !res.body) {
+      const text = await res.text().catch(() => "");
+      let message = `Request failed (${res.status})`;
+      try {
+        message = (JSON.parse(text) as { error?: string })?.error ?? message;
+      } catch {
+        /* non-JSON body */
+      }
+      throw new ApiError(message, res.status);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let reply = "";
+    const handle = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      let obj: { type?: string; text?: string; reply?: string; error?: string };
+      try {
+        obj = JSON.parse(trimmed);
+      } catch {
+        return;
+      }
+      if (obj.type === "paragraph" && obj.text) onParagraph(obj.text);
+      else if (obj.type === "done") reply = obj.reply ?? reply;
+      else if (obj.type === "error")
+        throw new ApiError(obj.error ?? "The companion couldn't reply.", 500);
+    };
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl: number;
+      // biome-ignore lint/suspicious/noAssignInExpressions: line scan
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl);
+        buf = buf.slice(nl + 1);
+        handle(line);
+      }
+    }
+    if (buf) handle(buf);
+    return { reply };
+  },
   transcribe: (file: Blob, filename = "voice.webm") => {
     const form = new FormData();
     form.append("file", file, filename);

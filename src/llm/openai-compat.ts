@@ -17,6 +17,7 @@ import {
 	type LLMProvider,
 	type ProviderInfo,
 	ProviderUnreachableError,
+	type StreamDelta,
 } from "./types.ts";
 
 type OpenAIContent =
@@ -74,32 +75,42 @@ export class OpenAICompatProvider implements LLMProvider {
 		return { role: m.role, content: parts };
 	}
 
+	private headers(): Record<string, string> {
+		const headers: Record<string, string> = {
+			"content-type": "application/json",
+		};
+		if (this.cfg.apiKey) headers.authorization = `Bearer ${this.cfg.apiKey}`;
+		return headers;
+	}
+
+	private requestBody(
+		messages: ChatMessage[],
+		opts: GenerateOptions | undefined,
+		stream: boolean,
+	): string {
+		const effort = this.reasoningEffort(opts?.think);
+		return JSON.stringify({
+			model: opts?.model?.trim() || this.cfg.model,
+			messages: messages.map((m) => this.toMessage(m)),
+			temperature: this.cfg.temperature,
+			max_tokens: opts?.maxTokens ?? this.cfg.maxTokens,
+			stream,
+			...(effort ? { reasoning_effort: effort } : {}),
+		});
+	}
+
 	async chat(messages: ChatMessage[], opts?: GenerateOptions): Promise<string> {
 		if (!this.cfg.baseUrl)
 			throw new Error(
 				"LLM_BASE_URL is required for the openai-compatible provider",
 			);
 
-		const headers: Record<string, string> = {
-			"content-type": "application/json",
-		};
-		if (this.cfg.apiKey) headers.authorization = `Bearer ${this.cfg.apiKey}`;
-
-		const effort = this.reasoningEffort(opts?.think);
-
 		let res: Response;
 		try {
 			res = await fetch(`${this.cfg.baseUrl}/chat/completions`, {
 				method: "POST",
-				headers,
-				body: JSON.stringify({
-					model: this.cfg.model,
-					messages: messages.map((m) => this.toMessage(m)),
-					temperature: this.cfg.temperature,
-					max_tokens: opts?.maxTokens ?? this.cfg.maxTokens,
-					stream: false,
-					...(effort ? { reasoning_effort: effort } : {}),
-				}),
+				headers: this.headers(),
+				body: this.requestBody(messages, opts, false),
 				signal: AbortSignal.timeout(this.cfg.timeoutMs),
 			});
 		} catch {
@@ -113,5 +124,78 @@ export class OpenAICompatProvider implements LLMProvider {
 			choices?: Array<{ message?: { content?: string } }>;
 		};
 		return (data.choices?.[0]?.message?.content ?? "").trim();
+	}
+
+	/**
+	 * Stream a generation over SSE (`stream:true`), calling `onDelta` with each
+	 * `choices[].delta.content` token as it arrives, and resolving with the full
+	 * text. Lines look like `data: {json}` and end with `data: [DONE]`.
+	 */
+	async chatStream(
+		messages: ChatMessage[],
+		onDelta: StreamDelta,
+		opts?: GenerateOptions,
+	): Promise<string> {
+		if (!this.cfg.baseUrl)
+			throw new Error(
+				"LLM_BASE_URL is required for the openai-compatible provider",
+			);
+
+		let res: Response;
+		try {
+			res = await fetch(`${this.cfg.baseUrl}/chat/completions`, {
+				method: "POST",
+				headers: this.headers(),
+				body: this.requestBody(messages, opts, true),
+				signal: AbortSignal.timeout(this.cfg.timeoutMs),
+			});
+		} catch {
+			throw new ProviderUnreachableError();
+		}
+		if (!res.ok) {
+			const body = await res.text().catch(() => "");
+			throw new Error(`openai-compatible ${res.status}: ${body.slice(0, 200)}`);
+		}
+		if (!res.body) return this.chat(messages, opts);
+
+		let full = "";
+		let buf = "";
+		const decoder = new TextDecoder();
+		const handleLine = async (line: string): Promise<void> => {
+			const trimmed = line.trim();
+			if (!trimmed.startsWith("data:")) return;
+			const payload = trimmed.slice(5).trim();
+			if (!payload || payload === "[DONE]") return;
+			let piece = "";
+			try {
+				const obj = JSON.parse(payload) as {
+					choices?: Array<{ delta?: { content?: string } }>;
+				};
+				piece = obj.choices?.[0]?.delta?.content ?? "";
+			} catch {
+				return;
+			}
+			if (piece) {
+				full += piece;
+				await onDelta(piece);
+			}
+		};
+		for await (const chunk of res.body as AsyncIterable<Uint8Array>) {
+			buf += decoder.decode(chunk, { stream: true });
+			let nl: number;
+			// biome-ignore lint/suspicious/noAssignInExpressions: line scan
+			while ((nl = buf.indexOf("\n")) >= 0) {
+				const line = buf.slice(0, nl);
+				buf = buf.slice(nl + 1);
+				await handleLine(line);
+			}
+		}
+		if (buf) await handleLine(buf);
+		return full.trim();
+	}
+
+	/** Hosted multimodal models accept images; vision is the caller's config. */
+	async supportsVision(): Promise<boolean> {
+		return true;
 	}
 }

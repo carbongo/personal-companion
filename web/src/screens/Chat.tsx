@@ -6,17 +6,52 @@ import { api, type AppState, type ChatMessage } from "../lib/api.ts";
 import { formatTime, greeting, renderMarkdown } from "../lib/format.tsx";
 import { sfx } from "../lib/sound.ts";
 
-interface Pending {
-  id: number;
+/** A delivery state for the messages you send, mirrored on the bubble like a
+ *  messenger: one tick = queued (batching, not sent yet, or it errored), two
+ *  ticks = the whole burst was batched and delivered. */
+type Status = "queued" | "sent";
+
+interface Bubble {
+  id: string;
   role: "user" | "assistant";
   content: string;
   mediaUrls: string[];
   createdAt: string;
+  /** Assistant placeholder while the model gathers itself. */
   pending?: boolean;
+  /** Delivery state, on your own messages only. */
+  status?: Status;
+}
+
+/** One queued outgoing message awaiting the batch flush. */
+interface Queued {
+  id: string;
+  text: string;
+  images: string[];
+}
+
+let seq = 0;
+function uid(prefix: string): string {
+  seq += 1;
+  return `${prefix}-${Date.now().toString(36)}-${seq}`;
 }
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+/** Mirror of the server's growing idle window (batcher.ts): wait longer for the
+ *  next message the more a burst grows, capped at `maxMs`. */
+function idleWindow(count: number, idleMs: number, stepMs: number, maxMs: number): number {
+  return Math.min(idleMs + stepMs * Math.max(0, count - 1), maxMs);
+}
+
+/** Split a finished reply into paragraph blocks (same rule as the server). */
+function splitParagraphs(text: string): string[] {
+  return text
+    .split(/\n\s*\n/)
+    .map((b) => b.trim())
+    .filter(Boolean);
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -31,7 +66,19 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-function Bubble({ m }: { m: Pending }) {
+function Ticks({ status }: { status: Status }) {
+  const sent = status === "sent";
+  return (
+    <span
+      className={`transition-colors ${sent ? "text-cyan" : "text-ink-faint"}`}
+      title={sent ? "Batched & delivered" : "Queued — not sent yet"}
+    >
+      <Icon name={sent ? "checks" : "check"} size={13} strokeWidth={2} />
+    </span>
+  );
+}
+
+function Bubble({ m }: { m: Bubble }) {
   const mine = m.role === "user";
   return (
     <motion.div
@@ -62,8 +109,9 @@ function Bubble({ m }: { m: Pending }) {
             <div className="whitespace-pre-wrap break-words">{renderMarkdown(m.content)}</div>
           )}
         </div>
-        <span className="px-1 font-mono text-[10.5px] text-ink-faint opacity-0 transition group-hover:opacity-100">
-          {formatTime(m.createdAt)}
+        <span className="flex items-center gap-1 px-1 font-mono text-[10.5px] text-ink-faint">
+          <span className="opacity-0 transition group-hover:opacity-100">{formatTime(m.createdAt)}</span>
+          {mine && m.status && <Ticks status={m.status} />}
         </span>
       </div>
     </motion.div>
@@ -72,15 +120,22 @@ function Bubble({ m }: { m: Pending }) {
 
 export function Chat({ state }: { state: AppState }) {
   const toast = useToast();
-  const [messages, setMessages] = useState<Pending[]>([]);
+  const [messages, setMessages] = useState<Bubble[]>([]);
   const [text, setText] = useState("");
   const [images, setImages] = useState<{ b64: string; preview: string }[]>([]);
-  const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+
+  // Batching state: a queue of unsent messages and the debounce timer. A flush
+  // folds the whole queue into one turn (like Telegram), so a burst gets a
+  // single reply. inflight guards against starting a second stream at once.
+  const queueRef = useRef<Queued[]>([]);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const inflightRef = useRef(false);
+  const flushRef = useRef<() => void>(() => {});
 
   const scrollToBottom = useCallback((smooth = true) => {
     requestAnimationFrame(() => {
@@ -94,17 +149,7 @@ export function Chat({ state }: { state: AppState }) {
   useEffect(() => {
     api
       .messages()
-      .then((r) =>
-        setMessages(
-          r.messages.map((m: ChatMessage) => ({
-            id: m.id,
-            role: m.role === "user" ? "user" : "assistant",
-            content: m.content,
-            mediaUrls: m.mediaUrls,
-            createdAt: m.createdAt,
-          })),
-        ),
-      )
+      .then((r) => setMessages(historyToBubbles(r.messages)))
       .then(() => scrollToBottom(false))
       .catch(() => {});
   }, [scrollToBottom]);
@@ -116,6 +161,90 @@ export function Chat({ state }: { state: AppState }) {
     ta.style.height = "auto";
     ta.style.height = `${Math.min(ta.scrollHeight, 168)}px`;
   }, [text]);
+
+  // Drop the pending timer on unmount.
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  const armTimer = () => {
+    clearTimeout(timerRef.current);
+    const wait = idleWindow(
+      Math.max(1, queueRef.current.length),
+      state.chat.batchIdleMs,
+      state.chat.batchStepMs,
+      state.chat.batchMaxMs,
+    );
+    timerRef.current = setTimeout(() => flushRef.current(), wait);
+  };
+
+  const flush = async () => {
+    if (inflightRef.current) return; // a stream is running; finish it first
+    const batch = queueRef.current.slice();
+    if (!batch.length) return;
+
+    const ids = new Set(batch.map((b) => b.id));
+    const combinedText = batch
+      .map((b) => b.text)
+      .filter(Boolean)
+      .join("\n");
+    const payloadImages = batch.flatMap((b) => b.images);
+
+    inflightRef.current = true;
+    const thinkingId = uid("think");
+    setMessages((m) => [
+      ...m,
+      { id: thinkingId, role: "assistant", content: "", mediaUrls: [], createdAt: nowIso(), pending: true },
+    ]);
+    scrollToBottom();
+
+    let paraCount = 0;
+    const onParagraph = (p: string) => {
+      paraCount += 1;
+      if (paraCount === 1) {
+        setMessages((m) =>
+          m.map((x) => (x.id === thinkingId ? { ...x, content: p, pending: false, createdAt: nowIso() } : x)),
+        );
+      } else {
+        setMessages((m) => [
+          ...m,
+          { id: `${thinkingId}-${paraCount}`, role: "assistant", content: p, mediaUrls: [], createdAt: nowIso() },
+        ]);
+      }
+      sfx.play("receive");
+      scrollToBottom();
+    };
+
+    let ok = false;
+    try {
+      await api.sendStream(
+        {
+          text: combinedText,
+          images: payloadImages.length ? payloadImages : undefined,
+          kind: payloadImages.length ? "photo" : "text",
+        },
+        onParagraph,
+      );
+      ok = true;
+      // Mark the whole burst delivered (double ticks) and drop it from the queue.
+      setMessages((m) =>
+        m
+          .filter((x) => !(x.id === thinkingId && x.pending)) // no paragraphs? clear placeholder
+          .map((x) => (ids.has(x.id) ? { ...x, status: "sent" as Status } : x)),
+      );
+      queueRef.current = queueRef.current.filter((it) => !ids.has(it.id));
+    } catch (e) {
+      // Leave the burst queued (single tick) so the next send re-includes it.
+      setMessages((m) => m.filter((x) => x.id !== thinkingId));
+      toast((e as Error).message || "The companion couldn't reply.", "error");
+    } finally {
+      inflightRef.current = false;
+      scrollToBottom();
+      // Anything queued during the stream (or a fresh send) goes next; an errored
+      // burst waits for the next message rather than hammering a down model.
+      if (ok && queueRef.current.length) armTimer();
+    }
+  };
+  // Always schedule the latest flush from the (possibly stale) idle timer.
+  flushRef.current = () => void flush();
 
   const addImages = async (files: FileList | null) => {
     if (!files) return;
@@ -130,45 +259,28 @@ export function Chat({ state }: { state: AppState }) {
     }
   };
 
-  const send = async () => {
-    const body = text.trim();
-    if ((!body && images.length === 0) || busy) return;
-    const userMsg: Pending = {
-      id: -Date.now(),
-      role: "user",
-      content: body,
-      mediaUrls: images.map((i) => i.preview),
-      createdAt: nowIso(),
-    };
-    const thinkingId = -Date.now() - 1;
+  // Queue a message into the current burst (it sends after the idle window).
+  const queue = () => {
+    const bodyText = text.trim();
+    if (!bodyText && images.length === 0) return;
+    const id = uid("msg");
+    queueRef.current = [...queueRef.current, { id, text: bodyText, images: images.map((i) => i.b64) }];
     setMessages((m) => [
       ...m,
-      userMsg,
-      { id: thinkingId, role: "assistant", content: "", mediaUrls: [], createdAt: nowIso(), pending: true },
+      {
+        id,
+        role: "user",
+        content: bodyText,
+        mediaUrls: images.map((i) => i.preview),
+        createdAt: nowIso(),
+        status: "queued",
+      },
     ]);
-    const payloadImages = images.map((i) => i.b64);
     setText("");
     setImages([]);
-    setBusy(true);
     sfx.play("send");
     scrollToBottom();
-    try {
-      const { reply } = await api.send({
-        text: body,
-        images: payloadImages.length ? payloadImages : undefined,
-        kind: payloadImages.length ? "photo" : "text",
-      });
-      setMessages((m) =>
-        m.map((x) => (x.id === thinkingId ? { ...x, content: reply, pending: false, createdAt: nowIso() } : x)),
-      );
-      sfx.play("receive");
-    } catch (e) {
-      setMessages((m) => m.filter((x) => x.id !== thinkingId));
-      toast((e as Error).message || "The companion couldn't reply.", "error");
-    } finally {
-      setBusy(false);
-      scrollToBottom();
-    }
+    armTimer();
   };
 
   const toggleRecord = async () => {
@@ -269,7 +381,7 @@ export function Chat({ state }: { state: AppState }) {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                send();
+                queue();
               }
             }}
             rows={1}
@@ -299,8 +411,8 @@ export function Chat({ state }: { state: AppState }) {
           )}
 
           <button
-            onClick={send}
-            disabled={busy || (!text.trim() && images.length === 0)}
+            onClick={queue}
+            disabled={!text.trim() && images.length === 0}
             onPointerEnter={() => sfx.play("hover")}
             className="btn grid h-10 w-10 !rounded-xl !p-0"
             title="Send"
@@ -309,9 +421,40 @@ export function Chat({ state }: { state: AppState }) {
           </button>
         </div>
         <div className="mt-1.5 px-2 text-center font-mono text-[10.5px] text-ink-faint">
-          Enter to send · Shift+Enter for a new line
+          Enter to send · Shift+Enter for a new line · bursts batch into one reply
         </div>
       </div>
     </div>
   );
+}
+
+/** Turn stored history into bubbles: your messages show as delivered; the
+ *  companion's replies are split back into the paragraphs they were sent as. */
+function historyToBubbles(rows: ChatMessage[]): Bubble[] {
+  const out: Bubble[] = [];
+  for (const m of rows) {
+    if (m.role === "user") {
+      out.push({
+        id: `m${m.id}`,
+        role: "user",
+        content: m.content,
+        mediaUrls: m.mediaUrls,
+        createdAt: m.createdAt,
+        status: "sent",
+      });
+    } else {
+      const paras = splitParagraphs(m.content);
+      const blocks = paras.length ? paras : [m.content];
+      blocks.forEach((p, i) => {
+        out.push({
+          id: `m${m.id}-${i}`,
+          role: "assistant",
+          content: p,
+          mediaUrls: i === 0 ? m.mediaUrls : [],
+          createdAt: m.createdAt,
+        });
+      });
+    }
+  }
+  return out;
 }

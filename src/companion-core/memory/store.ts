@@ -109,6 +109,70 @@ export function deleteMemory(id: number): void {
 	db.delete(memories).where(eq(memories.id, id)).run();
 }
 
+const wordsOf = (s: string): Set<string> =>
+	new Set(
+		s
+			.toLowerCase()
+			.split(/\W+/)
+			.filter((w) => w.length > 2),
+	);
+
+/**
+ * Forget memories matching `query`, deleting and returning them. Conservative on
+ * purpose so the companion can act on "forget that" without nuking the wrong
+ * thing: an exact (case-insensitive) match wins and removes all such rows;
+ * otherwise the single closest memory is removed — one that contains (or is
+ * contained by) the query, or, failing that, one with strong word overlap
+ * (≥60%). Returns [] when nothing matches closely enough.
+ */
+export function forgetMemory(query: string): Memory[] {
+	const q = query.trim().toLowerCase();
+	if (!q) return [];
+	const all = listMemories(500);
+
+	const exact = all.filter((m) => m.content.trim().toLowerCase() === q);
+	if (exact.length) {
+		for (const m of exact) deleteMemory(m.id);
+		return exact;
+	}
+
+	const subs = all
+		.filter((m) => {
+			const c = m.content.toLowerCase();
+			return c.includes(q) || q.includes(c);
+		})
+		.sort(
+			(a, b) =>
+				Math.abs(a.content.length - query.length) -
+				Math.abs(b.content.length - query.length),
+		);
+	if (subs[0]) {
+		deleteMemory(subs[0].id);
+		return [subs[0]];
+	}
+
+	const qWords = wordsOf(q);
+	if (qWords.size) {
+		let best: Memory | null = null;
+		let bestScore = 0;
+		for (const m of all) {
+			const words = wordsOf(m.content);
+			let overlap = 0;
+			for (const w of qWords) if (words.has(w)) overlap++;
+			const score = overlap / qWords.size;
+			if (score > bestScore) {
+				bestScore = score;
+				best = m;
+			}
+		}
+		if (best && bestScore >= 0.6) {
+			deleteMemory(best.id);
+			return [best];
+		}
+	}
+	return [];
+}
+
 export function listMemories(limit = 200): Memory[] {
 	return db
 		.select()

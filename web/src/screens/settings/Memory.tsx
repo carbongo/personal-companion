@@ -1,10 +1,92 @@
 import { useEffect, useRef, useState } from "react";
 import { Field, TextArea } from "../../components/Field.tsx";
 import { Icon } from "../../components/Icon.tsx";
-import { api, type DailySummary, type Memory } from "../../lib/api.ts";
+import { api, type ChatMessage, type DailySummary, type Memory } from "../../lib/api.ts";
+import { formatTime, renderMarkdown } from "../../lib/format.tsx";
 import { sfx } from "../../lib/sound.ts";
 import type { SectionProps } from "./types.ts";
 import { Card, Grid, SectionIntro } from "./ui.tsx";
+
+/** One day in the chronicle: the companion's own summary, expandable to read the
+ *  actual conversation behind it (loaded on demand). */
+function DayEntry({
+  summary,
+  owner,
+  name,
+}: {
+  summary: DailySummary;
+  owner: string;
+  name: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [showConvo, setShowConvo] = useState(false);
+  const [convo, setConvo] = useState<ChatMessage[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const loadConvo = async () => {
+    if (showConvo) {
+      setShowConvo(false);
+      return;
+    }
+    setShowConvo(true);
+    if (convo) return;
+    setLoading(true);
+    try {
+      const r = await api.messages(summary.day);
+      setConvo(r.messages);
+    } catch {
+      setConvo([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-black/15">
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((o) => !o);
+          sfx.play("tap");
+        }}
+        className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left"
+      >
+        <span className="font-mono text-[11px] uppercase tracking-wider text-amber/80">{summary.day}</span>
+        <Icon name="chevron" size={15} className={`text-ink-faint transition ${open ? "rotate-90" : ""}`} />
+      </button>
+      {open && (
+        <div className="px-3.5 pb-3.5">
+          <div className="text-[13.5px] leading-relaxed text-ink-dim">{renderMarkdown(summary.summary)}</div>
+          <button
+            type="button"
+            onClick={loadConvo}
+            className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-cyan/80 transition hover:text-cyan"
+          >
+            <Icon name="chat" size={14} />
+            {showConvo ? "Hide that day's conversation" : "Read that day's conversation"}
+          </button>
+          {showConvo && (
+            <div className="mt-2 flex max-h-[260px] flex-col gap-2 overflow-y-auto rounded-lg border border-[var(--line)] bg-black/20 p-3">
+              {loading && <div className="text-center text-[12px] text-ink-faint">Loading…</div>}
+              {!loading && convo && convo.length === 0 && (
+                <div className="text-center text-[12px] text-ink-faint">No messages stored for this day.</div>
+              )}
+              {!loading &&
+                convo?.map((m) => (
+                  <div key={m.id} className="text-[12.5px] leading-relaxed">
+                    <span className={`font-mono text-[10.5px] ${m.role === "user" ? "text-cyan/70" : "text-amber/70"}`}>
+                      {m.role === "user" ? owner || "You" : name || "Companion"} · {formatTime(m.createdAt)}
+                    </span>
+                    <div className="text-ink-dim">{renderMarkdown(m.content)}</div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function MemorySection({ form, set, toast }: SectionProps) {
   const [core, setCore] = useState("");
@@ -159,21 +241,22 @@ export function MemorySection({ form, set, toast }: SectionProps) {
         </Card>
 
         <Card title="The Chronicle — daily summaries">
+          <p className="-mt-1 text-[12.5px] leading-relaxed text-ink-faint">
+            Each past day distilled in the companion's own words. Open a day to read the full
+            summary — and the conversation it came from.
+          </p>
           <div>
             <button className="btn ghost" onClick={rollup} disabled={rolling}>
               <Icon name={rolling ? "restart" : "sparkle"} size={16} className={rolling ? "animate-spin" : ""} />
               {rolling ? "Distilling…" : "Roll up the day"}
             </button>
           </div>
-          <div className="flex max-h-[300px] flex-col gap-2 overflow-y-auto pr-1">
+          <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto pr-1">
             {summaries.length === 0 && (
               <div className="py-4 text-center text-[13px] text-ink-faint">No chronicle yet.</div>
             )}
             {summaries.map((s) => (
-              <div key={s.day} className="rounded-xl border border-[var(--line)] bg-black/15 px-3.5 py-2.5">
-                <div className="mb-1 font-mono text-[11px] uppercase tracking-wider text-amber/80">{s.day}</div>
-                <div className="text-[13.5px] leading-relaxed text-ink-dim">{s.summary}</div>
-              </div>
+              <DayEntry key={s.day} summary={s} owner={form.owner} name={form.name} />
             ))}
           </div>
         </Card>

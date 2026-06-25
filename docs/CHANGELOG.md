@@ -5,6 +5,38 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-25
 
+- **Vision: image turns can route to a dedicated model; the companion never fakes sight.**
+  New optional **`LLM_VISION_MODEL`** (`config.llm.visionModel`, a "Vision model" field in
+  the Mind settings). When a turn includes an image, the engine routes that one generation to
+  the vision model (Ollama runs it with thinking off, since vision models often lack it); with
+  no vision model set, it uses the main model only if it advertises vision (Ollama
+  `/api/show` `capabilities`, cached). If neither can see, the image is dropped and the model
+  is told to say so plainly — fixing the old failure where a text-only model silently ignored
+  the image and "recalled" an unrelated one. New `LLMProvider.supportsVision?()`; both
+  providers accept a per-call `model` override (`GenerateOptions.model`). +cap-detection wiring.
+- **Web chat reaches Telegram parity: burst batching with read-style ticks, and live
+  paragraph streaming.** Outgoing replies now **stream paragraph-by-paragraph** the instant the
+  model finishes each one (new `respondStream()` + provider `chatStream?()` over Ollama NDJSON /
+  OpenAI SSE; new NDJSON endpoint `POST /api/chat/stream`; new pure `takeParagraphs()` splitter).
+  Incoming messages **batch client-side** into one turn using the shared `CHAT_BATCH_*` window,
+  shown on each of your bubbles as **one tick = queued / not-yet-sent / errored**, **two ticks =
+  the whole burst was delivered**; an errored burst stays queued and rides along with your next
+  send. History reload splits stored replies back into their paragraph bubbles. +tests
+  (`takeParagraphs`).
+- **Memory honesty + a real `<forget>` action.** The companion can now actually drop a saved
+  memory with a new **`<forget>…</forget>`** sidecar tag (matched by content in the store —
+  exact, else closest substring, else strong word-overlap; conservative). The operating prompt
+  now states the tags are the *only* way memory changes — so it must not claim to have saved,
+  changed, or forgotten anything without the matching tag this turn — and clarifies that the
+  `[context]` note (date/weather) is ambient, never the owner's words and never something to
+  "remember". Fixes both the mis-referenced "remember that" (it grabbed the weather) and the
+  phantom "I removed/added that" with nothing actually changing. +tests (`forgetMemory`,
+  `<forget>` parsing).
+- **Chronicle is readable + browsable (and was silently blank).** `GET /api/summaries` now
+  returns `summary` (the DB column is `summaryMd`) so daily summaries actually render — they
+  were blank due to a field mismatch. Each day in the Memory section is now expandable, renders
+  the summary as markdown, and can open the actual conversation behind it (new `GET /api/days`,
+  and `GET /api/messages?day=YYYY-MM-DD`).
 - **Premium web client — a built Vite/React SPA (the Nocturne design system).** The web UI
   is reborn as a polished, highly adaptive, animated single-page app under `web/` (Vite +
   React 19 + Tailwind v4 + Motion; self-hosted fonts, no runtime CDN). Dark-slate surface

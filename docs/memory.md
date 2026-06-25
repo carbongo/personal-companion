@@ -17,7 +17,13 @@ of starting fresh each conversation. There are four moving parts, all in SQLite 
    sidecar tag) and you can edit it in the web UI.
 
 3. **Saved memories (`memories`).** Discrete facts the companion keeps on its own (via
-   `<remember>`), or that you add. The most recent `MEMORY_LIMIT` ride along in context.
+   `<remember>`), or that you add. The most recent `MEMORY_LIMIT` ride along in context. The
+   companion can also drop one it got wrong with `<forget>…</forget>` — matched by content in
+   the store (exact wording, else the closest substring, else strong word-overlap; deliberately
+   conservative so it removes one memory, not a sweep). These tags are the **only** way memory
+   changes: the operating prompt tells the companion never to claim it saved, changed, or forgot
+   something unless the matching tag is in that very message, and that the ambient `[context]`
+   note (date/weather) is never the owner's words and never something to "remember".
 
 4. **Daily summaries (`daily_summaries`).** Each night a roll-up compresses the day's
    messages into one short summary in the companion's own voice. Past days live on as
