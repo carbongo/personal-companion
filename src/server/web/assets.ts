@@ -210,8 +210,11 @@ async function load() {
 		msgs.innerHTML = '';
 		if (!data.messages.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'Say hello to start the conversation.'; msgs.appendChild(e); }
 		for (const m of data.messages) {
-			if (m.role === 'assistant') appendAssistant(m.content, m.kind);
-			else msgs.appendChild(el(m.role, m.content, m.kind));
+			if (m.role === 'assistant') { appendAssistant(m.content, m.kind); continue; }
+			const urls = m.mediaUrls || [];
+			// Hide the "(sent a photo)" placeholder once the image itself shows.
+			const text = (urls.length && m.content === '(sent a photo)') ? '' : m.content;
+			msgs.appendChild(userBubble(text, urls, m.kind));
 		}
 		scroll();
 	} catch {}
@@ -467,7 +470,6 @@ function body() {
 		telegramBatchMaxMs: val('telegramBatchMaxMs'),
 		memoryContextDays: val('memoryContextDays'),
 		memoryLimit: val('memoryLimit'),
-		memoryNoteTitles: val('memoryNoteTitles'),
 		memorySummaryCron: val('memorySummaryCron'),
 		webEnabled: val('webEnabled'),
 		webSearchProvider: val('webSearchProvider'),

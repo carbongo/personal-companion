@@ -59,18 +59,6 @@ export const dailySummaries = sqliteTable("daily_summaries", {
 	createdAt: createdAt(),
 });
 
-/** Standalone notes the companion files for you (via the <note> sidecar tag). */
-export const notes = sqliteTable(
-	"notes",
-	{
-		id: integer("id").primaryKey({ autoIncrement: true }),
-		title: text("title").notNull(),
-		contentMd: text("content_md").notNull().default(""),
-		createdAt: createdAt(),
-	},
-	(t) => [index("notes_created_idx").on(t.createdAt)],
-);
-
 /** Key/value config edited in the web UI (e.g. a persona override). */
 export const settings = sqliteTable("settings", {
 	key: text("key").primaryKey(),
@@ -83,4 +71,3 @@ export const settings = sqliteTable("settings", {
 export type Message = typeof messages.$inferSelect;
 export type Memory = typeof memories.$inferSelect;
 export type DailySummary = typeof dailySummaries.$inferSelect;
-export type Note = typeof notes.$inferSelect;

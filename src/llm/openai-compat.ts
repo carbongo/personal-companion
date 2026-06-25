@@ -3,6 +3,12 @@
  * vLLM, and anything else exposing POST {baseUrl}/chat/completions. Bring your
  * own `LLM_BASE_URL` + `LLM_API_KEY`. Images are sent in OpenAI's vision format
  * (data-URI image_url parts) for multimodal models.
+ *
+ * `LLM_THINK` effort levels (minimal|low|medium|high) map to the standard
+ * `reasoning_effort` field, honored by reasoning models (OpenAI o-series/GPT-5,
+ * and OpenRouter, which ignores it for models that don't reason). The boolean
+ * true/false aren't sent — the OpenAI-style API has no universal on/off switch,
+ * so they defer to the endpoint's default rather than risk a 400 on plain models.
  */
 import type { LlmConfig } from "#/config/index.ts";
 import {
@@ -43,6 +49,19 @@ export class OpenAICompatProvider implements LLMProvider {
 		return true;
 	}
 
+	/** Map LLM_THINK to a reasoning_effort, or null to leave it to the endpoint. */
+	private reasoningEffort(override?: boolean | string): string | null {
+		const raw = (override ?? this.cfg.think).toString().toLowerCase();
+		if (
+			raw === "minimal" ||
+			raw === "low" ||
+			raw === "medium" ||
+			raw === "high"
+		)
+			return raw;
+		return null; // "true" / "false" → endpoint default (no universal on/off)
+	}
+
 	private toMessage(m: ChatMessage): OpenAIMessage {
 		if (!m.images?.length) return { role: m.role, content: m.content };
 		const parts: Exclude<OpenAIContent, string> = [];
@@ -66,6 +85,8 @@ export class OpenAICompatProvider implements LLMProvider {
 		};
 		if (this.cfg.apiKey) headers.authorization = `Bearer ${this.cfg.apiKey}`;
 
+		const effort = this.reasoningEffort(opts?.think);
+
 		let res: Response;
 		try {
 			res = await fetch(`${this.cfg.baseUrl}/chat/completions`, {
@@ -77,6 +98,7 @@ export class OpenAICompatProvider implements LLMProvider {
 					temperature: this.cfg.temperature,
 					max_tokens: opts?.maxTokens ?? this.cfg.maxTokens,
 					stream: false,
+					...(effort ? { reasoning_effort: effort } : {}),
 				}),
 				signal: AbortSignal.timeout(this.cfg.timeoutMs),
 			});

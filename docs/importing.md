@@ -1,9 +1,9 @@
 # Importing existing data
 
-Already have a companion somewhere — an older bot, a pile of chat logs, notes you've kept
-elsewhere — and want to bring its history in? `bun run import` loads an existing single-user
-history into this project's [data model](./data-model.md): the conversation log, the Core
-doc, saved memories, daily summaries, and notes.
+Already have a companion somewhere — an older bot, a pile of chat logs — and want to bring
+its history in? `bun run import` loads an existing single-user history into this project's
+[data model](./data-model.md): the conversation log, the Core doc, saved memories, and
+daily summaries.
 
 > Status: implemented (Phase 5). The importer is `scripts/import.ts`.
 
@@ -31,7 +31,6 @@ import/
   messages.jsonl         # one JSON object per line (see below)
   memories.json          # a JSON array
   daily-summaries.json   # a JSON array
-  notes.json             # a JSON array
 ```
 
 Missing files are simply skipped. Field details:
@@ -52,7 +51,7 @@ One JSON object **per line** (JSON Lines), oldest first:
 | `createdAt` | recommended | ISO-8601 string or epoch-millis; preserved on the row |
 | `day`       | optional | `YYYY-MM-DD` bucket; derived from `createdAt` (in your `TZ`) when omitted |
 | `kind`      | optional | `text` (default), `voice`, or `photo` |
-| `mediaUrl`  | optional | a `/uploads/…`-style path, if any |
+| `mediaUrl`  | optional | one or more `/uploads/…` attachment paths (newline-separated), if any |
 
 Each message needs a `day` **or** a `createdAt` so it can be bucketed. Supplying
 `createdAt` is best: it preserves both the day and the original ordering.
@@ -73,14 +72,6 @@ Each message needs a `day` **or** a `createdAt` so it can be bucketed. Supplying
 
 `day` (`YYYY-MM-DD`) and `summary` are required; `createdAt` optional. Summaries upsert by
 `day`, so re-importing the same day overwrites rather than duplicates.
-
-### `notes.json`
-
-```json
-[{ "title": "Reading list", "content": "- a book\n- another", "createdAt": "..." }]
-```
-
-`title` is required; `content` and `createdAt` are optional.
 
 ### `core.md`
 
@@ -113,9 +104,9 @@ single transaction — if anything fails, nothing is written.
 
 ## Safety: it won't duplicate your history
 
-`messages`, `memories`, and `notes` have no natural key, so a second run would otherwise
-double them. The importer **refuses** to write to those tables if they already contain
-rows, unless you pass `--force`. The safest pattern is to import **once into a fresh
+`messages` and `memories` have no natural key, so a second run would otherwise double
+them. The importer **refuses** to write to those tables if they already contain rows,
+unless you pass `--force`. The safest pattern is to import **once into a fresh
 `DATA_DIR`**. Daily summaries (keyed by day) and the Core doc are exceptions: summaries
 upsert, and the Core is only overwritten with `--force`.
 

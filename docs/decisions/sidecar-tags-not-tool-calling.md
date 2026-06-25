@@ -4,7 +4,7 @@ Status: Accepted — 2026-06-24
 
 ## Context
 
-The companion needs to act — save a memory, update its Core, file a note, look something
+The companion needs to act — save a memory, update its Core, look something
 up — but the default brain is a small local model. Small models drive multi-round API
 tool-calling unreliably, and re-sending context every round is wasteful.
 
@@ -13,7 +13,7 @@ tool-calling unreliably, and re-sending context every round is wasteful.
 The model **acts by emitting small sidecar tags** in its reply, which the engine parses,
 applies, and strips before the user sees the text:
 
-- memory: `<remember>…</remember>`, `<core>…</core>`, `<note title="…">…</note>`
+- memory: `<remember>…</remember>`, `<core>…</core>`
 - web: `<search>…</search>`, `<fetch>…</fetch>` (see
   [bounded-web-access](./bounded-web-access.md))
 

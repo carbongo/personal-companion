@@ -1,7 +1,7 @@
 /**
  * Persistence for the companion's memory: the daily message log, the Core doc,
- * discrete memories, daily summaries, the companion's own notes, and a small
- * settings key/value store. All reads/writes go through here. See docs/memory.md.
+ * discrete memories, daily summaries, and a small settings key/value store. All
+ * reads/writes go through here. See docs/memory.md.
  */
 import { asc, desc, eq, lt, sql } from "drizzle-orm";
 
@@ -15,7 +15,6 @@ import {
 	type Message,
 	memories,
 	messages,
-	notes,
 	settings,
 } from "#/db/schema.ts";
 
@@ -175,22 +174,6 @@ export function recentSummariesBefore(
 		.limit(limit)
 		.all()
 		.reverse();
-}
-
-// --- notes -------------------------------------------------------------------
-
-export function createNote(title: string, contentMd = ""): void {
-	db.insert(notes).values({ title, contentMd }).run();
-}
-
-export function listNoteTitles(limit = 50): string[] {
-	return db
-		.select({ title: notes.title })
-		.from(notes)
-		.orderBy(desc(notes.createdAt))
-		.limit(limit)
-		.all()
-		.map((r) => r.title);
 }
 
 // --- settings (key/value) ----------------------------------------------------

@@ -46,7 +46,6 @@ export interface SetupValues {
 	// memory
 	memoryContextDays: number;
 	memoryLimit: number;
-	memoryNoteTitles: number;
 	memorySummaryCron: string;
 	// web access
 	webEnabled: boolean;
@@ -118,7 +117,6 @@ export function currentSetupValues(): SetupValues {
 		telegramBatchMaxMs: config.telegram.batchMaxMs,
 		memoryContextDays: config.memory.contextDays,
 		memoryLimit: config.memory.memoryLimit,
-		memoryNoteTitles: config.memory.noteTitles,
 		memorySummaryCron: config.memory.summaryCron,
 		webEnabled: config.web.enabled,
 		webSearchProvider: config.web.searchProvider,

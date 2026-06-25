@@ -59,7 +59,9 @@ server-side and served straight from the Bun process.
 - **Hosted:** set `LLM_PROVIDER=openai-compatible`, `LLM_BASE_URL`, and `LLM_API_KEY`.
   Works with OpenAI, OpenRouter, Groq, LM Studio, vLLM, and similar. (Native `anthropic`
   is planned; until then, reach Anthropic models through an OpenAI-compatible gateway such
-  as OpenRouter.)
+  as OpenRouter.) `LLM_THINK` effort levels (`minimal`/`low`/`medium`/`high`) are sent as
+  the standard `reasoning_effort` field — honored by reasoning models (OpenAI o-series/GPT-5,
+  OpenRouter) and ignored elsewhere; `true`/`false` defer to the endpoint's own default.
 
 See [decisions/llm-provider-abstraction.md](./decisions/llm-provider-abstraction.md).
 
@@ -108,7 +110,9 @@ The same backend serves every channel: Telegram voice notes, and the web chat's 
 recording / audio-file upload (which POST to `/api/transcribe`).
 
 Photos are forwarded as images to vision-capable models regardless of STT — on Telegram
-and in the web chat (attach button / paste).
+and in the web chat (attach button / paste). Attached images are saved under
+`DATA_DIR/uploads`, served back through the auth-gated `/uploads/` route, and redisplayed
+in the chat history.
 
 ## The persona
 

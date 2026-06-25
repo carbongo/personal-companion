@@ -3,6 +3,27 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
+## 2026-06-25
+
+- **Attachments are now real (`media_url` wired end-to-end).** Previously `media_url` was
+  dead plumbing: no channel set it and nothing served `/uploads`. New
+  `src/companion-core/media.ts` saves chat images under `DATA_DIR/uploads` and the auth-gated
+  `GET /uploads/:file` route (in `server/web/index.tsx`) serves them back (path-traversal
+  guarded, immutable-cached). Web `POST /api/chat` persists uploaded/pasted images and the
+  Telegram photo handler saves the JPEG; `GET /api/messages` returns `mediaUrls[]` and the web
+  chat redisplays the thumbnails on reload. A turn's `mediaUrl` now holds one or more
+  newline-separated `/uploads/…` paths. +9 tests (`media.test.ts`).
+- **`LLM_THINK` now takes effect on the openai-compatible provider.** It was read but never
+  sent. Effort levels (`minimal`/`low`/`medium`/`high`) map to the standard `reasoning_effort`
+  field (honored by OpenAI o-series/GPT-5 and OpenRouter; ignored elsewhere); `true`/`false`
+  defer to the endpoint default to avoid 400s on non-reasoning models. +3 tests
+  (`openai-compat.test.ts`).
+- **Removed the `<note>` feature.** Note bodies were write-only — saved but never read back
+  (only titles were ever surfaced), so the feature was dropped rather than completed. Gone: the
+  `<note>` sidecar tag, the `notes` table (migration `0001` drops it), `createNote`/
+  `listNoteTitles`, the `MEMORY_NOTE_TITLES` env var + its Settings field, and `notes.json`
+  importer support. `<remember>` and `<core>` are unchanged.
+
 ## 2026-06-24
 
 - **Roll-up scheduler — the nightly summary is now actually driven (and downtime-resilient).**

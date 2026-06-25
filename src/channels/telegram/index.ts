@@ -10,6 +10,7 @@ import { Bot, type Context } from "grammy";
 
 import { sttConfigured, transcribe } from "#/channels/stt.ts";
 import { respond, type Turn } from "#/companion-core/engine.ts";
+import { saveUpload } from "#/companion-core/media.ts";
 import { config } from "#/config/index.ts";
 import { Batcher, type BatchItem } from "./batcher.ts";
 import { splitReply } from "./split.ts";
@@ -46,11 +47,12 @@ function combine(items: BatchItem[]): Turn {
 		: items.some((i) => i.kind === "voice")
 			? "voice"
 			: "text";
+	const mediaUrls = items.map((i) => i.mediaUrl).filter(Boolean) as string[];
 	return {
 		text,
 		images: images.length ? images : undefined,
 		kind,
-		mediaUrl: items.find((i) => i.mediaUrl)?.mediaUrl ?? null,
+		mediaUrl: mediaUrls.length ? mediaUrls.join("\n") : null,
 	};
 }
 
@@ -149,11 +151,14 @@ export function startTelegram(): void {
 				? await downloadFile(file.file_path)
 				: new Uint8Array();
 			const b64 = bytes.length ? Buffer.from(bytes).toString("base64") : "";
+			// Save the photo so it redisplays in the web chat history too (Telegram
+			// converts photos to JPEG); the base64 still feeds the model this turn.
+			const mediaUrl = bytes.length ? await saveUpload(bytes, ".jpg") : null;
 			batcher.add(chatId, {
 				text: ctx.message.caption ?? "",
 				images: b64 ? [b64] : [],
 				kind: "photo",
-				mediaUrl: null,
+				mediaUrl,
 			});
 		} catch (err) {
 			console.error(

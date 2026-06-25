@@ -5,13 +5,7 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 
 import { createDb, type DB } from "#/db/index.ts";
-import {
-	core,
-	dailySummaries,
-	memories,
-	messages,
-	notes,
-} from "#/db/schema.ts";
+import { core, dailySummaries, memories, messages } from "#/db/schema.ts";
 
 import {
 	type ImportData,
@@ -21,7 +15,7 @@ import {
 } from "./import.ts";
 
 function emptyData(): ImportData {
-	return { messages: [], memories: [], summaries: [], notes: [] };
+	return { messages: [], memories: [], summaries: [] };
 }
 
 describe("parseTimestamp", () => {
@@ -67,7 +61,6 @@ describe("importAll", () => {
 			],
 			memories: [{ content: "likes tea", tags: "pref", createdAt: ts }],
 			summaries: [{ day: "2024-01-01", summaryMd: "a quiet day" }],
-			notes: [{ title: "todo", contentMd: "buy tea" }],
 		};
 
 		const s = importAll(db, data);
@@ -76,7 +69,6 @@ describe("importAll", () => {
 			messages: 1,
 			memories: 1,
 			summaries: 1,
-			notes: 1,
 		});
 
 		const msg = db.select().from(messages).all();
@@ -95,7 +87,6 @@ describe("importAll", () => {
 		expect(db.select().from(dailySummaries).all()[0]?.summaryMd).toBe(
 			"a quiet day",
 		);
-		expect(db.select().from(notes).all()[0]?.title).toBe("todo");
 	});
 
 	test("daily summaries upsert by day", () => {

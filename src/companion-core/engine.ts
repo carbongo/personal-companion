@@ -26,7 +26,7 @@ export interface Turn {
 	images?: string[];
 	/** How the input arrived, for the stored log. */
 	kind?: "text" | "voice" | "photo";
-	/** `/uploads/…` path of an attachment, if the channel saved one. */
+	/** One or more `/uploads/…` paths (newline-separated) for saved attachments. */
 	mediaUrl?: string | null;
 }
 

@@ -8,6 +8,13 @@
 			"when": 1782277727307,
 			"tag": "0000_huge_reavers",
 			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "6",
+			"when": 1782367430897,
+			"tag": "0001_dazzling_master_mold",
+			"breakpoints": true
 		}
 	]
 }

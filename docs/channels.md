@@ -46,7 +46,9 @@ The web chat deliberately mirrors the Telegram channel:
   reply is shown as separate bubbles (split on blank lines). The reply is still stored as one
   assistant message, so this is purely display (applied to live replies and to history).
 - **Images** — attach (or paste) one or more images; they're sent as base64 `images` on the
-  turn to vision-capable models, exactly like a Telegram photo.
+  turn to vision-capable models, exactly like a Telegram photo. Each is saved under
+  `DATA_DIR/uploads` and served back through the auth-gated `/uploads/` route, so it
+  redisplays as a thumbnail when the history reloads (Telegram photos are saved the same way).
 - **Voice** — record from the mic (shown only when STT is configured; needs a secure origin
   such as `https`/`localhost`) or attach an audio file. It POSTs to `POST /api/transcribe`,
   which runs the same STT backend every channel uses, and drops the transcript into the

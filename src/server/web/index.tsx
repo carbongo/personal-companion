@@ -6,7 +6,7 @@
  */
 import type { Hono } from "hono";
 import { deleteCookie, setCookie } from "hono/cookie";
-
+import { contentTypeFor, resolveUpload } from "#/companion-core/media.ts";
 import { config } from "#/config/index.ts";
 import { provider } from "#/llm/index.ts";
 import { api } from "./api.ts";
@@ -40,6 +40,20 @@ export function mountWeb(app: Hono): void {
 		return c.body(bodyText, 200, {
 			"content-type": type,
 			"cache-control": "no-cache",
+		});
+	});
+
+	// Saved attachments (chat images). Behind the same auth as everything else,
+	// so private images aren't world-readable. Filenames are unique, so they can
+	// be cached hard. Path traversal is refused in resolveUpload.
+	app.get("/uploads/:file", (c) => {
+		const path = resolveUpload(c.req.param("file"));
+		if (!path) return c.notFound();
+		return new Response(Bun.file(path), {
+			headers: {
+				"content-type": contentTypeFor(path),
+				"cache-control": "private, max-age=31536000, immutable",
+			},
 		});
 	});
 

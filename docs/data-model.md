@@ -21,7 +21,7 @@ The current day is the live working memory; past days live on only as their summ
 | role       | text      | `user` \| `assistant` |
 | kind       | text      | `text` \| `voice` \| `photo` |
 | content    | text      | what gets persisted and shown back as context |
-| media_url  | text null | reserved for a future attachment path; **not yet wired** — no channel populates it and nothing serves `/uploads` (importers may set it, but it isn't read back yet) |
+| media_url  | text null | one or more `/uploads/…` attachment paths (newline-separated) saved for the turn — web chat images and Telegram photos; served back by the auth-gated `/uploads/` route and redisplayed in the chat history |
 | created_at | integer   | timestamp, indexed |
 
 ### `core` — the living "Core" document
@@ -55,17 +55,6 @@ reads on later days.
 | summary_md | text    | the day's conclusion, in the companion's voice |
 | created_at | integer | timestamp |
 
-### `notes` — things the companion files for you
-Standalone notes the companion creates (via `<note>`), kept in its own store so the
-feature works without any external app.
-
-| column     | type    | notes |
-| ---------- | ------- | ----- |
-| id         | integer | pk |
-| title      | text    | note title |
-| content_md | text    | note body |
-| created_at | integer | timestamp |
-
 ### `settings` — persisted configuration edited in the UI
 A simple key/value store. Keys in use today: `persona` (a persona override saved from the
 web UI, overlaying the file/preset and read every turn) and `setup_complete` (`"1"` once
@@ -77,8 +66,8 @@ chat). Owner facts from the wizard seed the `core` doc rather than living here. 
 
 This schema generalizes a proven single-user companion design: a daily-bucketed log, a
 singleton Core, discrete memories, and nightly summaries. The roles and shapes are
-carried over; the naming is made generic and the `notes`/`settings` tables are added so
-the companion is fully standalone.
+carried over; the naming is made generic and the `settings` table is added so the
+companion is fully standalone.
 
 ## Migrating in existing data
 

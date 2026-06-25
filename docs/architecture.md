@@ -14,7 +14,8 @@ companion-core/    the engine — channel- and provider-agnostic
    ├─ persona      assemble the system prompt from configuration
    ├─ context      pluggable providers (datetime, weather, …)
    ├─ memory       Core, saved memories, daily summaries, roll-up
-   ├─ actions      parse <remember>/<core>/<note> sidecar tags
+   ├─ actions      parse <remember>/<core> sidecar tags
+   ├─ media        save/serve chat attachments under DATA_DIR/uploads
    ├─ web          bounded <search>/<fetch> egress
    └─ engine       respond(turn) -> { reply }   ← the seam
    │
@@ -39,7 +40,7 @@ engine.respond(turn) -> { reply }
 ```
 
 A `turn` is channel-neutral: `{ text, images?, kind?, mediaUrl? }` (a voice note arrives as
-text once the channel transcribes it). Both the Telegram adapter and the web chat build a
+text once the channel transcribes it; `mediaUrl` holds saved `/uploads/…` attachment paths). Both the Telegram adapter and the web chat build a
 turn and call `respond`; neither knows anything about the model or the memory. Sidecar
 actions are applied inside the engine, so the channel only handles the returned `reply`. This is what lets new channels and new providers drop in without touching
 the core. (See [decisions/channel-abstraction.md](./decisions/channel-abstraction.md)
@@ -57,8 +58,8 @@ and [decisions/llm-provider-abstraction.md](./decisions/llm-provider-abstraction
 4. If web access is on and the reply contains `<search>`/`<fetch>` tags, the engine runs
    them, feeds results back, and regenerates — a small bounded loop.
    (See [web-access.md](./web-access.md).)
-5. **Sidecar actions** (`<remember>`, `<core>`, `<note>`) are parsed out, applied to
-   memory, and stripped from the user-facing text.
+5. **Sidecar actions** (`<remember>`, `<core>`) are parsed out, applied to memory, and
+   stripped from the user-facing text.
 6. The channel sends the reply (Telegram splits it into paragraph-sized messages).
 
 ## Why no API tool-calling loop

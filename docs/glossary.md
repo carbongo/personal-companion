@@ -32,8 +32,8 @@ and read on later days instead of raw transcript.
 **Roll-up** — the nightly job that summarizes the day and backfills any missed days.
 
 **Sidecar tag** — a small tag the model emits to act without API tool-calling:
-`<remember>`, `<core>`, `<note>` (memory) and `<search>`, `<fetch>` (web). Parsed,
-applied, and stripped before you see the reply.
+`<remember>`, `<core>` (memory) and `<search>`, `<fetch>` (web). Parsed, applied, and
+stripped before you see the reply.
 
 **Context provider** — a plugin that injects live context (date/time, weather, …) into a
 turn.

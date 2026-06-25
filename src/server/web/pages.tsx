@@ -442,13 +442,6 @@ export const SetupPage = (props: {
 					value={String(v.memoryLimit)}
 					placeholder="40"
 				/>
-				<label for="memoryNoteTitles">Note titles surfaced in context</label>
-				<input
-					type="number"
-					id="memoryNoteTitles"
-					value={String(v.memoryNoteTitles)}
-					placeholder="12"
-				/>
 				<label for="memorySummaryCron">Nightly roll-up schedule (cron)</label>
 				<input
 					type="text"

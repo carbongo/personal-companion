@@ -1,8 +1,8 @@
 /**
  * Persona assembly. The companion's identity is *configuration*, resolved at
  * runtime from (in order of precedence): a settings override saved in the UI, a
- * `persona/persona.md` file, or a built-in preset. OPERATING describes the
- * medium, memory model, and sidecar tags — it is generic, not persona-specific.
+ * `persona/persona.md` file, or a built-in preset. The operating block describes
+ * the medium, memory model, and sidecar tags — generic, not persona-specific.
  * Live per-turn context (date, weather, Core, summaries) is assembled in
  * ./context.ts. See docs/configuration.md and
  * docs/decisions/persona-as-configuration.md.
@@ -66,7 +66,6 @@ of these on its own line (they are stripped out before ${owner} sees them, so ke
 of what you actually say):
 <remember>a fact worth keeping</remember>
 <core>a line to fold into your Core (the spine of who the two of you are)</core>
-<note title="...">a note to file</note>
 Use them sparingly, only when something genuinely matters.`);
 
 	if (opts.web)

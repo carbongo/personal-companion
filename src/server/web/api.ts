@@ -9,6 +9,7 @@ import { Hono } from "hono";
 import { sttConfigured, transcribe } from "#/channels/stt.ts";
 import { telegramConfigured } from "#/channels/telegram/index.ts";
 import { companionConfigured, respond } from "#/companion-core/engine.ts";
+import { saveUpload, sniffImageExt } from "#/companion-core/media.ts";
 import { runDailyRollup } from "#/companion-core/memory/rollup.ts";
 import {
 	addMemory,
@@ -63,7 +64,6 @@ interface SetupBody {
 	// memory
 	memoryContextDays?: string;
 	memoryLimit?: string;
-	memoryNoteTitles?: string;
 	memorySummaryCron?: string;
 	// web access
 	webEnabled?: string;
@@ -140,6 +140,8 @@ api.get("/messages", (c) => {
 		role: m.role,
 		kind: m.kind,
 		content: m.content,
+		// Attachments saved for the turn, so the history redisplays them.
+		mediaUrls: m.mediaUrl ? m.mediaUrl.split("\n").filter(Boolean) : [],
 		createdAt: m.createdAt,
 	}));
 	return c.json({ day, messages });
@@ -161,11 +163,24 @@ api.post("/chat", async (c) => {
 	if (!companionConfigured())
 		return c.json({ error: "No model is configured yet. Visit Setup." }, 503);
 	const kind = images.length ? "photo" : (body.kind ?? "text");
+	// Persist the attachments so the history can show them back (served by the
+	// /uploads route); the base64 still rides along to the model this turn.
+	let mediaUrl: string | null = null;
+	if (images.length) {
+		const urls: string[] = [];
+		for (const b64 of images) {
+			const bytes = Uint8Array.from(Buffer.from(b64, "base64"));
+			const url = await saveUpload(bytes, sniffImageExt(bytes));
+			if (url) urls.push(url);
+		}
+		mediaUrl = urls.length ? urls.join("\n") : null;
+	}
 	try {
 		const { reply } = await respond({
 			text,
 			images: images.length ? images : undefined,
 			kind,
+			mediaUrl,
 		});
 		return c.json({ reply });
 	} catch (err) {
@@ -313,7 +328,6 @@ api.post("/setup", async (c) => {
 		TELEGRAM_BATCH_MAX_MS: opt(b.telegramBatchMaxMs),
 		MEMORY_CONTEXT_DAYS: opt(b.memoryContextDays),
 		MEMORY_LIMIT: opt(b.memoryLimit),
-		MEMORY_NOTE_TITLES: opt(b.memoryNoteTitles),
 		MEMORY_SUMMARY_CRON: opt(b.memorySummaryCron),
 		WEB_ACCESS: opt(b.webEnabled),
 		WEB_SEARCH_PROVIDER: opt(b.webSearchProvider),

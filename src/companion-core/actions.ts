@@ -5,16 +5,14 @@
  * the user sees. Tolerant by design: malformed or absent tags leave the reply
  * untouched. See docs/decisions/sidecar-tags-not-tool-calling.md.
  */
-import { addMemory, createNote, getCore, setCore } from "./memory/store.ts";
+import { addMemory, getCore, setCore } from "./memory/store.ts";
 
 const RE_REMEMBER = /<remember>([\s\S]*?)<\/remember>/gi;
 const RE_CORE = /<core>([\s\S]*?)<\/core>/gi;
-const RE_NOTE = /<note(?:\s+title="([^"]*)")?>([\s\S]*?)<\/note>/gi;
 
 export interface ParsedActions {
 	remember: string[];
 	core: string[];
-	notes: Array<{ title: string; body: string }>;
 	/** The reply text with all action tags removed. */
 	cleaned: string;
 }
@@ -33,21 +31,13 @@ export function parseActions(raw: string): ParsedActions {
 		if (v) core.push(v);
 	}
 
-	const notes: Array<{ title: string; body: string }> = [];
-	for (const m of raw.matchAll(RE_NOTE)) {
-		const title = (m[1] || "Note").trim() || "Note";
-		const body = (m[2] || "").trim();
-		notes.push({ title, body });
-	}
-
 	const cleaned = raw
 		.replace(RE_REMEMBER, "")
 		.replace(RE_CORE, "")
-		.replace(RE_NOTE, "")
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
 
-	return { remember, core, notes, cleaned };
+	return { remember, core, cleaned };
 }
 
 /** Apply any sidecar tags in `raw` to memory, then return the cleaned reply. */
@@ -63,11 +53,6 @@ export function applyActions(raw: string): string {
 	for (const line of parsed.core) {
 		const existing = getCore().trim();
 		setCore(existing ? `${existing}\n${line}` : line);
-		applied++;
-	}
-
-	for (const note of parsed.notes) {
-		createNote(note.title, note.body);
 		applied++;
 	}
 

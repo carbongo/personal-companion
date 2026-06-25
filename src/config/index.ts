@@ -113,7 +113,6 @@ export interface SttConfig {
 export interface MemoryConfig {
 	contextDays: number;
 	memoryLimit: number;
-	noteTitles: number;
 	summaryCron: string;
 }
 
@@ -197,7 +196,6 @@ export function loadConfig(): Config {
 		memory: {
 			contextDays: num("MEMORY_CONTEXT_DAYS", 7),
 			memoryLimit: num("MEMORY_LIMIT", 40),
-			noteTitles: num("MEMORY_NOTE_TITLES", 12),
 			summaryCron: str("MEMORY_SUMMARY_CRON", "55 23 * * *"),
 		},
 		web: {

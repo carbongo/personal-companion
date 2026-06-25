@@ -14,7 +14,6 @@
 //                          { role, content, day?, kind?, mediaUrl?, createdAt? }
 //   memories.json        — array of { content, tags?, createdAt? }
 //   daily-summaries.json — array of { day, summary, createdAt? }
-//   notes.json           — array of { title, content?, createdAt? }
 //
 // Usage:  bun run import [dir] [--dry-run] [--force] [--strict]
 
@@ -26,13 +25,7 @@ import { eq, sql } from "drizzle-orm";
 import { dayKey } from "#/companion-core/memory/store.ts";
 import { config } from "#/config/index.ts";
 import type { DB } from "#/db/index.ts";
-import {
-	core,
-	dailySummaries,
-	memories,
-	messages,
-	notes,
-} from "#/db/schema.ts";
+import { core, dailySummaries, memories, messages } from "#/db/schema.ts";
 
 // --- parsed record shapes -----------------------------------------------------
 
@@ -57,18 +50,11 @@ export interface SummaryRecord {
 	createdAt?: Date;
 }
 
-export interface NoteRecord {
-	title: string;
-	contentMd: string;
-	createdAt?: Date;
-}
-
 export interface ImportData {
 	core?: string;
 	messages: MsgRecord[];
 	memories: MemoryRecord[];
 	summaries: SummaryRecord[];
-	notes: NoteRecord[];
 }
 
 export interface LoadResult {
@@ -252,30 +238,6 @@ function parseSummaries(text: string): {
 	return { records, errors };
 }
 
-function parseNotes(text: string): { records: NoteRecord[]; errors: string[] } {
-	const { items, errors } = parseJsonArray(text, "notes.json");
-	const records: NoteRecord[] = [];
-	for (const [i, o] of items.entries()) {
-		const at = `notes.json[${i}]`;
-		if (!nonEmptyString(o.title)) {
-			errors.push(`${at}: title is required`);
-			continue;
-		}
-		const createdAt =
-			"createdAt" in o ? parseTimestamp(o.createdAt) : undefined;
-		if ("createdAt" in o && !createdAt) {
-			errors.push(`${at}: createdAt is not a valid timestamp`);
-			continue;
-		}
-		records.push({
-			title: o.title,
-			contentMd: typeof o.content === "string" ? o.content : "",
-			createdAt,
-		});
-	}
-	return { records, errors };
-}
-
 // --- load a directory ---------------------------------------------------------
 
 /** Read and validate every recognized file present in `dir`. */
@@ -284,7 +246,6 @@ export function loadImportDir(dir: string, tz: string): LoadResult {
 		messages: [],
 		memories: [],
 		summaries: [],
-		notes: [],
 	};
 	const errors: string[] = [];
 
@@ -312,13 +273,6 @@ export function loadImportDir(dir: string, tz: string): LoadResult {
 		errors.push(...r.errors);
 	}
 
-	const notePath = join(dir, "notes.json");
-	if (existsSync(notePath)) {
-		const r = parseNotes(readFileSync(notePath, "utf8"));
-		data.notes = r.records;
-		errors.push(...r.errors);
-	}
-
 	return { data, errors };
 }
 
@@ -329,13 +283,9 @@ export interface ImportSummary {
 	messages: number;
 	memories: number;
 	summaries: number;
-	notes: number;
 }
 
-function rowCount(
-	db: DB,
-	table: typeof messages | typeof memories | typeof notes,
-) {
+function rowCount(db: DB, table: typeof messages | typeof memories) {
 	return db.select({ n: sql<number>`count(*)` }).from(table).get()?.n ?? 0;
 }
 
@@ -346,8 +296,8 @@ function* chunks<T>(arr: T[], size: number): Generator<T[]> {
 /**
  * Apply parsed `data` to `db` in a single transaction. Refuses to touch tables
  * that already hold rows unless `force` is set, so a re-run can't silently
- * duplicate a history (messages/memories/notes have no natural key). Daily
- * summaries upsert by day, and the Core doc is only overwritten with `force`.
+ * duplicate a history (messages/memories have no natural key). Daily summaries
+ * upsert by day, and the Core doc is only overwritten with `force`.
  */
 export function importAll(
 	db: DB,
@@ -362,7 +312,6 @@ export function importAll(
 			clashes.push("messages");
 		if (data.memories.length && rowCount(db, memories))
 			clashes.push("memories");
-		if (data.notes.length && rowCount(db, notes)) clashes.push("notes");
 		if (clashes.length) {
 			throw new Error(
 				`target database already has ${clashes.join(", ")}; ` +
@@ -381,7 +330,6 @@ export function importAll(
 		messages: 0,
 		memories: 0,
 		summaries: 0,
-		notes: 0,
 	};
 
 	db.transaction((tx) => {
@@ -443,19 +391,6 @@ export function importAll(
 				.run();
 			summary.summaries++;
 		}
-
-		for (const batch of chunks(data.notes, 400)) {
-			tx.insert(notes)
-				.values(
-					batch.map((n) => ({
-						title: n.title,
-						contentMd: n.contentMd,
-						...(n.createdAt ? { createdAt: n.createdAt } : {}),
-					})),
-				)
-				.run();
-			summary.notes += batch.length;
-		}
 	});
 
 	return summary;
@@ -469,7 +404,6 @@ function describePlan(data: ImportData): string {
 		`  messages.jsonl       ${data.messages.length}`,
 		`  memories.json        ${data.memories.length}`,
 		`  daily-summaries.json ${data.summaries.length}`,
-		`  notes.json           ${data.notes.length}`,
 	].join("\n");
 }
 
@@ -527,7 +461,7 @@ if (import.meta.main) {
 		console.log(
 			`\n✓ Imported into ${config.app.dataDir}:\n` +
 				`  core ${s.core}, ${s.messages} messages, ${s.memories} memories, ` +
-				`${s.summaries} summaries, ${s.notes} notes.`,
+				`${s.summaries} summaries.`,
 		);
 	} catch (err) {
 		console.error(`\n✗ ${(err as Error).message}`);

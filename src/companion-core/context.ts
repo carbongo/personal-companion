@@ -1,10 +1,9 @@
 /**
  * Context assembly, split for token frugality:
  *
- *  - buildKnowledge() — semi-stable (Core, saved memories, recent daily summaries,
- *    the companion's note titles). Goes in the cached system prefix so a local
- *    model reuses its KV cache across turns and only reprocesses it when it
- *    actually changes.
+ *  - buildKnowledge() — semi-stable (Core, saved memories, recent daily
+ *    summaries). Goes in the cached system prefix so a local model reuses its KV
+ *    cache across turns and only reprocesses it when it actually changes.
  *  - buildVolatile() — the small per-turn delta (date/time, current weather) that
  *    rides on the latest user message only, never stored, so the cached prefix
  *    stays byte-stable.
@@ -15,7 +14,6 @@ import { config } from "#/config/index.ts";
 import {
 	getCore,
 	listMemories,
-	listNoteTitles,
 	recentSummariesBefore,
 	todayKey,
 } from "./memory/store.ts";
@@ -65,14 +63,6 @@ export function buildKnowledge(): string {
 	if (summaries.length) {
 		const lines = summaries.map((s) => `### ${s.day}\n${s.summaryMd}`);
 		parts.push(`## Recent days (your summaries)\n${lines.join("\n\n")}`);
-	}
-
-	if (config.memory.noteTitles > 0) {
-		const titles = listNoteTitles(config.memory.noteTitles);
-		if (titles.length)
-			parts.push(
-				`## Notes you've filed (titles)\n${titles.map((t) => `- ${t}`).join("\n")}`,
-			);
 	}
 
 	return parts.join("\n\n");

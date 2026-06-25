@@ -23,7 +23,6 @@ describe("buildOperating", () => {
 		const op = buildOperating({ web: true });
 		expect(op).toContain("<remember>");
 		expect(op).toContain("<core>");
-		expect(op).toContain("<note");
 	});
 
 	it("includes web tags only when web access is on", () => {
