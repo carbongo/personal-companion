@@ -249,8 +249,9 @@ export function Chat({ state }: { state: AppState }) {
 
     const drained = drain();
     let ok = false;
+    let fullReply = "";
     try {
-      await api.sendStream(
+      const r = await api.sendStream(
         {
           text: combinedText,
           images: payloadImages.length ? payloadImages : undefined,
@@ -258,12 +259,27 @@ export function Chat({ state }: { state: AppState }) {
         },
         onParagraph,
       );
+      fullReply = r.reply ?? "";
       ok = true;
     } catch (e) {
       toast((e as Error).message || "The companion couldn't reply.", "error");
     } finally {
       streamDone = true;
-      await drained; // let every queued paragraph land and clear the typing bubble
+      const shown = await drained; // let every queued paragraph land + clear the typing bubble
+      // Safety net: if nothing streamed onto the screen but the reply did land
+      // (a flaky/buffered stream), show it from the final payload so you never
+      // have to refresh to see the message.
+      if (ok && shown === 0 && fullReply.trim()) {
+        const blocks = splitParagraphs(fullReply);
+        const bubbles = (blocks.length ? blocks : [fullReply]).map((p) => ({
+          id: uid("reply"),
+          role: "assistant" as const,
+          content: p,
+          mediaUrls: [] as string[],
+          createdAt: nowIso(),
+        }));
+        setMessages((m) => [...m, ...bubbles]);
+      }
       if (!ok) {
         // The burst errored → back to one tick, re-queued so the next send retries it.
         setMessages((m) => m.map((x) => (ids.has(x.id) ? { ...x, status: "queued" as Status } : x)));

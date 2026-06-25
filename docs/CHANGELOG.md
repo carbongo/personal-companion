@@ -5,6 +5,13 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-25
 
+- **Thinking off by default; web chat no longer needs a refresh to show the reply.** Some
+  local builds — notably the `gemma4:12b` GGUF — spend the whole generation *thinking* and
+  return **empty content** (≈18s of nothing, then an empty-retry), which on the web chat looked
+  like a long dead "thinking…" you had to refresh past. Default **`LLM_THINK="false"`** now (a
+  companion wants snappy replies; image turns were already think-off). Added a web-chat **safety
+  net**: if the stream finishes with nothing rendered but a reply did land, it's shown from the
+  final payload — so a flaky/buffered stream can never strand you on a refresh.
 - **Vision: image turns can route to a dedicated model; the companion never fakes sight.**
   New optional **`LLM_VISION_MODEL`** (`config.llm.visionModel`, a "Vision model" field in
   the Mind settings). When a turn includes an image, the engine routes that one generation to
