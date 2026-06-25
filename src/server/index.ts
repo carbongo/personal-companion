@@ -77,4 +77,9 @@ console.log(`[companion] listening on http://localhost:${port}`);
 export default {
 	fetch: app.fetch,
 	port,
+	// Streamed chat replies can sit silent for many seconds while the model
+	// "thinks" before any token lands. Bun's default idle timeout (~10s) would
+	// drop that connection mid-think. Raise it (the streaming handler also sends
+	// keepalive pings); generation itself is bounded by LLM_TIMEOUT_MS. Max 255s.
+	idleTimeout: 255,
 };

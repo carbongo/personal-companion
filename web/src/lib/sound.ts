@@ -39,15 +39,20 @@ function ensure(): AudioContext | null {
   return ctx;
 }
 
-// Resume the audio graph on the first interaction, once.
+// Keep the audio graph awake. Browsers start an AudioContext suspended (and
+// re-suspend it after a tab switch / system sleep / idle), and a resume() only
+// "sticks" when it runs inside a user gesture — so we resume on *every* gesture,
+// not just the first. Without this, sounds go silent for good the moment the
+// context is suspended once. Cheap: ensure() is a no-op when already running.
 if (typeof window !== "undefined") {
   const wake = () => {
     ensure();
-    window.removeEventListener("pointerdown", wake);
-    window.removeEventListener("keydown", wake);
   };
-  window.addEventListener("pointerdown", wake, { once: true });
-  window.addEventListener("keydown", wake, { once: true });
+  window.addEventListener("pointerdown", wake);
+  window.addEventListener("keydown", wake);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) ensure();
+  });
 }
 
 function tone(

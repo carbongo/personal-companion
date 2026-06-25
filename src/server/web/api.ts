@@ -226,8 +226,13 @@ api.post("/chat", async (c) => {
 
 // Streaming chat: newline-delimited JSON (one object per line). The reply is
 // emitted paragraph-by-paragraph as the model writes it — `{type:"paragraph"}` —
-// then a final `{type:"done", reply}` (or `{type:"error"}`). The web chat reads
-// this to render each paragraph as its own message, matching Telegram.
+// then a final `{type:"done", reply}` (or `{type:"error"}`). A `{type:"ping"}`
+// keepalive is sent every few seconds so the connection survives the long silent
+// stretch while the model "thinks" before any token lands (otherwise Bun's idle
+// timeout drops it mid-think and the reply never reaches the browser). The web
+// chat ignores pings and renders each paragraph as its own message, like Telegram.
+const STREAM_PING_MS = 4000;
+
 api.post("/chat/stream", async (c) => {
 	const prep = await prepareTurn(c);
 	if (!prep.turn) return c.json({ error: prep.error }, prep.status);
@@ -236,7 +241,20 @@ api.post("/chat/stream", async (c) => {
 	c.header("X-Accel-Buffering", "no");
 	const turn = prep.turn;
 	return stream(c, async (s) => {
-		const write = (obj: unknown) => s.write(`${JSON.stringify(obj)}\n`);
+		// Serialize writes (the heartbeat and the reply both write to one stream),
+		// so lines never interleave; ignore write errors after the client leaves.
+		let chain: Promise<unknown> = Promise.resolve();
+		const write = (obj: unknown) => {
+			chain = chain
+				.then(() => s.write(`${JSON.stringify(obj)}\n`))
+				.catch(() => {});
+			return chain;
+		};
+		await write({ type: "ping" }); // flush headers + first byte right away
+		const heartbeat = setInterval(
+			() => void write({ type: "ping" }),
+			STREAM_PING_MS,
+		);
 		try {
 			const { reply } = await respondStream(turn, async (paragraph) => {
 				await write({ type: "paragraph", text: paragraph });
@@ -244,6 +262,9 @@ api.post("/chat/stream", async (c) => {
 			await write({ type: "done", reply });
 		} catch (err) {
 			await write({ type: "error", error: (err as Error).message });
+		} finally {
+			clearInterval(heartbeat);
+			await chain; // make sure the last line is flushed before the stream closes
 		}
 	});
 });

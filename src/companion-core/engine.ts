@@ -227,19 +227,19 @@ export async function respond(turn: Turn): Promise<EngineReply> {
 	}
 
 	const { messages, genOpts } = await buildTurn(turn, day);
+	// Persist the incoming turn now — after the history was read for the prompt,
+	// before generation — so it's logged even if generation fails, and so a
+	// concurrent reader sees it without waiting for the reply.
+	persistUser(turn, day);
 
 	let raw: string;
 	try {
 		raw = await generate(messages, genOpts);
 	} catch (err) {
-		if (err instanceof ProviderUnreachableError) {
-			persistUser(turn, day);
-			return { reply: AWAY_MESSAGE };
-		}
+		if (err instanceof ProviderUnreachableError) return { reply: AWAY_MESSAGE };
 		throw err;
 	}
 
-	persistUser(turn, day);
 	const reply = applyActions(stripWebTags(raw)) || "…";
 	appendMessage({ day, role: "assistant", content: reply });
 	return { reply };
@@ -263,6 +263,10 @@ export async function respondStream(
 	}
 
 	const { messages, genOpts } = await buildTurn(turn, day);
+	// Persist the incoming turn now — after the history was read for the prompt,
+	// before the (possibly long) generation — so a browser that reloads mid-reply
+	// still sees the message it just sent rather than losing it.
+	persistUser(turn, day);
 
 	let emitted = 0;
 	const sink: ParagraphSink = async (p) => {
@@ -275,14 +279,12 @@ export async function respondStream(
 		raw = await generateStream(messages, genOpts, sink);
 	} catch (err) {
 		if (err instanceof ProviderUnreachableError) {
-			persistUser(turn, day);
 			if (!emitted) await emit(AWAY_MESSAGE);
 			return { reply: AWAY_MESSAGE };
 		}
 		throw err;
 	}
 
-	persistUser(turn, day);
 	const reply = applyActions(stripWebTags(raw)) || "…";
 	appendMessage({ day, role: "assistant", content: reply });
 	// If nothing was streamable (e.g. the reply was only sidecar tags), still

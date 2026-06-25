@@ -5,13 +5,22 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-25
 
-- **Thinking off by default; web chat no longer needs a refresh to show the reply.** Some
-  local builds — notably the `gemma4:12b` GGUF — spend the whole generation *thinking* and
-  return **empty content** (≈18s of nothing, then an empty-retry), which on the web chat looked
-  like a long dead "thinking…" you had to refresh past. Default **`LLM_THINK="false"`** now (a
-  companion wants snappy replies; image turns were already think-off). Added a web-chat **safety
-  net**: if the stream finishes with nothing rendered but a reply did land, it's shown from the
-  final payload — so a flaky/buffered stream can never strand you on a refresh.
+- **UI sounds recover after the AudioContext is suspended.** The web UI's chimes resumed the
+  audio graph only on the *first* interaction (`{once:true}`); once a browser suspended the
+  context (tab switch, system sleep, idle) they went silent for good. Now resume runs on *every*
+  pointer/key gesture (a no-op when already running) plus on `visibilitychange` — so sounds
+  self-heal. (Default stays on; the speaker toggle in the top bar still mutes/persists.)
+- **Web chat: keepalives so the streamed reply survives the "thinking" pause + the message
+  persists immediately (the real "had to refresh" fix).** With thinking on, the model can stay
+  silent for ~15–20s before any token — and Bun's ~10s idle timeout was dropping the streaming
+  socket mid-think (`ECONNRESET`), so the browser got nothing and you refreshed. Now `POST
+  /api/chat/stream` sends a `{type:"ping"}` **keepalive every 4s** (writes serialized so lines
+  never interleave; the client ignores pings) and the server's Bun `idleTimeout` is raised to
+  255s. The engine also **persists the incoming message before generation** (right after the
+  history is read for the prompt) instead of after, so reloading mid-reply no longer makes the
+  message you just sent vanish. `LLM_THINK` stays **on** by default. (Image turns still run with
+  thinking off — it's flaky with vision.) The earlier same-day "thinking off by default" change
+  is reverted.
 - **Vision: image turns can route to a dedicated model; the companion never fakes sight.**
   New optional **`LLM_VISION_MODEL`** (`config.llm.visionModel`, a "Vision model" field in
   the Mind settings). When a turn includes an image, the engine routes that one generation to
