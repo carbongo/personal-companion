@@ -36,6 +36,12 @@ function uid(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${seq}`;
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Minimum spacing between paragraph bubbles, so a fast reply lands one message
+ *  at a time (like a person typing) instead of all at once. Mirrors Telegram. */
+const PARA_GAP_MS = 500;
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -189,30 +195,59 @@ export function Chat({ state }: { state: AppState }) {
     const payloadImages = batch.flatMap((b) => b.images);
 
     inflightRef.current = true;
-    const thinkingId = uid("think");
+    // The burst has now been batched and handed to the companion, so it's
+    // delivered (two ticks) the moment it leaves the queue — not after the reply
+    // lands. An error below reverts it to one tick and re-queues it.
+    queueRef.current = queueRef.current.filter((it) => !ids.has(it.id));
+    setMessages((m) => m.map((x) => (ids.has(x.id) ? { ...x, status: "sent" as Status } : x)));
+
+    // A "thinking…" bubble sits at the bottom; finished paragraphs slot in above
+    // it, paced, so they appear one at a time (not all at once) with the typing
+    // indicator carrying on between them — like a person texting.
+    const typingId = uid("typing");
     setMessages((m) => [
       ...m,
-      { id: thinkingId, role: "assistant", content: "", mediaUrls: [], createdAt: nowIso(), pending: true },
+      { id: typingId, role: "assistant", content: "", mediaUrls: [], createdAt: nowIso(), pending: true },
     ]);
     scrollToBottom();
 
-    let paraCount = 0;
+    const paraQueue: string[] = [];
+    let streamDone = false;
     const onParagraph = (p: string) => {
-      paraCount += 1;
-      if (paraCount === 1) {
-        setMessages((m) =>
-          m.map((x) => (x.id === thinkingId ? { ...x, content: p, pending: false, createdAt: nowIso() } : x)),
-        );
-      } else {
-        setMessages((m) => [
-          ...m,
-          { id: `${thinkingId}-${paraCount}`, role: "assistant", content: p, mediaUrls: [], createdAt: nowIso() },
-        ]);
-      }
-      sfx.play("receive");
-      scrollToBottom();
+      paraQueue.push(p);
     };
 
+    // Drains paragraphs onto the screen, one at a time, paced — runs alongside
+    // the network stream and finishes once the stream is done and the queue empty.
+    const drain = async (): Promise<number> => {
+      let shown = 0;
+      while (!streamDone || paraQueue.length) {
+        const p = paraQueue.shift();
+        if (p === undefined) {
+          await sleep(60);
+          continue;
+        }
+        if (shown > 0) await sleep(PARA_GAP_MS);
+        const bubble = {
+          id: `${typingId}-p${shown}`,
+          role: "assistant" as const,
+          content: p,
+          mediaUrls: [],
+          createdAt: nowIso(),
+        };
+        setMessages((m) => {
+          const idx = m.findIndex((x) => x.id === typingId);
+          return idx < 0 ? [...m, bubble] : [...m.slice(0, idx), bubble, ...m.slice(idx)];
+        });
+        shown += 1;
+        sfx.play("receive");
+        scrollToBottom();
+      }
+      setMessages((m) => m.filter((x) => x.id !== typingId)); // drop the typing bubble
+      return shown;
+    };
+
+    const drained = drain();
     let ok = false;
     try {
       await api.sendStream(
@@ -224,22 +259,20 @@ export function Chat({ state }: { state: AppState }) {
         onParagraph,
       );
       ok = true;
-      // Mark the whole burst delivered (double ticks) and drop it from the queue.
-      setMessages((m) =>
-        m
-          .filter((x) => !(x.id === thinkingId && x.pending)) // no paragraphs? clear placeholder
-          .map((x) => (ids.has(x.id) ? { ...x, status: "sent" as Status } : x)),
-      );
-      queueRef.current = queueRef.current.filter((it) => !ids.has(it.id));
     } catch (e) {
-      // Leave the burst queued (single tick) so the next send re-includes it.
-      setMessages((m) => m.filter((x) => x.id !== thinkingId));
       toast((e as Error).message || "The companion couldn't reply.", "error");
     } finally {
+      streamDone = true;
+      await drained; // let every queued paragraph land and clear the typing bubble
+      if (!ok) {
+        // The burst errored → back to one tick, re-queued so the next send retries it.
+        setMessages((m) => m.map((x) => (ids.has(x.id) ? { ...x, status: "queued" as Status } : x)));
+        queueRef.current = [...batch, ...queueRef.current];
+      }
       inflightRef.current = false;
       scrollToBottom();
-      // Anything queued during the stream (or a fresh send) goes next; an errored
-      // burst waits for the next message rather than hammering a down model.
+      // Anything queued during the stream goes next; an errored burst waits for the
+      // next message rather than hammering a down model.
       if (ok && queueRef.current.length) armTimer();
     }
   };
