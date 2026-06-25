@@ -1,0 +1,442 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────────────────
+   NOCTURNE — COMPANION DESIGN SYSTEM
+   A dark, ancient-technological surface: slate stone, cyan energy, amber
+   activation. Calm at rest, cinematic in motion. Inscriptions in Cinzel,
+   body in Outfit. Every accent is a thin glowing line, never a heavy fill.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  --font-display: "Cinzel", "Times New Roman", serif;
+  --font-sans: "Outfit Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+
+  --color-bg-0: #0e1113;
+  --color-bg-1: #14181c;
+  --color-bg-2: #1b2127;
+  --color-ink: #e3eaee;
+  --color-ink-dim: #9fb0b8;
+  --color-ink-faint: #6c7c84;
+  --color-cyan: #58c7d6;
+  --color-cyan-soft: #8fe0ea;
+  --color-amber: #e0a83c;
+  --color-amber-soft: #f1c879;
+  --color-danger: #d9594c;
+  --color-jade: #5fb98a;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+}
+
+:root {
+  --line: rgba(126, 156, 166, 0.14);
+  --line-strong: rgba(126, 156, 166, 0.26);
+  --rune: rgba(88, 199, 214, 0.55);
+  --glow-cyan: 0 0 24px rgba(88, 199, 214, 0.35);
+  --glow-cyan-lg: 0 0 48px rgba(88, 199, 214, 0.28);
+  --glow-amber: 0 0 22px rgba(224, 168, 60, 0.32);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.45, 0.05, 0.25, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--color-ink);
+  background: var(--color-bg-0);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden; /* the app owns its own scroll regions */
+}
+
+/* The world behind everything: two slow auroral hazes + a vignette. The hazes
+   breathe so the screen feels alive even when nothing is happening. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -2;
+  background:
+    radial-gradient(40% 50% at 18% 12%, rgba(88, 199, 214, 0.13), transparent 70%),
+    radial-gradient(46% 52% at 86% 88%, rgba(224, 168, 60, 0.08), transparent 72%),
+    radial-gradient(60% 60% at 50% 50%, rgba(20, 26, 30, 0) 40%, rgba(6, 8, 9, 0.7) 100%);
+  animation: breathe 18s var(--ease-soft) infinite alternate;
+}
+
+::selection {
+  background: rgba(88, 199, 214, 0.28);
+  color: #fff;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--color-cyan), rgba(88, 199, 214, 0.25));
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+h1, h2, h3, .display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1.5px var(--color-cyan), var(--glow-cyan);
+  border-radius: var(--radius-sm);
+}
+
+/* Interactive elements get the pointer cursor — Tailwind v4's reset no longer
+   assumes it on <button>. */
+button:not(:disabled),
+[role="switch"],
+[role="button"],
+label:has(> input[type="file"]),
+select,
+summary,
+.slider {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* ── Glass panels ──────────────────────────────────────────────────────── */
+.glass {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(33, 42, 48, 0.62), rgba(16, 20, 23, 0.72));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(14px) saturate(1.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 18px 50px -28px rgba(0, 0, 0, 0.85);
+}
+/* A faint corner-bracket frame — the ancient-terminal tell. */
+.glass.framed::before,
+.glass.framed::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--rune);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.glass.framed::before {
+  top: 9px;
+  left: 9px;
+  border-right: 0;
+  border-bottom: 0;
+  border-top-left-radius: 6px;
+}
+.glass.framed::after {
+  bottom: 9px;
+  right: 9px;
+  border-left: 0;
+  border-top: 0;
+  border-bottom-right-radius: 6px;
+}
+
+/* ── Runic divider: a hairline with a glowing node that sweeps. ─────────── */
+.rune-line {
+  position: relative;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line-strong) 18%, var(--line-strong) 82%, transparent);
+}
+.rune-line::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  width: 56px;
+  height: 3px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, var(--color-cyan), transparent);
+  box-shadow: var(--glow-cyan);
+  animation: sweep 7s var(--ease-soft) infinite;
+}
+
+/* ── Text glows / accents ──────────────────────────────────────────────── */
+.glow-cyan {
+  color: var(--color-cyan-soft);
+  text-shadow: 0 0 14px rgba(88, 199, 214, 0.55);
+}
+.glow-amber {
+  color: var(--color-amber-soft);
+  text-shadow: 0 0 14px rgba(224, 168, 60, 0.45);
+}
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+.btn {
+  --c: var(--color-cyan);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: inherit;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--color-ink);
+  background: linear-gradient(180deg, rgba(88, 199, 214, 0.16), rgba(88, 199, 214, 0.06));
+  border: 1px solid color-mix(in oklab, var(--c) 45%, transparent);
+  border-radius: var(--radius-md);
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: transform 0.18s var(--ease-out), box-shadow 0.25s var(--ease-out),
+    border-color 0.25s, background 0.25s;
+}
+.btn:hover {
+  border-color: color-mix(in oklab, var(--c) 75%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--c) 25%, transparent), var(--glow-cyan);
+  transform: translateY(-1px);
+}
+.btn:active {
+  transform: translateY(0) scale(0.99);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+.btn.amber {
+  --c: var(--color-amber);
+  background: linear-gradient(180deg, rgba(224, 168, 60, 0.18), rgba(224, 168, 60, 0.06));
+}
+.btn.amber:hover {
+  box-shadow: 0 0 0 1px rgba(224, 168, 60, 0.25), var(--glow-amber);
+}
+.btn.ghost {
+  background: transparent;
+  border-color: var(--line-strong);
+  color: var(--color-ink-dim);
+}
+.btn.ghost:hover {
+  color: var(--color-ink);
+  background: rgba(255, 255, 255, 0.03);
+}
+.btn.danger {
+  --c: var(--color-danger);
+  color: var(--color-danger);
+  background: linear-gradient(180deg, rgba(217, 89, 76, 0.14), rgba(217, 89, 76, 0.04));
+}
+
+/* ── Form fields ───────────────────────────────────────────────────────── */
+.field {
+  width: 100%;
+  font: inherit;
+  color: var(--color-ink);
+  background: rgba(8, 11, 13, 0.55);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  padding: 11px 13px;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.field::placeholder {
+  color: var(--color-ink-faint);
+}
+.field:focus {
+  outline: none;
+  border-color: color-mix(in oklab, var(--color-cyan) 60%, transparent);
+  box-shadow: var(--glow-cyan);
+  background: rgba(8, 11, 13, 0.75);
+}
+textarea.field {
+  resize: vertical;
+  min-height: 92px;
+  line-height: 1.5;
+}
+.label {
+  display: block;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-dim);
+  margin: 0 0 6px 2px;
+}
+.help {
+  font-size: 12px;
+  color: var(--color-ink-faint);
+  margin: 6px 2px 0;
+  line-height: 1.45;
+}
+
+/* ── Pills / status ────────────────────────────────────────────────────── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  padding: 4px 11px;
+  border-radius: 99px;
+  border: 1px solid var(--line-strong);
+  color: var(--color-ink-dim);
+  background: rgba(255, 255, 255, 0.02);
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-ink-faint);
+}
+.dot.live {
+  background: var(--color-jade);
+  box-shadow: 0 0 10px rgba(95, 185, 138, 0.8);
+  animation: pulse 2.6s ease-in-out infinite;
+}
+.dot.cyan {
+  background: var(--color-cyan);
+  box-shadow: var(--glow-cyan);
+}
+.dot.amber {
+  background: var(--color-amber);
+  box-shadow: var(--glow-amber);
+}
+
+.hairline {
+  height: 1px;
+  background: var(--line);
+}
+
+/* ── Range slider ──────────────────────────────────────────────────────── */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 99px;
+  background: linear-gradient(
+    90deg,
+    var(--color-cyan) 0%,
+    var(--color-cyan) var(--pct, 50%),
+    rgba(126, 156, 166, 0.18) var(--pct, 50%),
+    rgba(126, 156, 166, 0.18) 100%
+  );
+  outline: none;
+  cursor: pointer;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-bg-1);
+  border: 2px solid var(--color-cyan);
+  box-shadow: var(--glow-cyan);
+  transition: transform 0.15s var(--ease-out);
+}
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.18);
+}
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-bg-1);
+  border: 2px solid var(--color-cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+/* Native select option list (best-effort; OS-themed on some platforms). */
+.field option {
+  background: var(--color-bg-1);
+  color: var(--color-ink);
+}
+
+/* ── Keyframes ─────────────────────────────────────────────────────────── */
+@keyframes breathe {
+  from {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+@keyframes sweep {
+  0% {
+    left: 6%;
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    left: 88%;
+    opacity: 0;
+  }
+}
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+@keyframes shimmer {
+  to {
+    background-position: 200% center;
+  }
+}
+
+/* The shimmering "thinking" word used while the companion replies. */
+.thinking {
+  background: linear-gradient(90deg, var(--color-ink-faint) 30%, var(--color-cyan-soft) 50%, var(--color-ink-faint) 70%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 2.4s linear infinite;
+}
+
+/* ── Respect the user's wishes ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.08s !important;
+  }
+  body::before {
+    animation: none;
+  }
+}

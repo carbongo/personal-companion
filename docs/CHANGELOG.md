@@ -5,6 +5,25 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-25
 
+- **Premium web client — a built Vite/React SPA (the Nocturne design system).** The web UI
+  is reborn as a polished, highly adaptive, animated single-page app under `web/` (Vite +
+  React 19 + Tailwind v4 + Motion; self-hosted fonts, no runtime CDN). Dark-slate surface
+  with cyan/amber "energy", runic detailing, lush transitions, ambient motion, and muteable
+  WebAudio chimes (no binary assets) — all honoring `prefers-reduced-motion`. Two surfaces:
+  **Converse** (chat with markdown, image attach, voice-to-text, optimistic send) and the
+  **Slate**, a categorised game-like settings menu (Persona · Mind · Memory · Channels ·
+  Voice · The Sight · The Sky · Atmosphere · The Realm) that unifies the old setup wizard
+  and memory admin, with a live model "Attune" test, a geocoding location picker, and an
+  unsaved-changes save bar that can re-attune (restart) the process. **This supersedes the
+  no-build decision** ([web-ui-premium-spa.md](./decisions/web-ui-premium-spa.md)). The
+  client talks only to the existing JSON API; the only server change is `auth.enabled` on
+  `/api/state`. Built with `bun run web:build` → `web/dist`, served by the same Bun process
+  (content-hashed assets, `immutable`); the Dockerfile builds it in a separate stage. **The
+  server gracefully falls back** to the original server-rendered pages when `web/dist` is
+  absent, so a bare `bun start` still works; the login page stays server-rendered (re-themed
+  to match). New root scripts `web:install` / `web:dev` / `web:build`; `web/` excluded from
+  root Biome/tsc. No new server runtime dependency. Server `check` + `typecheck` + 94 tests
+  green; the client typechecks and builds clean.
 - **Batching is now a dynamic, growing idle window (no hard total cap).** Replaced the
   fixed-debounce-plus-hard-cap model. The idle window starts at `CHAT_BATCH_IDLE_MS` after the
   first message and grows by the new `CHAT_BATCH_STEP_MS` with each further message, capped at

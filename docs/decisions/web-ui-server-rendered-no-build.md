@@ -1,7 +1,12 @@
 # Web UI: server-rendered Hono JSX, no build step
 
-Status: Accepted — 2026-06-24 (supersedes the earlier "React + Vite + Tailwind + shadcn/ui
-SPA" note in [tech-stack.md](../tech-stack.md))
+Status: **Superseded** by [web-ui-premium-spa.md](./web-ui-premium-spa.md) (2026-06-25).
+Originally Accepted — 2026-06-24 (superseded the earlier "React + Vite + Tailwind + shadcn/ui
+SPA" note in [tech-stack.md](../tech-stack.md)).
+
+> The premium UI is now a built Vite/React SPA. The server-rendered pages described below
+> still exist as the **graceful fallback** when `web/dist` hasn't been built, so the
+> rationale here remains live for that path — but the default experience is the SPA.
 
 ## Context
 

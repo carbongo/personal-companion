@@ -92,11 +92,16 @@ docs/
   `companion-core/engine.respond` — keep channel- and provider-specific code out of the
   core (see [`docs/architecture.md`](./docs/architecture.md)). The built-in web chat is a
   channel like any other: it calls `respond` too.
-- **The web UI has no build step.** It lives in `src/server/web/`, rendered server-side
-  with Hono JSX (files with JSX use `.tsx`; `tsconfig.json` sets `jsxImportSource`). The
-  one stylesheet and the page scripts are strings in `assets.ts` served as routes — do
-  **not** add Vite/Tailwind/a bundler or a front-end `node_modules` (see
-  [`docs/decisions/web-ui-server-rendered-no-build.md`](./docs/decisions/web-ui-server-rendered-no-build.md)).
+- **The web UI is a built SPA.** The premium client lives in `web/` (Vite + React +
+  Tailwind v4 + Motion, the Nocturne design system) and builds with `bun run web:build` to
+  `web/dist`, which the server serves (`src/server/web/index.tsx`). It talks only to the
+  existing JSON API (`src/server/web/api.ts`) — keep server logic out of the client. When
+  `web/dist` is absent the server falls back to the original server-rendered pages in
+  `src/server/web/` (Hono JSX + `assets.ts`), which therefore stay working — the login page
+  is always server-rendered. See
+  [`docs/decisions/web-ui-premium-spa.md`](./docs/decisions/web-ui-premium-spa.md). The
+  `web/` sub-package has its own deps and is excluded from root Biome/tsc; run its checks
+  with `cd web && bun run build`.
 - **DB changes:** edit `src/db/schema.ts`, then `bun run db:generate` and commit the new
   migration in `drizzle/`. Update [`docs/data-model.md`](./docs/data-model.md).
 - **Packaging:** `bun run init` (`scripts/init.ts`) is the bare-install bootstrap — keep it

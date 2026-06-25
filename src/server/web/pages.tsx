@@ -1152,31 +1152,82 @@ export const SetupPage = (props: {
 	);
 };
 
+// Self-contained, themed sign-in. It deliberately does NOT depend on the shared
+// stylesheet (the SPA owns /assets/*), so it stays on-brand whether or not the
+// built client is present. Styling matches the Nocturne design system.
+const LOGIN_CSS = `
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:#0e1113;color:#e3eaee;
+  font:15px/1.5 "Outfit",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  display:grid;place-items:center;overflow:hidden;
+}
+body::before{content:"";position:fixed;inset:-20%;z-index:-1;
+  background:
+    radial-gradient(40% 50% at 22% 16%,rgba(88,199,214,.16),transparent 70%),
+    radial-gradient(44% 50% at 82% 86%,rgba(224,168,60,.09),transparent 72%);
+  animation:breathe 16s ease-in-out infinite alternate}
+@keyframes breathe{from{opacity:.8;transform:scale(1)}to{opacity:1;transform:scale(1.05)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.card{
+  width:min(92vw,360px);padding:34px 30px;border-radius:22px;
+  background:linear-gradient(180deg,rgba(33,42,48,.6),rgba(16,20,23,.72));
+  border:1px solid rgba(126,156,166,.16);backdrop-filter:blur(14px);
+  box-shadow:0 24px 60px -30px rgba(0,0,0,.85);text-align:center}
+.ring{width:46px;height:46px;margin:0 auto 18px;border-radius:50%;
+  border:1.4px solid rgba(88,199,214,.28);border-top-color:#58c7d6;border-right-color:#58c7d6;
+  box-shadow:0 0 24px rgba(88,199,214,.35)}
+h1{font-family:Cinzel,Georgia,"Times New Roman",serif;font-weight:600;
+  letter-spacing:.14em;font-size:22px;margin:0 0 6px;color:#e3eaee;
+  text-shadow:0 0 16px rgba(88,199,214,.35)}
+.sub{color:#9fb0b8;font-size:13px;margin:0 0 22px}
+input{width:100%;background:rgba(8,11,13,.6);border:1px solid rgba(126,156,166,.26);
+  color:#e3eaee;border-radius:14px;padding:12px 14px;font:inherit;outline:none;
+  transition:border-color .2s,box-shadow .2s}
+input:focus{border-color:rgba(88,199,214,.6);box-shadow:0 0 24px rgba(88,199,214,.32)}
+button{width:100%;margin-top:14px;cursor:pointer;color:#e3eaee;font:inherit;font-weight:500;
+  background:linear-gradient(180deg,rgba(88,199,214,.18),rgba(88,199,214,.06));
+  border:1px solid rgba(88,199,214,.45);border-radius:14px;padding:12px;
+  letter-spacing:.02em;transition:box-shadow .25s,transform .15s,border-color .25s}
+button:hover{border-color:rgba(88,199,214,.75);box-shadow:0 0 24px rgba(88,199,214,.35);transform:translateY(-1px)}
+.bad{margin-top:14px;color:#f0a59c;font-size:13px;
+  background:rgba(217,89,76,.12);border-radius:10px;padding:9px 12px}
+@media(prefers-reduced-motion:reduce){body::before{animation:none}}
+`;
+
 export const LoginPage = (props: { name: string; error?: boolean }) => (
-	<Layout
-		title={`${props.name} — Sign in`}
-		name={props.name}
-		active=""
-		authEnabled
-		bare
-	>
-		<div style="max-width:360px;margin:14vh auto 0">
-			<h1>{props.name}</h1>
-			<p class="sub">This companion is password-protected.</p>
-			<form method="post" action="/login" class="card">
-				<label for="password">Password</label>
-				<input
-					type="password"
-					id="password"
-					name="password"
-					autofocus
-					autocomplete="current-password"
-				/>
-				{props.error && <div class="note bad">Wrong password.</div>}
-				<div class="row" style="margin-top:14px">
-					<button type="submit">Sign in</button>
-				</div>
-			</form>
-		</div>
-	</Layout>
+	<>
+		{raw("<!DOCTYPE html>")}
+		<html lang="en">
+			<head>
+				<meta charset="utf-8" />
+				<meta name="viewport" content="width=device-width, initial-scale=1" />
+				<meta name="color-scheme" content="dark" />
+				<title>{`${props.name} — Sign in`}</title>
+				<style>{raw(LOGIN_CSS)}</style>
+			</head>
+			<body>
+				<form method="post" action="/login" class="card">
+					<div
+						class="ring"
+						style="animation:spin 1.1s cubic-bezier(.5,.1,.3,1) infinite"
+					/>
+					<h1>{props.name}</h1>
+					<p class="sub">Speak the word to wake the slate.</p>
+					<input
+						type="password"
+						name="password"
+						aria-label="Password"
+						placeholder="Password"
+						// biome-ignore lint/a11y/noAutofocus: a single-field sign-in
+						autofocus
+						autocomplete="current-password"
+					/>
+					{props.error && <div class="bad">That word was not recognized.</div>}
+					<button type="submit">Enter</button>
+				</form>
+			</body>
+		</html>
+	</>
 );

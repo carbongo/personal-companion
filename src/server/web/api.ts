@@ -28,6 +28,7 @@ import {
 	type LlmProviderName,
 } from "#/config/index.ts";
 import { createProvider, provider } from "#/llm/index.ts";
+import { webAuthEnabled } from "./auth.ts";
 import { writeEnvFile } from "./env-file.ts";
 import { currentSetupValues, isSetupComplete } from "./setup-state.ts";
 
@@ -124,6 +125,8 @@ api.get("/state", (c) => {
 		companionConfigured: companionConfigured(),
 		channels: { telegram: telegramConfigured() },
 		web: { enabled: config.web.enabled },
+		// Whether the interface is password-gated — the SPA shows a "seal" (logout).
+		auth: { enabled: webAuthEnabled() },
 		// So the browser chat behaves like Telegram: the same burst-batching
 		// window, and whether voice notes can be transcribed.
 		chat: {
