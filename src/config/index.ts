@@ -92,9 +92,18 @@ export interface TelegramConfig {
 	allowedUserIds: number[];
 	/** Send a long reply as paragraph-sized messages, like a person texting. */
 	replySplit: boolean;
+}
+
+/**
+ * Conversation flow shared by every channel (web chat and Telegram): how a burst
+ * of quick messages is folded into one turn. Both channels use the same window —
+ * Telegram batches server-side, the web chat client-side — so these live here
+ * rather than under any one channel.
+ */
+export interface ChatConfig {
 	/** Flush a burst into one turn after this much silence (debounce window). */
 	batchIdleMs: number;
-	/** Never hold a batch open longer than this from its first message. */
+	/** Never hold a batch open longer than this from its first message (hard cap). */
 	batchMaxMs: number;
 }
 
@@ -148,6 +157,7 @@ export interface PersonaConfig {
 export interface Config {
 	app: AppConfig;
 	llm: LlmConfig;
+	chat: ChatConfig;
 	telegram: TelegramConfig;
 	stt: SttConfig;
 	memory: MemoryConfig;
@@ -183,12 +193,19 @@ export function loadConfig(): Config {
 			timeoutMs: num("LLM_TIMEOUT_MS", 120000),
 			historyLimit: num("LLM_HISTORY_LIMIT", 60),
 		},
+		// Shared by web chat + Telegram. New CHAT_* names, falling back to the old
+		// TELEGRAM_BATCH_* so existing .env files keep working unchanged.
+		chat: {
+			batchIdleMs: num(
+				"CHAT_BATCH_IDLE_MS",
+				num("TELEGRAM_BATCH_IDLE_MS", 2500),
+			),
+			batchMaxMs: num("CHAT_BATCH_MAX_MS", num("TELEGRAM_BATCH_MAX_MS", 15000)),
+		},
 		telegram: {
 			botToken: str("TELEGRAM_BOT_TOKEN", ""),
 			allowedUserIds: intList("TELEGRAM_ALLOWED_USER_IDS"),
 			replySplit: bool("TELEGRAM_REPLY_SPLIT", true),
-			batchIdleMs: num("TELEGRAM_BATCH_IDLE_MS", 2500),
-			batchMaxMs: num("TELEGRAM_BATCH_MAX_MS", 15000),
 		},
 		stt: {
 			provider: str("STT_PROVIDER", "off") as SttProviderName,

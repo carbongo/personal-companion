@@ -92,10 +92,26 @@ Behaviour knobs (all optional, sensible defaults):
 | Var                       | Default | What it does |
 | ------------------------- | ------- | ------------ |
 | `TELEGRAM_REPLY_SPLIT`    | `true`  | Send a long reply as paragraph-sized messages, like texting. |
-| `TELEGRAM_BATCH_IDLE_MS`  | `2500`  | Flush a burst of quick messages into one turn after this silence. |
-| `TELEGRAM_BATCH_MAX_MS`   | `15000` | Hard cap: never hold a batch open longer than this. |
+
+Message **batching** is configured under [Chat](#chat-batching) below — it's shared with the
+web chat, not Telegram-specific.
 
 See [channels.md](./channels.md) for how the adapter maps onto the engine seam.
+
+## Chat (batching)
+
+When you fire off several short messages in a row, the companion folds that burst into a
+single turn and answers the whole thought at once — instead of replying to each line
+mid-sentence. This applies to **both the web chat and Telegram** (the web chat batches in the
+browser; Telegram batches on the server), so the knobs live here rather than under a channel.
+
+| Var                  | Default | What it does |
+| -------------------- | ------- | ------------ |
+| `CHAT_BATCH_IDLE_MS` | `2500`  | Each new message resets this timer; the burst flushes after this much silence and the reply begins. The common path — a natural pause means you're done. |
+| `CHAT_BATCH_MAX_MS`  | `15000` | A hard cap, measured from the burst's first message, so a steady stream that never pauses still gets answered. The batch always flushes by this point. |
+
+> The previous `TELEGRAM_BATCH_IDLE_MS` / `TELEGRAM_BATCH_MAX_MS` names still work as a
+> fallback when the `CHAT_*` ones are unset, so existing `.env` files keep working.
 
 ### Voice notes (speech-to-text)
 

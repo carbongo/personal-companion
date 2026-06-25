@@ -45,16 +45,43 @@ describe("loadConfig", () => {
 			"TELEGRAM_BOT_TOKEN",
 			"TELEGRAM_ALLOWED_USER_IDS",
 			"STT_PROVIDER",
+			"CHAT_BATCH_IDLE_MS",
+			"CHAT_BATCH_MAX_MS",
+			"TELEGRAM_BATCH_IDLE_MS",
+			"TELEGRAM_BATCH_MAX_MS",
 		])
 			delete process.env[k];
 
-		const { telegram, stt } = loadConfig();
+		const { telegram, chat, stt } = loadConfig();
 		expect(telegram.botToken).toBe("");
 		expect(telegram.allowedUserIds).toEqual([]);
 		expect(telegram.replySplit).toBe(true);
-		expect(telegram.batchIdleMs).toBe(2500);
-		expect(telegram.batchMaxMs).toBe(15000);
+		expect(chat.batchIdleMs).toBe(2500);
+		expect(chat.batchMaxMs).toBe(15000);
 		expect(stt.provider).toBe("off");
+
+		process.env = prev;
+	});
+
+	it("reads chat batch knobs, with the old TELEGRAM_BATCH_* as a fallback", () => {
+		const prev = { ...process.env };
+
+		// New CHAT_* names win.
+		delete process.env.TELEGRAM_BATCH_IDLE_MS;
+		process.env.CHAT_BATCH_IDLE_MS = "6000";
+		process.env.CHAT_BATCH_MAX_MS = "25000";
+		let chat = loadConfig().chat;
+		expect(chat.batchIdleMs).toBe(6000);
+		expect(chat.batchMaxMs).toBe(25000);
+
+		// With CHAT_* unset, the legacy TELEGRAM_BATCH_* still applies.
+		delete process.env.CHAT_BATCH_IDLE_MS;
+		delete process.env.CHAT_BATCH_MAX_MS;
+		process.env.TELEGRAM_BATCH_IDLE_MS = "4000";
+		process.env.TELEGRAM_BATCH_MAX_MS = "20000";
+		chat = loadConfig().chat;
+		expect(chat.batchIdleMs).toBe(4000);
+		expect(chat.batchMaxMs).toBe(20000);
 
 		process.env = prev;
 	});

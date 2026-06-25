@@ -56,12 +56,13 @@ interface SetupBody {
 	think?: string;
 	timeoutMs?: string;
 	historyLimit?: string;
+	// chat (shared by web + Telegram)
+	chatBatchIdleMs?: string;
+	chatBatchMaxMs?: string;
 	// Telegram
 	telegramToken?: string;
 	telegramAllowedIds?: string;
 	telegramReplySplit?: string;
-	telegramBatchIdleMs?: string;
-	telegramBatchMaxMs?: string;
 	// memory
 	memoryContextDays?: string;
 	memoryLimit?: string;
@@ -125,8 +126,8 @@ api.get("/state", (c) => {
 		// So the browser chat behaves like Telegram: the same burst-batching
 		// window, and whether voice notes can be transcribed.
 		chat: {
-			batchIdleMs: config.telegram.batchIdleMs,
-			batchMaxMs: config.telegram.batchMaxMs,
+			batchIdleMs: config.chat.batchIdleMs,
+			batchMaxMs: config.chat.batchMaxMs,
 			voice: sttConfigured(),
 		},
 	});
@@ -365,8 +366,8 @@ api.post("/setup", async (c) => {
 		LLM_HISTORY_LIMIT: opt(b.historyLimit),
 		TELEGRAM_ALLOWED_USER_IDS: opt(b.telegramAllowedIds),
 		TELEGRAM_REPLY_SPLIT: opt(b.telegramReplySplit),
-		TELEGRAM_BATCH_IDLE_MS: opt(b.telegramBatchIdleMs),
-		TELEGRAM_BATCH_MAX_MS: opt(b.telegramBatchMaxMs),
+		CHAT_BATCH_IDLE_MS: opt(b.chatBatchIdleMs),
+		CHAT_BATCH_MAX_MS: opt(b.chatBatchMaxMs),
 		MEMORY_CONTEXT_DAYS: opt(b.memoryContextDays),
 		MEMORY_LIMIT: opt(b.memoryLimit),
 		MEMORY_SUMMARY_CRON: opt(b.memorySummaryCron),

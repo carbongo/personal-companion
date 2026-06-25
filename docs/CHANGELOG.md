@@ -5,6 +5,13 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-25
 
+- **Batching moved to a shared “Chat” category (it was always shared).** The two batch
+  timers drive both the web chat and Telegram (the web chat already read them via
+  `/api/state`), but they were named/filed under Telegram. New env vars **`CHAT_BATCH_IDLE_MS`
+  / `CHAT_BATCH_MAX_MS`** with a `config.chat` section; the Telegram channel and `/api/state`
+  now read `config.chat.*`. The old `TELEGRAM_BATCH_*` names still work as a fallback (no
+  breakage). Settings gains a **Chat** section (between Model and Telegram) holding the two
+  knobs with a plain-language explanation; they're removed from the Telegram section. +1 test.
 - **Settings page revamp: every field explained + purpose-built selectors.** Each control
   now has an inline hint describing what it does and the trade-off. New `Field` helper in
   `pages.tsx`; raw inputs replaced where a better control exists: a searchable **timezone

@@ -21,8 +21,9 @@ needed, so it runs from anywhere, including behind NAT.
   [configuration.md](./configuration.md)), and photos (sent to vision-capable models).
 - **Human feel:**
   - *Incoming batching* — a burst of quick messages is debounced into one turn rather than
-    triggering a reply per message. It flushes after `TELEGRAM_BATCH_IDLE_MS` of silence,
-    but never waits longer than `TELEGRAM_BATCH_MAX_MS` from the first message.
+    triggering a reply per message. It flushes after `CHAT_BATCH_IDLE_MS` of silence, but
+    never waits longer than `CHAT_BATCH_MAX_MS` from the first message. These knobs are
+    shared with the web chat (see [configuration.md](./configuration.md#chat-batching)).
   - *Outgoing reply-split* — a long reply is sent as paragraph-sized messages with a typing
     indicator and short pauses, like a person texting. Toggle with `TELEGRAM_REPLY_SPLIT`.
   - Replies are also hard-wrapped under Telegram's 4096-character message limit.
@@ -40,8 +41,8 @@ The web chat deliberately mirrors the Telegram channel:
 - **Incoming batching** — a burst of quick messages is debounced into one turn rather than
   answered line-by-line. Each line shows immediately (like a sent message), then after a short
   idle window (or a hard cap) they fold into a single `turn`. The window matches Telegram's —
-  the client reads `batchIdleMs`/`batchMaxMs` from `/api/state` (sourced from
-  `TELEGRAM_BATCH_IDLE_MS`/`_MAX_MS`), so a reply only starts once you've actually paused.
+  the client reads `batchIdleMs`/`batchMaxMs` from `/api/state` (sourced from the shared
+  `CHAT_BATCH_IDLE_MS`/`_MAX_MS`), so a reply only starts once you've actually paused.
 - **Typing + reply-split** — a "…" bubble shows while the model works, and a multi-paragraph
   reply is shown as separate bubbles (split on blank lines). The reply is still stored as one
   assistant message, so this is purely display (applied to live replies and to history).

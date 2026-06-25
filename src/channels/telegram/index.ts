@@ -120,8 +120,8 @@ export function startTelegram(): void {
 	}
 
 	const batcher = new Batcher(
-		config.telegram.batchIdleMs,
-		config.telegram.batchMaxMs,
+		config.chat.batchIdleMs,
+		config.chat.batchMaxMs,
 		handleBatch,
 	);
 

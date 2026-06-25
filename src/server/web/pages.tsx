@@ -531,6 +531,41 @@ export const SetupPage = (props: {
 				<div id="testNote" class="note hidden" />
 			</div>
 
+			<h2>Chat</h2>
+			<div class="card">
+				<p class="sub">
+					How a burst of quick messages is folded into one turn — applied to
+					<strong> both the web chat and Telegram</strong>. The idea: when you
+					fire off several short messages in a row, the companion waits a beat
+					and answers the whole thought at once, instead of replying to each
+					line mid-sentence.
+				</p>
+				<Field
+					id="chatBatchIdleMs"
+					label="Idle flush (ms of silence)"
+					hint="Each new message resets this timer; when you go quiet for this long, the burst flushes and the reply begins. This is the usual path — a natural pause means you're done. Lower feels snappier; higher waits longer for you to keep typing."
+				>
+					<input
+						type="number"
+						id="chatBatchIdleMs"
+						value={String(v.chatBatchIdleMs)}
+						placeholder="2500"
+					/>
+				</Field>
+				<Field
+					id="chatBatchMaxMs"
+					label="Max wait (ms cap)"
+					hint="A ceiling measured from the first message of the burst, so a steady stream that never pauses still gets answered. The batch always flushes by this point, even if you're still typing."
+				>
+					<input
+						type="number"
+						id="chatBatchMaxMs"
+						value={String(v.chatBatchMaxMs)}
+						placeholder="15000"
+					/>
+				</Field>
+			</div>
+
 			<h2>Telegram (optional)</h2>
 			<div class="card">
 				<p class="sub">
@@ -589,30 +624,6 @@ export const SetupPage = (props: {
 							One message per reply
 						</option>
 					</select>
-				</Field>
-				<Field
-					id="telegramBatchIdleMs"
-					label="Batch: idle flush (ms)"
-					hint="When you fire off several quick messages, the companion waits for this much silence, then answers them as one turn — so it doesn't reply to each line mid-thought."
-				>
-					<input
-						type="number"
-						id="telegramBatchIdleMs"
-						value={String(v.telegramBatchIdleMs)}
-						placeholder="2500"
-					/>
-				</Field>
-				<Field
-					id="telegramBatchMaxMs"
-					label="Batch: max wait (ms)"
-					hint="A hard cap on that wait, so a steady stream of messages still gets answered. The batch always flushes by this point."
-				>
-					<input
-						type="number"
-						id="telegramBatchMaxMs"
-						value={String(v.telegramBatchMaxMs)}
-						placeholder="15000"
-					/>
 				</Field>
 			</div>
 

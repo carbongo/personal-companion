@@ -38,12 +38,13 @@ export interface SetupValues {
 	think: string;
 	timeoutMs: number;
 	historyLimit: number;
+	// chat (shared by web + Telegram)
+	chatBatchIdleMs: number;
+	chatBatchMaxMs: number;
 	// Telegram
 	telegramConfigured: boolean;
 	telegramAllowedIds: string;
 	telegramReplySplit: boolean;
-	telegramBatchIdleMs: number;
-	telegramBatchMaxMs: number;
 	// memory
 	memoryContextDays: number;
 	memoryLimit: number;
@@ -112,11 +113,11 @@ export function currentSetupValues(): SetupValues {
 		think: config.llm.think,
 		timeoutMs: config.llm.timeoutMs,
 		historyLimit: config.llm.historyLimit,
+		chatBatchIdleMs: config.chat.batchIdleMs,
+		chatBatchMaxMs: config.chat.batchMaxMs,
 		telegramConfigured: !!config.telegram.botToken,
 		telegramAllowedIds: config.telegram.allowedUserIds.join(", "),
 		telegramReplySplit: config.telegram.replySplit,
-		telegramBatchIdleMs: config.telegram.batchIdleMs,
-		telegramBatchMaxMs: config.telegram.batchMaxMs,
 		memoryContextDays: config.memory.contextDays,
 		memoryLimit: config.memory.memoryLimit,
 		memorySummaryCron: config.memory.summaryCron,
