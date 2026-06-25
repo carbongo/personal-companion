@@ -105,10 +105,20 @@ single turn and answers the whole thought at once — instead of replying to eac
 mid-sentence. This applies to **both the web chat and Telegram** (the web chat batches in the
 browser; Telegram batches on the server), so the knobs live here rather than under a channel.
 
+The wait is **dynamic**: it pauses `CHAT_BATCH_IDLE_MS` after your first message, then grows
+by `CHAT_BATCH_STEP_MS` with each further one (you're clearly mid-thought), up to a ceiling of
+`CHAT_BATCH_MAX_MS`. So a one-off message flushes quickly while a flurry gets room to breathe.
+The burst flushes once you go quiet for the **current** window — and that growing ceiling is
+the *only* bound, there is no separate cap on total elapsed time.
+
 | Var                  | Default | What it does |
 | -------------------- | ------- | ------------ |
-| `CHAT_BATCH_IDLE_MS` | `2500`  | Each new message resets this timer; the burst flushes after this much silence and the reply begins. The common path — a natural pause means you're done. |
-| `CHAT_BATCH_MAX_MS`  | `15000` | A hard cap, measured from the burst's first message, so a steady stream that never pauses still gets answered. The batch always flushes by this point. |
+| `CHAT_BATCH_IDLE_MS` | `3000`  | The wait after the **first** message — the snappy case when you send just one thing. |
+| `CHAT_BATCH_STEP_MS` | `2000`  | How much longer it waits for **each further** message in the burst. `0` makes it a plain fixed window. |
+| `CHAT_BATCH_MAX_MS`  | `12000` | The **ceiling**: the window never grows past this, so it can't wait forever. |
+
+With the defaults, the gap it will tolerate between messages goes `3s → 5s → 7s → 9s → 11s →
+12s → 12s…`.
 
 > The previous `TELEGRAM_BATCH_IDLE_MS` / `TELEGRAM_BATCH_MAX_MS` names still work as a
 > fallback when the `CHAT_*` ones are unset, so existing `.env` files keep working.

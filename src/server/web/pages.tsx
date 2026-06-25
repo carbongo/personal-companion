@@ -534,34 +534,49 @@ export const SetupPage = (props: {
 			<h2>Chat</h2>
 			<div class="card">
 				<p class="sub">
-					How a burst of quick messages is folded into one turn — applied to
-					<strong> both the web chat and Telegram</strong>. The idea: when you
-					fire off several short messages in a row, the companion waits a beat
-					and answers the whole thought at once, instead of replying to each
-					line mid-sentence.
+					How a burst of quick messages folds into one turn — applied to{" "}
+					<strong>both the web chat and Telegram</strong>. The wait is{" "}
+					<strong>dynamic</strong>: it pauses a little after your first message,
+					then a bit longer for each one you add (you're clearly mid-thought),
+					up to a ceiling — so a one-off message goes through fast while a
+					flurry gets room to breathe. The burst flushes once you go quiet for
+					the current window. With the defaults below that's{" "}
+					<strong>3s → 5s → 7s … never more than 12s</strong> between messages.
 				</p>
 				<Field
 					id="chatBatchIdleMs"
-					label="Idle flush (ms of silence)"
-					hint="Each new message resets this timer; when you go quiet for this long, the burst flushes and the reply begins. This is the usual path — a natural pause means you're done. Lower feels snappier; higher waits longer for you to keep typing."
+					label="First-message wait (ms)"
+					hint="How long it waits for a follow-up right after your first message — the snappy case when you only send one thing."
 				>
 					<input
 						type="number"
 						id="chatBatchIdleMs"
 						value={String(v.chatBatchIdleMs)}
-						placeholder="2500"
+						placeholder="3000"
+					/>
+				</Field>
+				<Field
+					id="chatBatchStepMs"
+					label="Grow per extra message (ms)"
+					hint="Each further message extends the wait by this much, so an active typist isn't cut off mid-thought. Set 0 for a plain fixed window."
+				>
+					<input
+						type="number"
+						id="chatBatchStepMs"
+						value={String(v.chatBatchStepMs)}
+						placeholder="2000"
 					/>
 				</Field>
 				<Field
 					id="chatBatchMaxMs"
-					label="Max wait (ms cap)"
-					hint="A ceiling measured from the first message of the burst, so a steady stream that never pauses still gets answered. The batch always flushes by this point, even if you're still typing."
+					label="Ceiling — longest wait between messages (ms)"
+					hint="The window never grows past this, so it can't wait forever. This is the only upper bound — there's no separate cap on total time."
 				>
 					<input
 						type="number"
 						id="chatBatchMaxMs"
 						value={String(v.chatBatchMaxMs)}
-						placeholder="15000"
+						placeholder="12000"
 					/>
 				</Field>
 			</div>

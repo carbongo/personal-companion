@@ -154,12 +154,12 @@ const attachRow = document.getElementById('attachments');
 // turn after a short idle window (never one reply per line), the reply splits
 // into separate bubbles, images attach, and voice notes are transcribed. The
 // window matches Telegram's — both are fetched from /api/state below.
-const cfg = { idle: 2500, max: 15000, voice: false };
+const cfg = { idle: 3000, step: 2000, max: 12000, voice: false };
 
 let staged = [];       // images staged for the next message: { b64, url }
 let voiceFlag = false; // the next send originated from a voice note
 let buffer = [];       // lines waiting to be folded into one turn
-let idleTimer = null, maxTimer = null, flushing = false;
+let idleTimer = null, flushing = false;
 
 function el(role, content, kind) {
 	const d = document.createElement('div');
@@ -254,10 +254,13 @@ async function load() {
 	} catch {}
 }
 
+// Dynamic idle window: wait longer for the next message the more have arrived
+// (you're clearly mid-thought), growing by cfg.step each, capped at cfg.max.
+// No separate hard cap — the ceiling on this window is the only bound.
 function armTimers() {
 	if (idleTimer) clearTimeout(idleTimer);
-	idleTimer = setTimeout(flush, cfg.idle);
-	if (!maxTimer) maxTimer = setTimeout(flush, cfg.max);
+	const wait = Math.min(cfg.idle + cfg.step * (buffer.length - 1), cfg.max);
+	idleTimer = setTimeout(flush, wait);
 }
 
 // Stage one composed line (text + any images) into the current burst, show it
@@ -278,7 +281,6 @@ function submit() {
 async function flush() {
 	if (flushing) return; // a send is in flight; its finally re-arms if needed
 	if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
-	if (maxTimer) { clearTimeout(maxTimer); maxTimer = null; }
 	if (!buffer.length) return;
 
 	const items = buffer; buffer = [];
@@ -332,7 +334,7 @@ async function init() {
 		const r = await fetch('/api/state');
 		if (r.ok) {
 			const s = await r.json();
-			if (s.chat) { cfg.idle = s.chat.batchIdleMs || cfg.idle; cfg.max = s.chat.batchMaxMs || cfg.max; cfg.voice = !!s.chat.voice; }
+			if (s.chat) { cfg.idle = s.chat.batchIdleMs || cfg.idle; cfg.step = (s.chat.batchStepMs != null ? s.chat.batchStepMs : cfg.step); cfg.max = s.chat.batchMaxMs || cfg.max; cfg.voice = !!s.chat.voice; }
 		}
 	} catch {}
 	micBtn.classList.toggle('hidden', !cfg.voice);
@@ -613,6 +615,7 @@ function body() {
 		telegramAllowedIds: val('telegramAllowedIds'),
 		telegramReplySplit: val('telegramReplySplit'),
 		chatBatchIdleMs: val('chatBatchIdleMs'),
+		chatBatchStepMs: val('chatBatchStepMs'),
 		chatBatchMaxMs: val('chatBatchMaxMs'),
 		memoryContextDays: val('memoryContextDays'),
 		memoryLimit: val('memoryLimit'),

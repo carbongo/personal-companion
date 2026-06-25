@@ -5,6 +5,14 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-25
 
+- **Batching is now a dynamic, growing idle window (no hard total cap).** Replaced the
+  fixed-debounce-plus-hard-cap model. The idle window starts at `CHAT_BATCH_IDLE_MS` after the
+  first message and grows by the new `CHAT_BATCH_STEP_MS` with each further message, capped at
+  `CHAT_BATCH_MAX_MS` — so an active typist gets more breathing room (up to the ceiling) while
+  a one-off message still flushes fast. The old per-burst total cap is gone; the growing
+  ceiling is the only bound. `Batcher` reworked (`idleWindow()` pure helper, single timer);
+  the web client mirrors it. New `Chat` settings field for the step. Defaults 3s/2s/12s
+  (→ 3, 5, 7, 9, 11, 12, 12…). +tests (idleWindow + growth/cap behaviour).
 - **Batching moved to a shared “Chat” category (it was always shared).** The two batch
   timers drive both the web chat and Telegram (the web chat already read them via
   `/api/state`), but they were named/filed under Telegram. New env vars **`CHAT_BATCH_IDLE_MS`

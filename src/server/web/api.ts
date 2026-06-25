@@ -58,6 +58,7 @@ interface SetupBody {
 	historyLimit?: string;
 	// chat (shared by web + Telegram)
 	chatBatchIdleMs?: string;
+	chatBatchStepMs?: string;
 	chatBatchMaxMs?: string;
 	// Telegram
 	telegramToken?: string;
@@ -127,6 +128,7 @@ api.get("/state", (c) => {
 		// window, and whether voice notes can be transcribed.
 		chat: {
 			batchIdleMs: config.chat.batchIdleMs,
+			batchStepMs: config.chat.batchStepMs,
 			batchMaxMs: config.chat.batchMaxMs,
 			voice: sttConfigured(),
 		},
@@ -367,6 +369,7 @@ api.post("/setup", async (c) => {
 		TELEGRAM_ALLOWED_USER_IDS: opt(b.telegramAllowedIds),
 		TELEGRAM_REPLY_SPLIT: opt(b.telegramReplySplit),
 		CHAT_BATCH_IDLE_MS: opt(b.chatBatchIdleMs),
+		CHAT_BATCH_STEP_MS: opt(b.chatBatchStepMs),
 		CHAT_BATCH_MAX_MS: opt(b.chatBatchMaxMs),
 		MEMORY_CONTEXT_DAYS: opt(b.memoryContextDays),
 		MEMORY_LIMIT: opt(b.memoryLimit),

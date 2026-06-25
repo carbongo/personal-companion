@@ -40,6 +40,7 @@ export interface SetupValues {
 	historyLimit: number;
 	// chat (shared by web + Telegram)
 	chatBatchIdleMs: number;
+	chatBatchStepMs: number;
 	chatBatchMaxMs: number;
 	// Telegram
 	telegramConfigured: boolean;
@@ -114,6 +115,7 @@ export function currentSetupValues(): SetupValues {
 		timeoutMs: config.llm.timeoutMs,
 		historyLimit: config.llm.historyLimit,
 		chatBatchIdleMs: config.chat.batchIdleMs,
+		chatBatchStepMs: config.chat.batchStepMs,
 		chatBatchMaxMs: config.chat.batchMaxMs,
 		telegramConfigured: !!config.telegram.botToken,
 		telegramAllowedIds: config.telegram.allowedUserIds.join(", "),

@@ -101,9 +101,11 @@ export interface TelegramConfig {
  * rather than under any one channel.
  */
 export interface ChatConfig {
-	/** Flush a burst into one turn after this much silence (debounce window). */
+	/** Idle window after the first message of a burst (ms). */
 	batchIdleMs: number;
-	/** Never hold a batch open longer than this from its first message (hard cap). */
+	/** How much the idle window grows with each further message (ms). */
+	batchStepMs: number;
+	/** Ceiling: the (growing) idle window never exceeds this (ms). */
 	batchMaxMs: number;
 }
 
@@ -193,14 +195,16 @@ export function loadConfig(): Config {
 			timeoutMs: num("LLM_TIMEOUT_MS", 120000),
 			historyLimit: num("LLM_HISTORY_LIMIT", 60),
 		},
-		// Shared by web chat + Telegram. New CHAT_* names, falling back to the old
+		// Shared by web chat + Telegram. The idle window grows with each message up
+		// to the ceiling (see ChatConfig). New CHAT_* names, falling back to the old
 		// TELEGRAM_BATCH_* so existing .env files keep working unchanged.
 		chat: {
 			batchIdleMs: num(
 				"CHAT_BATCH_IDLE_MS",
-				num("TELEGRAM_BATCH_IDLE_MS", 2500),
+				num("TELEGRAM_BATCH_IDLE_MS", 3000),
 			),
-			batchMaxMs: num("CHAT_BATCH_MAX_MS", num("TELEGRAM_BATCH_MAX_MS", 15000)),
+			batchStepMs: num("CHAT_BATCH_STEP_MS", 2000),
+			batchMaxMs: num("CHAT_BATCH_MAX_MS", num("TELEGRAM_BATCH_MAX_MS", 12000)),
 		},
 		telegram: {
 			botToken: str("TELEGRAM_BOT_TOKEN", ""),

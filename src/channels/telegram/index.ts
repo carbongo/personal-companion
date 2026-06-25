@@ -121,6 +121,7 @@ export function startTelegram(): void {
 
 	const batcher = new Batcher(
 		config.chat.batchIdleMs,
+		config.chat.batchStepMs,
 		config.chat.batchMaxMs,
 		handleBatch,
 	);
