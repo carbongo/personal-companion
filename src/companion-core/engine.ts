@@ -137,10 +137,12 @@ async function buildTurn(
 	}
 	messages.push(userMsg);
 
-	// A dedicated vision model may not support "thinking"; don't risk a 400.
-	const genOpts: GenerateOptions = plan.model
-		? { model: plan.model, think: false }
-		: {};
+	const genOpts: GenerateOptions = {};
+	if (plan.model) genOpts.model = plan.model;
+	// Image turns answer directly: thinking + vision is flaky on local models (it
+	// can burn the whole budget and return nothing) and a picture rarely needs
+	// deliberation. This also avoids a 400 on a vision model that can't "think".
+	if (turn.images?.length && plan.canSee) genOpts.think = false;
 	return { messages, genOpts };
 }
 

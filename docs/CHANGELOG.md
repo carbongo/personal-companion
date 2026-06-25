@@ -8,12 +8,15 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 - **Vision: image turns can route to a dedicated model; the companion never fakes sight.**
   New optional **`LLM_VISION_MODEL`** (`config.llm.visionModel`, a "Vision model" field in
   the Mind settings). When a turn includes an image, the engine routes that one generation to
-  the vision model (Ollama runs it with thinking off, since vision models often lack it); with
-  no vision model set, it uses the main model only if it advertises vision (Ollama
-  `/api/show` `capabilities`, cached). If neither can see, the image is dropped and the model
-  is told to say so plainly — fixing the old failure where a text-only model silently ignored
-  the image and "recalled" an unrelated one. New `LLMProvider.supportsVision?()`; both
-  providers accept a per-call `model` override (`GenerateOptions.model`). +cap-detection wiring.
+  the vision model; with no vision model set, it uses the main model only if it advertises
+  vision (Ollama `/api/show` `capabilities`, cached). Image turns always run with **thinking
+  off** — thinking + vision is flaky on local models (it can burn the whole budget and return
+  nothing) and a picture rarely needs deliberation. If neither can see, the image is dropped and
+  the model is told to say so plainly — fixing the old failure where a text-only model silently
+  ignored the image and "recalled" an unrelated one. New `LLMProvider.supportsVision?()`; both
+  providers accept a per-call `model` override (`GenerateOptions.model`). The default
+  `LLM_MODEL=gemma4:12b` (GGUF) is itself vision-capable, so it needs no separate vision model;
+  the MLX build `gemma4:12b-mlx` is text-only (no projector). +cap-detection wiring.
 - **Web chat reaches Telegram parity: burst batching with read-style ticks, and live
   paragraph streaming.** Outgoing replies now **stream paragraph-by-paragraph** the instant the
   model finishes each one (new `respondStream()` + provider `chatStream?()` over Ollama NDJSON /
