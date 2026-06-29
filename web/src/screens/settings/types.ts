@@ -55,6 +55,7 @@ export interface Form {
   memoryContextDays: number;
   memoryLimit: number;
   memorySummaryCron: string;
+  memoryWrites: boolean;
   // System
   timezone: string;
   dataDir: string;
@@ -115,6 +116,7 @@ export function formFromValues(v: SetupValues): Form {
     memoryContextDays: v.memoryContextDays,
     memoryLimit: v.memoryLimit,
     memorySummaryCron: v.memorySummaryCron,
+    memoryWrites: v.memoryWrites,
     timezone: v.timezone,
     dataDir: v.dataDir,
     port: v.port,
@@ -173,6 +175,7 @@ export function bodyFromForm(f: Form): Record<string, string> {
     memoryContextDays: s(f.memoryContextDays),
     memoryLimit: s(f.memoryLimit),
     memorySummaryCron: f.memorySummaryCron,
+    memoryWrites: b(f.memoryWrites),
     timezone: f.timezone,
     dataDir: f.dataDir,
     port: s(f.port),

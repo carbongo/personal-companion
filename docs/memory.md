@@ -73,3 +73,9 @@ See [architecture.md](./architecture.md) and
 
 The web interface (Phase 3) shows the Core, the saved memories, and the daily summaries,
 and lets you edit them and trigger a roll-up by hand.
+
+**Read-only mode.** `MEMORY_WRITES` (default on; the *"Let the companion manage its own
+memory"* switch in **Memory** settings) controls whether the companion may act on its
+`<remember>`/`<core>`/`<forget>` tags. Turn it off and those tags are dropped from the prompt
+and ignored if emitted — memory becomes yours alone to edit, while injection into context and
+the nightly roll-up keep working. It mirrors the `WEB_ACCESS` switch for web access.

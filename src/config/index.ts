@@ -138,6 +138,13 @@ export interface MemoryConfig {
 	contextDays: number;
 	memoryLimit: number;
 	summaryCron: string;
+	/**
+	 * Whether the companion may manage its own memory mid-conversation via its
+	 * sidecar tags (<remember>/<core>/<forget>). When false, those tags are not
+	 * offered in the prompt and are ignored if emitted — memory becomes read-only,
+	 * editable only by the owner from the UI. The nightly roll-up is unaffected.
+	 */
+	writesEnabled: boolean;
 }
 
 export interface WebConfig {
@@ -233,6 +240,7 @@ export function loadConfig(): Config {
 			contextDays: num("MEMORY_CONTEXT_DAYS", 7),
 			memoryLimit: num("MEMORY_LIMIT", 40),
 			summaryCron: str("MEMORY_SUMMARY_CRON", "55 23 * * *"),
+			writesEnabled: bool("MEMORY_WRITES", true),
 		},
 		web: {
 			enabled: bool("WEB_ACCESS", true),

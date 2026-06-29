@@ -78,6 +78,7 @@ export interface SetupValues {
   memoryContextDays: number;
   memoryLimit: number;
   memorySummaryCron: string;
+  memoryWrites: boolean;
   webEnabled: boolean;
   webSearchProvider: string;
   tavilyConfigured: boolean;

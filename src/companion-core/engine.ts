@@ -107,7 +107,10 @@ async function buildTurn(
 
 	const system = [
 		buildIdentity(),
-		buildOperating({ web: webConfigured() }),
+		buildOperating({
+			web: webConfigured(),
+			memory: config.memory.writesEnabled,
+		}),
 		buildKnowledge(),
 	]
 		.filter((s) => s.trim())
@@ -167,6 +170,17 @@ async function generate(
 /** Strip sidecar + web tags from a chunk so only display text remains. */
 function cleanForDisplay(text: string): string {
 	return parseActions(stripWebTags(text)).cleaned;
+}
+
+/**
+ * Commit the reply's sidecar actions and return the cleaned text. When memory
+ * writes are disabled, the tags are only stripped, never applied — so the model
+ * can't change memory and a stray tag still never leaks to the user.
+ */
+function commitActions(raw: string): string {
+	return config.memory.writesEnabled
+		? applyActions(raw)
+		: parseActions(raw).cleaned;
 }
 
 /**
@@ -240,7 +254,7 @@ export async function respond(turn: Turn): Promise<EngineReply> {
 		throw err;
 	}
 
-	const reply = applyActions(stripWebTags(raw)) || "…";
+	const reply = commitActions(stripWebTags(raw)) || "…";
 	appendMessage({ day, role: "assistant", content: reply });
 	return { reply };
 }
@@ -285,7 +299,7 @@ export async function respondStream(
 		throw err;
 	}
 
-	const reply = applyActions(stripWebTags(raw)) || "…";
+	const reply = commitActions(stripWebTags(raw)) || "…";
 	appendMessage({ day, role: "assistant", content: reply });
 	// If nothing was streamable (e.g. the reply was only sidecar tags), still
 	// hand the client the final text so a bubble always appears.

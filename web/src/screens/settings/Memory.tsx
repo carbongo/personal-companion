@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Field, TextArea } from "../../components/Field.tsx";
+import { Field, TextArea, Toggle } from "../../components/Field.tsx";
 import { Icon } from "../../components/Icon.tsx";
 import { api, type ChatMessage, type DailySummary, type Memory } from "../../lib/api.ts";
 import { formatTime, renderMarkdown } from "../../lib/format.tsx";
 import { sfx } from "../../lib/sound.ts";
 import type { SectionProps } from "./types.ts";
-import { Card, Grid, SectionIntro } from "./ui.tsx";
+import { Card, Grid, SectionIntro, ToggleRow } from "./ui.tsx";
 
 /** One day in the chronicle: the companion's own summary, expandable to read the
  *  actual conversation behind it (loaded on demand). */
@@ -174,6 +174,15 @@ export function MemorySection({ form, set, toast }: SectionProps) {
         blurb="What the companion holds onto. The Core is the always-present brief; memories are durable facts; the chronicle is each day distilled."
       />
       <div className="flex flex-col gap-5">
+        <Card title="Self-managed memory">
+          <ToggleRow
+            title="Let the companion manage its own memory"
+            desc="Allow it to save, update, and forget memories mid-conversation through its own tags. Off: memory is read-only — only you edit it here, and the nightly roll-up still runs."
+          >
+            <Toggle checked={form.memoryWrites} onChange={(v) => set("memoryWrites", v)} />
+          </ToggleRow>
+        </Card>
+
         <Card title="Core — always in mind">
           <TextArea
             value={core}

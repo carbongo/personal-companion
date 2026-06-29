@@ -3,6 +3,23 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
+## 2026-06-29
+
+- **Memory writes: stronger prompting + an on/off switch.** Two changes to how the companion
+  manages its own memory:
+  - *Reworked the memory prompt.* The operating block's memory section now leads with "memory
+    is not automatic" (narrating a save does nothing without the tag), names concrete triggers,
+    carries a worked example, leans toward saving when unsure, and instructs the model to convert
+    relative times ("next weekend") into absolute calendar dates before saving so a memory still
+    reads correctly weeks later. The old "use sparingly" framing left `<remember>`/`<core>`
+    almost never firing in practice.
+  - *New `MEMORY_WRITES` env var* (`config.memory.writesEnabled`, default `true`) — the "Let the
+    companion manage its own memory" switch in **Memory** settings, mirroring `WEB_ACCESS`. Off
+    makes memory read-only: the `<remember>`/`<core>`/`<forget>` instructions are dropped from
+    the prompt and any emitted tags are stripped rather than applied; context injection and the
+    nightly roll-up are unaffected. Wired through config, the engine (`commitActions`), the setup
+    API/state, and the SPA settings form. `buildOperating` now takes a `memory` flag.
+
 ## 2026-06-25
 
 - **UI sounds recover after the AudioContext is suspended.** The web UI's chimes resumed the
