@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e1113" />
+    <title>Companion</title>
+    <!-- The runic boot veil: shown until React mounts, faded out by main.tsx.
+         Keeps the first paint calm instead of a white flash. -->
+    <style>
+      html, body { margin: 0; background: #0e1113; }
+      #boot {
+        position: fixed; inset: 0; display: grid; place-items: center;
+        background: #0e1113; z-index: 9999; transition: opacity .6s ease;
+      }
+      #boot.gone { opacity: 0; pointer-events: none; }
+      #boot .rune {
+        width: 46px; height: 46px; border-radius: 50%;
+        border: 1.5px solid rgba(88,199,214,.25);
+        border-top-color: #58c7d6; border-right-color: #58c7d6;
+        animation: bootspin 1.1s cubic-bezier(.5,.1,.3,1) infinite;
+        box-shadow: 0 0 24px rgba(88,199,214,.35);
+      }
+      @keyframes bootspin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { #boot .rune { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <div id="boot"><div class="rune"></div></div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

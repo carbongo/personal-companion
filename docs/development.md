@@ -11,6 +11,7 @@
 ```bash
 bun install
 bun run init       # scaffolds .env from the template + the data dir (idempotent)
+bun run web:build  # builds the premium SPA → web/dist (the server serves it)
 bun run dev        # watch mode; boots the server on $PORT (default 8080)
 ```
 
@@ -20,11 +21,25 @@ Check it's alive:
 curl localhost:8080/health    # {"status":"ok",...}
 ```
 
-Then open `http://localhost:8080` for the web interface (setup wizard, chat, memory admin).
-It is server-rendered with Hono JSX and has **no front-end build step** — edit the pages in
-`src/server/web/pages.tsx` and the CSS/JS strings in `src/server/web/assets.ts`, and
-`bun run dev` reloads. JSX needs `jsx`/`jsxImportSource` in `tsconfig.json` (already set);
-files containing JSX use the `.tsx` extension.
+Then open `http://localhost:8080` for the web interface (chat + the categorised "Slate"
+settings menu).
+
+### Working on the web client
+
+The premium UI is a Vite + React + Tailwind + Motion SPA in **`web/`** (the Nocturne design
+system — see [decisions/web-ui-premium-spa.md](./decisions/web-ui-premium-spa.md)). It's a
+self-contained sub-package with its own deps:
+
+```bash
+bun run web:dev    # Vite dev server on :5173, proxying /api → the running server on :8080
+```
+
+`web:dev` gives instant HMR while talking to a real engine; point it elsewhere with
+`COMPANION_ORIGIN=http://host:port`. For production, `bun run web:build` writes `web/dist`,
+which the Bun server serves (content-hashed assets, `immutable`). The server is **non-watch**
+for the built SPA, so after a `web:build` restart the server. If `web/dist` is missing the
+server falls back to the original server-rendered pages in `src/server/web/` (the **login**
+page is always server-rendered).
 
 ## Scripts
 
@@ -34,6 +49,8 @@ files containing JSX use the `.tsx` extension.
 | `bun run import`    | Import an existing history (see [importing.md](./importing.md)). |
 | `bun run dev`       | Server in watch mode. |
 | `bun run start`     | Server, once. |
+| `bun run web:build` | Build the premium SPA (`web/`) → `web/dist`. |
+| `bun run web:dev`   | Vite dev server for the SPA (:5173), proxying the API. |
 | `bun run chat`      | Terminal REPL to talk to the engine (needs a model). |
 | `bun run db:generate` | Regenerate Drizzle migrations after a schema change. |
 | `bun run check`     | Biome lint + format check. |

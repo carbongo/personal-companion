@@ -3,8 +3,95 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
+## 2026-06-29
+
+- **Memory writes: stronger prompting + an on/off switch.** Two changes to how the companion
+  manages its own memory:
+  - *Reworked the memory prompt.* The operating block's memory section now leads with "memory
+    is not automatic" (narrating a save does nothing without the tag), names concrete triggers,
+    carries a worked example, leans toward saving when unsure, and instructs the model to convert
+    relative times ("next weekend") into absolute calendar dates before saving so a memory still
+    reads correctly weeks later. The old "use sparingly" framing left `<remember>`/`<core>`
+    almost never firing in practice.
+  - *New `MEMORY_WRITES` env var* (`config.memory.writesEnabled`, default `true`) — the "Let the
+    companion manage its own memory" switch in **Memory** settings, mirroring `WEB_ACCESS`. Off
+    makes memory read-only: the `<remember>`/`<core>`/`<forget>` instructions are dropped from
+    the prompt and any emitted tags are stripped rather than applied; context injection and the
+    nightly roll-up are unaffected. Wired through config, the engine (`commitActions`), the setup
+    API/state, and the SPA settings form. `buildOperating` now takes a `memory` flag.
+
 ## 2026-06-25
 
+- **UI sounds recover after the AudioContext is suspended.** The web UI's chimes resumed the
+  audio graph only on the *first* interaction (`{once:true}`); once a browser suspended the
+  context (tab switch, system sleep, idle) they went silent for good. Now resume runs on *every*
+  pointer/key gesture (a no-op when already running) plus on `visibilitychange` — so sounds
+  self-heal. (Default stays on; the speaker toggle in the top bar still mutes/persists.)
+- **Web chat: keepalives so the streamed reply survives the "thinking" pause + the message
+  persists immediately (the real "had to refresh" fix).** With thinking on, the model can stay
+  silent for ~15–20s before any token — and Bun's ~10s idle timeout was dropping the streaming
+  socket mid-think (`ECONNRESET`), so the browser got nothing and you refreshed. Now `POST
+  /api/chat/stream` sends a `{type:"ping"}` **keepalive every 4s** (writes serialized so lines
+  never interleave; the client ignores pings) and the server's Bun `idleTimeout` is raised to
+  255s. The engine also **persists the incoming message before generation** (right after the
+  history is read for the prompt) instead of after, so reloading mid-reply no longer makes the
+  message you just sent vanish. `LLM_THINK` stays **on** by default. (Image turns still run with
+  thinking off — it's flaky with vision.) The earlier same-day "thinking off by default" change
+  is reverted.
+- **Vision: image turns can route to a dedicated model; the companion never fakes sight.**
+  New optional **`LLM_VISION_MODEL`** (`config.llm.visionModel`, a "Vision model" field in
+  the Mind settings). When a turn includes an image, the engine routes that one generation to
+  the vision model; with no vision model set, it uses the main model only if it advertises
+  vision (Ollama `/api/show` `capabilities`, cached). Image turns always run with **thinking
+  off** — thinking + vision is flaky on local models (it can burn the whole budget and return
+  nothing) and a picture rarely needs deliberation. If neither can see, the image is dropped and
+  the model is told to say so plainly — fixing the old failure where a text-only model silently
+  ignored the image and "recalled" an unrelated one. New `LLMProvider.supportsVision?()`; both
+  providers accept a per-call `model` override (`GenerateOptions.model`). The default
+  `LLM_MODEL=gemma4:12b` (GGUF) is itself vision-capable, so it needs no separate vision model;
+  the MLX build `gemma4:12b-mlx` is text-only (no projector). +cap-detection wiring.
+- **Web chat reaches Telegram parity: burst batching with read-style ticks, and live
+  paragraph streaming.** Outgoing replies now **stream paragraph-by-paragraph** the instant the
+  model finishes each one (new `respondStream()` + provider `chatStream?()` over Ollama NDJSON /
+  OpenAI SSE; new NDJSON endpoint `POST /api/chat/stream`; new pure `takeParagraphs()` splitter).
+  Incoming messages **batch client-side** into one turn using the shared `CHAT_BATCH_*` window,
+  shown on each of your bubbles as **one tick = queued / not-yet-sent / errored**, **two ticks =
+  the whole burst was delivered**; an errored burst stays queued and rides along with your next
+  send. History reload splits stored replies back into their paragraph bubbles. +tests
+  (`takeParagraphs`).
+- **Memory honesty + a real `<forget>` action.** The companion can now actually drop a saved
+  memory with a new **`<forget>…</forget>`** sidecar tag (matched by content in the store —
+  exact, else closest substring, else strong word-overlap; conservative). The operating prompt
+  now states the tags are the *only* way memory changes — so it must not claim to have saved,
+  changed, or forgotten anything without the matching tag this turn — and clarifies that the
+  `[context]` note (date/weather) is ambient, never the owner's words and never something to
+  "remember". Fixes both the mis-referenced "remember that" (it grabbed the weather) and the
+  phantom "I removed/added that" with nothing actually changing. +tests (`forgetMemory`,
+  `<forget>` parsing).
+- **Chronicle is readable + browsable (and was silently blank).** `GET /api/summaries` now
+  returns `summary` (the DB column is `summaryMd`) so daily summaries actually render — they
+  were blank due to a field mismatch. Each day in the Memory section is now expandable, renders
+  the summary as markdown, and can open the actual conversation behind it (new `GET /api/days`,
+  and `GET /api/messages?day=YYYY-MM-DD`).
+- **Premium web client — a built Vite/React SPA (the Nocturne design system).** The web UI
+  is reborn as a polished, highly adaptive, animated single-page app under `web/` (Vite +
+  React 19 + Tailwind v4 + Motion; self-hosted fonts, no runtime CDN). Dark-slate surface
+  with cyan/amber "energy", runic detailing, lush transitions, ambient motion, and muteable
+  WebAudio chimes (no binary assets) — all honoring `prefers-reduced-motion`. Two surfaces:
+  **Converse** (chat with markdown, image attach, voice-to-text, optimistic send) and the
+  **Slate**, a categorised game-like settings menu (Persona · Mind · Memory · Channels ·
+  Voice · The Sight · The Sky · Atmosphere · The Realm) that unifies the old setup wizard
+  and memory admin, with a live model "Attune" test, a geocoding location picker, and an
+  unsaved-changes save bar that can re-attune (restart) the process. **This supersedes the
+  no-build decision** ([web-ui-premium-spa.md](./decisions/web-ui-premium-spa.md)). The
+  client talks only to the existing JSON API; the only server change is `auth.enabled` on
+  `/api/state`. Built with `bun run web:build` → `web/dist`, served by the same Bun process
+  (content-hashed assets, `immutable`); the Dockerfile builds it in a separate stage. **The
+  server gracefully falls back** to the original server-rendered pages when `web/dist` is
+  absent, so a bare `bun start` still works; the login page stays server-rendered (re-themed
+  to match). New root scripts `web:install` / `web:dev` / `web:build`; `web/` excluded from
+  root Biome/tsc. No new server runtime dependency. Server `check` + `typecheck` + 94 tests
+  green; the client typechecks and builds clean.
 - **Batching is now a dynamic, growing idle window (no hard total cap).** Replaced the
   fixed-debounce-plus-hard-cap model. The idle window starts at `CHAT_BATCH_IDLE_MS` after the
   first message and grows by the new `CHAT_BATCH_STEP_MS` with each further message, capped at

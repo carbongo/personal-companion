@@ -5,9 +5,11 @@ roll-up. State is one SQLite file under `DATA_DIR`. That makes deployment a sing
 container with a single volume.
 
 > Status: live through Phase 4 — the server, the Telegram channel, and the web interface
-> (chat + memory admin + setup wizard) all run today, and packaging is in place (Docker
-> image + Compose with an optional bundled Ollama, plus a `bun run init` bootstrap). There
-> is **no front-end build step**: the web UI is served straight from the Bun process.
+> (chat + a categorised "Slate" settings menu) all run today, and packaging is in place
+> (Docker image + Compose with an optional bundled Ollama, plus a `bun run init` bootstrap).
+> The premium web UI is a Vite/React SPA built with `bun run web:build`; the Docker image
+> builds it for you. Without that build, the server falls back to the lean server-rendered
+> pages, so a bare `bun start` still works.
 
 ## Docker Compose (recommended)
 
@@ -47,11 +49,14 @@ lands on the **setup wizard**, which tests your model and writes a `.env`. Set
 ```bash
 bun install
 bun run init           # scaffolds .env from the template + the data dir
+bun run web:build      # builds the premium SPA → web/dist (optional; falls back without it)
 bun run start          # or: bun run dev  (watch mode)
 ```
 
 `bun run init` is idempotent — it won't overwrite an existing `.env`. Run it under a
-process manager (systemd, pm2, a container) so it restarts on reboot.
+process manager (systemd, pm2, a container) so it restarts on reboot. Re-run
+`bun run web:build` after pulling changes to the `web/` client (the server is non-watch
+for the built SPA — rebuild, then restart).
 
 ## Choosing where it runs
 

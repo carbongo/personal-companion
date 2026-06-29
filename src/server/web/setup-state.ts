@@ -30,6 +30,7 @@ export interface SetupValues {
 	// brain (LLM)
 	provider: string;
 	model: string;
+	visionModel: string;
 	ollamaUrl: string;
 	baseUrl: string;
 	temperature: number;
@@ -50,6 +51,7 @@ export interface SetupValues {
 	memoryContextDays: number;
 	memoryLimit: number;
 	memorySummaryCron: string;
+	memoryWrites: boolean;
 	// web access
 	webEnabled: boolean;
 	webSearchProvider: string;
@@ -106,6 +108,7 @@ export function currentSetupValues(): SetupValues {
 		autoRestartOnSave: config.app.autoRestartOnSave,
 		provider: config.llm.provider,
 		model: config.llm.model,
+		visionModel: config.llm.visionModel,
 		ollamaUrl: config.llm.ollamaUrl,
 		baseUrl: config.llm.baseUrl,
 		temperature: config.llm.temperature,
@@ -123,6 +126,7 @@ export function currentSetupValues(): SetupValues {
 		memoryContextDays: config.memory.contextDays,
 		memoryLimit: config.memory.memoryLimit,
 		memorySummaryCron: config.memory.summaryCron,
+		memoryWrites: config.memory.writesEnabled,
 		webEnabled: config.web.enabled,
 		webSearchProvider: config.web.searchProvider,
 		tavilyConfigured: !!config.web.tavilyKey,

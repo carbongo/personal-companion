@@ -5,15 +5,21 @@
  * (`/setup/test`, `/setup`). Auth (when enabled) is applied upstream in
  * ./index.ts. See docs/channels.md and docs/configuration.md.
  */
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
+import { stream } from "hono/streaming";
 import { sttConfigured, transcribe } from "#/channels/stt.ts";
 import { telegramConfigured } from "#/channels/telegram/index.ts";
-import { companionConfigured, respond } from "#/companion-core/engine.ts";
+import {
+	companionConfigured,
+	respond,
+	respondStream,
+} from "#/companion-core/engine.ts";
 import { saveUpload, sniffImageExt } from "#/companion-core/media.ts";
 import { runDailyRollup } from "#/companion-core/memory/rollup.ts";
 import {
 	addMemory,
 	deleteMemory,
+	distinctMessageDays,
 	getCore,
 	listDailySummaries,
 	messagesForDay,
@@ -28,6 +34,7 @@ import {
 	type LlmProviderName,
 } from "#/config/index.ts";
 import { createProvider, provider } from "#/llm/index.ts";
+import { webAuthEnabled } from "./auth.ts";
 import { writeEnvFile } from "./env-file.ts";
 import { currentSetupValues, isSetupComplete } from "./setup-state.ts";
 
@@ -47,6 +54,7 @@ interface SetupBody {
 	// brain (LLM)
 	provider?: string;
 	model?: string;
+	visionModel?: string;
 	ollamaUrl?: string;
 	baseUrl?: string;
 	apiKey?: string;
@@ -68,6 +76,7 @@ interface SetupBody {
 	memoryContextDays?: string;
 	memoryLimit?: string;
 	memorySummaryCron?: string;
+	memoryWrites?: string;
 	// web access
 	webEnabled?: string;
 	webSearchProvider?: string;
@@ -124,6 +133,8 @@ api.get("/state", (c) => {
 		companionConfigured: companionConfigured(),
 		channels: { telegram: telegramConfigured() },
 		web: { enabled: config.web.enabled },
+		// Whether the interface is password-gated — the SPA shows a "seal" (logout).
+		auth: { enabled: webAuthEnabled() },
 		// So the browser chat behaves like Telegram: the same burst-batching
 		// window, and whether voice notes can be transcribed.
 		chat: {
@@ -137,8 +148,7 @@ api.get("/state", (c) => {
 
 // --- built-in browser chat ---------------------------------------------------
 
-api.get("/messages", (c) => {
-	const day = todayKey();
+function serializeDay(day: string) {
 	const messages = messagesForDay(day).map((m) => ({
 		id: m.id,
 		role: m.role,
@@ -148,10 +158,22 @@ api.get("/messages", (c) => {
 		mediaUrls: m.mediaUrl ? m.mediaUrl.split("\n").filter(Boolean) : [],
 		createdAt: m.createdAt,
 	}));
-	return c.json({ day, messages });
+	return { day, messages };
+}
+
+// Today's conversation, or any past `?day=YYYY-MM-DD` (so the chronicle can be
+// opened up to read the actual messages behind a daily summary).
+api.get("/messages", (c) => {
+	const q = (c.req.query("day") ?? "").trim();
+	const day = /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : todayKey();
+	return c.json(serializeDay(day));
 });
 
-api.post("/chat", async (c) => {
+// Every day that has any conversation, newest first — for browsing the chronicle.
+api.get("/days", (c) => c.json({ days: distinctMessageDays().reverse() }));
+
+/** Validate a chat body and persist any image attachments. */
+async function prepareTurn(c: Context) {
 	const body = (await c.req.json().catch(() => ({}))) as {
 		text?: string;
 		images?: string[];
@@ -163,9 +185,12 @@ api.post("/chat", async (c) => {
 		? body.images.filter((s) => typeof s === "string" && s.length > 0)
 		: [];
 	if (!text && !images.length)
-		return c.json({ error: "text or an image is required" }, 400);
+		return { error: "text or an image is required", status: 400 as const };
 	if (!companionConfigured())
-		return c.json({ error: "No model is configured yet. Visit Setup." }, 503);
+		return {
+			error: "No model is configured yet. Visit Setup.",
+			status: 503 as const,
+		};
 	const kind = images.length ? "photo" : (body.kind ?? "text");
 	// Persist the attachments so the history can show them back (served by the
 	// /uploads route); the base64 still rides along to the model this turn.
@@ -179,17 +204,70 @@ api.post("/chat", async (c) => {
 		}
 		mediaUrl = urls.length ? urls.join("\n") : null;
 	}
-	try {
-		const { reply } = await respond({
+	return {
+		turn: {
 			text,
 			images: images.length ? images : undefined,
 			kind,
 			mediaUrl,
-		});
+		},
+	};
+}
+
+api.post("/chat", async (c) => {
+	const prep = await prepareTurn(c);
+	if (!prep.turn) return c.json({ error: prep.error }, prep.status);
+	try {
+		const { reply } = await respond(prep.turn);
 		return c.json({ reply });
 	} catch (err) {
 		return c.json({ error: (err as Error).message }, 500);
 	}
+});
+
+// Streaming chat: newline-delimited JSON (one object per line). The reply is
+// emitted paragraph-by-paragraph as the model writes it — `{type:"paragraph"}` —
+// then a final `{type:"done", reply}` (or `{type:"error"}`). A `{type:"ping"}`
+// keepalive is sent every few seconds so the connection survives the long silent
+// stretch while the model "thinks" before any token lands (otherwise Bun's idle
+// timeout drops it mid-think and the reply never reaches the browser). The web
+// chat ignores pings and renders each paragraph as its own message, like Telegram.
+const STREAM_PING_MS = 4000;
+
+api.post("/chat/stream", async (c) => {
+	const prep = await prepareTurn(c);
+	if (!prep.turn) return c.json({ error: prep.error }, prep.status);
+	c.header("Content-Type", "application/x-ndjson; charset=utf-8");
+	c.header("Cache-Control", "no-cache");
+	c.header("X-Accel-Buffering", "no");
+	const turn = prep.turn;
+	return stream(c, async (s) => {
+		// Serialize writes (the heartbeat and the reply both write to one stream),
+		// so lines never interleave; ignore write errors after the client leaves.
+		let chain: Promise<unknown> = Promise.resolve();
+		const write = (obj: unknown) => {
+			chain = chain
+				.then(() => s.write(`${JSON.stringify(obj)}\n`))
+				.catch(() => {});
+			return chain;
+		};
+		await write({ type: "ping" }); // flush headers + first byte right away
+		const heartbeat = setInterval(
+			() => void write({ type: "ping" }),
+			STREAM_PING_MS,
+		);
+		try {
+			const { reply } = await respondStream(turn, async (paragraph) => {
+				await write({ type: "paragraph", text: paragraph });
+			});
+			await write({ type: "done", reply });
+		} catch (err) {
+			await write({ type: "error", error: (err as Error).message });
+		} finally {
+			clearInterval(heartbeat);
+			await chain; // make sure the last line is flushed before the stream closes
+		}
+	});
 });
 
 // Transcribe an uploaded/recorded voice note to text, so the browser chat can
@@ -291,7 +369,17 @@ api.delete("/memories/:id", (c) => {
 	return c.json({ ok: true });
 });
 
-api.get("/summaries", (c) => c.json({ summaries: listDailySummaries(120) }));
+// The chronicle — each past day the companion has distilled. The DB column is
+// `summaryMd`; expose it as `summary` (markdown) for the client.
+api.get("/summaries", (c) =>
+	c.json({
+		summaries: listDailySummaries(120).map((s) => ({
+			day: s.day,
+			summary: s.summaryMd,
+			createdAt: s.createdAt,
+		})),
+	}),
+);
 
 api.post("/rollup", async (c) => {
 	try {
@@ -360,6 +448,7 @@ api.post("/setup", async (c) => {
 		AUTO_RESTART_ON_SAVE: opt(b.autoRestartOnSave),
 		LLM_PROVIDER: providerName,
 		LLM_MODEL: opt(b.model),
+		LLM_VISION_MODEL: opt(b.visionModel),
 		LLM_TEMPERATURE: opt(b.temperature),
 		LLM_NUM_CTX: opt(b.numCtx),
 		LLM_MAX_TOKENS: opt(b.maxTokens),
@@ -374,6 +463,7 @@ api.post("/setup", async (c) => {
 		MEMORY_CONTEXT_DAYS: opt(b.memoryContextDays),
 		MEMORY_LIMIT: opt(b.memoryLimit),
 		MEMORY_SUMMARY_CRON: opt(b.memorySummaryCron),
+		MEMORY_WRITES: opt(b.memoryWrites),
 		WEB_ACCESS: opt(b.webEnabled),
 		WEB_SEARCH_PROVIDER: opt(b.webSearchProvider),
 		WEB_STEPS: opt(b.webSteps),

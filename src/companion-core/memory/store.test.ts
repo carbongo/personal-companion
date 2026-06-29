@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	addMemory,
 	appendMessage,
+	forgetMemory,
 	getCore,
 	getDailySummary,
 	listMemories,
@@ -32,6 +33,31 @@ describe("memory store (in-memory db)", () => {
 		expect(
 			listMemories().some((m) => m.content === "remembers the cat's name"),
 		).toBe(true);
+	});
+
+	it("forgets a memory by exact content", () => {
+		addMemory("allergic to walnuts");
+		const dropped = forgetMemory("Allergic to walnuts");
+		expect(dropped.map((m) => m.content)).toEqual(["allergic to walnuts"]);
+		expect(
+			listMemories().some((m) => m.content === "allergic to walnuts"),
+		).toBe(false);
+	});
+
+	it("forgets the closest memory by substring, leaving others", () => {
+		addMemory("plays the cello on weekends");
+		addMemory("plays five-a-side football");
+		const dropped = forgetMemory("the cello");
+		expect(dropped).toHaveLength(1);
+		expect(dropped[0]?.content).toBe("plays the cello on weekends");
+		expect(
+			listMemories().some((m) => m.content === "plays five-a-side football"),
+		).toBe(true);
+	});
+
+	it("forgets nothing when there is no close match", () => {
+		addMemory("favourite colour is teal");
+		expect(forgetMemory("quantum chromodynamics lecture notes")).toEqual([]);
 	});
 
 	it("upserts daily summaries and reads them back by range", () => {

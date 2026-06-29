@@ -69,6 +69,13 @@ export type LlmProviderName = "ollama" | "openai-compatible" | "anthropic";
 export interface LlmConfig {
 	provider: LlmProviderName;
 	model: string;
+	/**
+	 * Optional model used only for turns that include an image, when the main
+	 * `model` can't see (e.g. a text-only local model). Empty = no dedicated
+	 * vision model; image turns then fall back to the main model if it can see,
+	 * or to an honest "I can't see images" reply if it can't.
+	 */
+	visionModel: string;
 	/** Local Ollama endpoint (provider "ollama"). */
 	ollamaUrl: string;
 	/** Base URL for hosted providers. */
@@ -131,6 +138,13 @@ export interface MemoryConfig {
 	contextDays: number;
 	memoryLimit: number;
 	summaryCron: string;
+	/**
+	 * Whether the companion may manage its own memory mid-conversation via its
+	 * sidecar tags (<remember>/<core>/<forget>). When false, those tags are not
+	 * offered in the prompt and are ignored if emitted — memory becomes read-only,
+	 * editable only by the owner from the UI. The nightly roll-up is unaffected.
+	 */
+	writesEnabled: boolean;
 }
 
 export interface WebConfig {
@@ -182,6 +196,7 @@ export function loadConfig(): Config {
 		llm: {
 			provider: str("LLM_PROVIDER", "ollama") as LlmProviderName,
 			model: str("LLM_MODEL", "gemma4:12b"),
+			visionModel: str("LLM_VISION_MODEL", ""),
 			ollamaUrl: str("LLM_OLLAMA_URL", "http://localhost:11434").replace(
 				/\/+$/,
 				"",
@@ -225,6 +240,7 @@ export function loadConfig(): Config {
 			contextDays: num("MEMORY_CONTEXT_DAYS", 7),
 			memoryLimit: num("MEMORY_LIMIT", 40),
 			summaryCron: str("MEMORY_SUMMARY_CRON", "55 23 * * *"),
+			writesEnabled: bool("MEMORY_WRITES", true),
 		},
 		web: {
 			enabled: bool("WEB_ACCESS", true),

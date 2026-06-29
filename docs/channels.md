@@ -32,22 +32,27 @@ needed, so it runs from anywhere, including behind NAT.
 ## Built-in web chat
 
 A browser chat served by the same Bun process, so you can use the companion with **no
-Telegram setup at all**. Open the app in a browser and talk to it. It posts to
-`POST /api/chat`, which builds a `turn` and calls `engine.respond` — the same seam Telegram
-uses — so the web chat shares one conversation and memory with every other channel (messages
-persist to the same `messages` table, bucketed by the live day).
+Telegram setup at all**. Open the app in a browser and talk to it. It streams over
+`POST /api/chat/stream`, which builds a `turn` and calls `engine.respondStream` — the
+streaming sibling of the `engine.respond` seam Telegram uses — so the web chat shares one
+conversation and memory with every other channel (messages persist to the same `messages`
+table, bucketed by the live day). A non-streaming `POST /api/chat` remains for other callers.
 
 The web chat deliberately mirrors the Telegram channel:
 
-- **Incoming batching** — a burst of quick messages is debounced into one turn rather than
-  answered line-by-line. Each line shows immediately (like a sent message), then once you go
-  quiet for the current idle window they fold into a single `turn`. The window matches
-  Telegram's — and is the same dynamic, growing window: the client reads
-  `batchIdleMs`/`batchStepMs`/`batchMaxMs` from `/api/state` (sourced from the shared
-  `CHAT_BATCH_*`), so a reply only starts once you've actually paused.
-- **Typing + reply-split** — a "…" bubble shows while the model works, and a multi-paragraph
-  reply is shown as separate bubbles (split on blank lines). The reply is still stored as one
-  assistant message, so this is purely display (applied to live replies and to history).
+- **Incoming batching, with read-style ticks** — a burst of quick messages is folded into one
+  turn rather than answered line-by-line. Each message shows immediately with **one tick
+  (queued — not sent yet, or it errored)**; once you go quiet for the current idle window the
+  whole burst is delivered as a single `turn` and they flip to **two ticks (delivered)**. The
+  window is the same dynamic, growing window as Telegram (the client reads
+  `batchIdleMs`/`batchStepMs`/`batchMaxMs` from `/api/state`, sourced from the shared
+  `CHAT_BATCH_*`). A burst that errored stays at one tick and rides along with your next send.
+- **Live paragraph streaming** — a "…" bubble shows while the model gathers itself, then the
+  reply **streams in paragraph-by-paragraph**: each finished paragraph is sent as its own
+  message the instant the model completes it (server-side via `respondStream` + the provider's
+  `chatStream`, sent as NDJSON `{type:"paragraph"}` lines; the pure `takeParagraphs` splitter
+  flushes on blank lines, with sidecar/web tags stripped). The reply is still stored as one
+  assistant message; history reload splits it back into the same paragraph bubbles.
 - **Images** — attach (or paste) one or more images; they're sent as base64 `images` on the
   turn to vision-capable models, exactly like a Telegram photo. Each is saved under
   `DATA_DIR/uploads` and served back through the auth-gated `/uploads/` route, so it

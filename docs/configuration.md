@@ -26,6 +26,7 @@ All vars are documented in [`.env.example`](../.env.example). The ones you'll us
 | `WEB_AUTH_PASSWORD`       | (empty)              | Protects the web UI. Set it unless behind a trusted network. |
 | `LLM_PROVIDER`            | `ollama`             | `ollama` \| `openai-compatible` \| `anthropic` (planned — not yet implemented; use `openai-compatible` against an Anthropic-compatible gateway). |
 | `LLM_MODEL`               | `gemma4:12b`         | Model name for the chosen provider (recommended local default). |
+| `LLM_VISION_MODEL`        | (empty)              | Optional. Model for image turns when `LLM_MODEL` can't see (e.g. a text-only model). Leave empty if `LLM_MODEL` is vision-capable. Ollama example: `qwen2.5vl:7b`. |
 | `LLM_OLLAMA_URL`          | `http://localhost:11434` | Local Ollama endpoint. |
 | `LLM_API_KEY` / `LLM_BASE_URL` | (empty)         | For hosted providers. |
 | `TELEGRAM_BOT_TOKEN`      | (empty)              | Enables the Telegram channel; empty = web chat only. |

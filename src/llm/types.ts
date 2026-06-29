@@ -16,7 +16,12 @@ export interface GenerateOptions {
 	maxTokens?: number;
 	/** Reasoning: true | false | "low" | "medium" | "high". Provider may ignore. */
 	think?: boolean | string;
+	/** Override the configured model for this one call (e.g. a vision model). */
+	model?: string;
 }
+
+/** Called with each text chunk as a streamed generation produces it. May be async. */
+export type StreamDelta = (text: string) => void | Promise<void>;
 
 export interface ProviderInfo {
 	provider: string;
@@ -32,6 +37,21 @@ export interface LLMProvider {
 	reachable(): Promise<boolean>;
 	/** One generation. Returns the assistant text (may be empty). */
 	chat(messages: ChatMessage[], opts?: GenerateOptions): Promise<string>;
+	/**
+	 * One streamed generation: calls `onDelta` with each text chunk as it lands,
+	 * and resolves with the full text. Optional — callers fall back to `chat`
+	 * (emitting the whole reply once) when a provider doesn't implement it.
+	 */
+	chatStream?(
+		messages: ChatMessage[],
+		onDelta: StreamDelta,
+		opts?: GenerateOptions,
+	): Promise<string>;
+	/**
+	 * Whether a model can accept images (vision). `model` defaults to the
+	 * configured one. Optional — when absent, callers assume vision is supported.
+	 */
+	supportsVision?(model?: string): Promise<boolean>;
 }
 
 /**

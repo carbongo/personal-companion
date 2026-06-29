@@ -15,10 +15,18 @@ describe("parseActions", () => {
 		expect(p.cleaned).toBe("Sounds good.");
 	});
 
+	it("extracts and strips forget tags", () => {
+		const raw = "Done — dropped that.\n<forget>likes strong tea</forget>";
+		const p = parseActions(raw);
+		expect(p.forget).toEqual(["likes strong tea"]);
+		expect(p.cleaned).toBe("Done — dropped that.");
+	});
+
 	it("leaves a plain reply untouched", () => {
 		const p = parseActions("just a normal reply");
 		expect(p.remember).toEqual([]);
 		expect(p.core).toEqual([]);
+		expect(p.forget).toEqual([]);
 		expect(p.cleaned).toBe("just a normal reply");
 	});
 

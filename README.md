@@ -44,19 +44,21 @@ git clone https://github.com/carbongo/personal-companion
 cd personal-companion
 bun install
 bun run init              # scaffolds .env + the data dir (idempotent)
+bun run web:build         # builds the premium web UI → web/dist
 bun run dev               # boots the server on http://localhost:8080
 ```
 
-Then open `http://localhost:8080` — with nothing configured yet, you land on the **setup
-wizard**: name your companion, pick a personality, point it at a model (with a live
-connection test), and you're talking. No front-end build step. Prefer the terminal?
-`bun run chat`.
+Then open `http://localhost:8080` — with nothing configured yet, the app opens the
+**Slate**, its categorised settings menu: name your companion, pick a personality, point it
+at a model (with a live connection test), and you're talking. The web UI is a built SPA
+(`bun run web:build`); skip that build and the server falls back to a lean, build-free UI.
+Prefer the terminal? `bun run chat`.
 
 ### First run, step by step
 
 1. **Bring a brain.** Run [Ollama](https://ollama.com) locally and `ollama pull gemma4:12b`
    (the default), or have an OpenAI-compatible endpoint + key ready.
-2. **Open the app** at `http://localhost:8080`. You land on the **setup wizard**.
+2. **Open the app** at `http://localhost:8080`. It opens the **Slate**, the settings menu.
 3. **Name it and shape it.** Give your companion a name, say what it should call you, and
    pick a starting personality — *Companion* (warm default), *Sage* (calm mentor), *Pip*
    (upbeat friend), or *Coach* (blunt and accountable) — or paste your own persona.
