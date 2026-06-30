@@ -13,21 +13,24 @@ of starting fresh each conversation. There are four moving parts, all in SQLite 
 
 2. **Core (`core`).** A single living Markdown doc — the spine of who the companion is
    *with you*: relationship state, mood over time, active projects, settled decisions,
-   open threads, the little things. It updates in real time as you talk (via the `<core>`
-   sidecar tag) and you can edit it in the web UI.
+   open threads, the little things. You edit it in the web UI.
 
-3. **Saved memories (`memories`).** Discrete facts the companion keeps on its own (via
-   `<remember>`), or that you add. The most recent `MEMORY_LIMIT` ride along in context. The
-   companion can also drop one it got wrong with `<forget>…</forget>` — matched by content in
-   the store (exact wording, else the closest substring, else strong word-overlap; deliberately
-   conservative so it removes one memory, not a sweep). These tags are the **only** way memory
-   changes: the operating prompt tells the companion never to claim it saved, changed, or forgot
-   something unless the matching tag is in that very message, and that the ambient `[context]`
-   note (date/weather) is never the owner's words and never something to "remember".
+3. **Saved memories (`memories`).** Discrete durable facts. They come from two places: you
+   add or remove them in the web UI, and the **nightly roll-up** mines each day for new ones
+   and drops ones the day made wrong (see below). The most recent `MEMORY_LIMIT` ride along
+   in context. The companion does **not** change memory mid-conversation — that proved
+   unreliable on small local models, so all management now happens in the roll-up. The
+   operating prompt tells it never to claim it saved, changed, or forgot something on the
+   spot, and that the ambient `[context]` note (date/weather) is never the owner's words and
+   never something to "remember".
 
 4. **Daily summaries (`daily_summaries`).** Each night a roll-up compresses the day's
    messages into one short summary in the companion's own voice. Past days live on as
-   their summary, not as raw transcript — so context stays bounded.
+   their summary, not as raw transcript — so context stays bounded. The same roll-up also
+   **reconciles saved memories against the day** — saving lasting facts that surfaced and
+   dropping ones that changed — so something durable that came up in passing — _"works at a
+   school as a software developer"_, a person, a standing preference — still gets kept the
+   night it's mentioned, and a fact that's no longer true is let go.
 
 ## How a new day opens
 
@@ -42,6 +45,17 @@ On a once-a-minute tick it matches `MEMORY_SUMMARY_CRON` (default `55 23 * * *`,
 via a small dependency-free 5-field matcher) and summarizes the day that's ending. Every
 run also **backfills** any earlier day that has messages but no summary yet. If the model
 is unreachable it pauses and catches up on the next run.
+
+**Reconciling memory.** Right after summarizing a day, the roll-up also reconciles long-term
+memory against it (when `MEMORY_ROLLUP_EXTRACT` is on, the default). A second, focused
+generation is shown the day's transcript and the current memories, and asked — in the same
+`<remember>` / `<forget>` vocabulary used elsewhere — for genuinely new durable facts and for
+any saved memory the day made wrong. New facts are de-duplicated against what's already
+stored; drops go through the conservative content matcher (exact wording, else the closest
+substring, else strong word-overlap — so a `<forget>` that matches nothing is a no-op). Both
+directions are capped per run so one odd day can't flood or gut memory. It's best-effort:
+trouble here never undoes the summary just saved or stalls the run, and the day is mined once
+(a day that already has a summary is skipped on later runs).
 
 **Resilient to downtime.** A laptop is often asleep or shut down at the scheduled minute,
 so the schedule alone isn't enough. Two safety nets cover that without any "wake the box"
@@ -74,8 +88,9 @@ See [architecture.md](./architecture.md) and
 The web interface (Phase 3) shows the Core, the saved memories, and the daily summaries,
 and lets you edit them and trigger a roll-up by hand.
 
-**Read-only mode.** `MEMORY_WRITES` (default on; the *"Let the companion manage its own
-memory"* switch in **Memory** settings) controls whether the companion may act on its
-`<remember>`/`<core>`/`<forget>` tags. Turn it off and those tags are dropped from the prompt
-and ignored if emitted — memory becomes yours alone to edit, while injection into context and
-the nightly roll-up keep working. It mirrors the `WEB_ACCESS` switch for web access.
+**Who manages memory.** The companion does not edit memory mid-conversation; all automatic
+management is the roll-up's. `MEMORY_ROLLUP_EXTRACT` (default on; the *"Let the nightly
+roll-up curate memory"* switch in **Memory** settings) is the single toggle for it. Turn it
+off and the roll-up only writes the daily summary — memory becomes yours alone to edit, while
+injection into context and the daily summaries keep working. It mirrors the `WEB_ACCESS`
+switch for web access.

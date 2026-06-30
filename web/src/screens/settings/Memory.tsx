@@ -176,10 +176,10 @@ export function MemorySection({ form, set, toast }: SectionProps) {
       <div className="flex flex-col gap-5">
         <Card title="Self-managed memory">
           <ToggleRow
-            title="Let the companion manage its own memory"
-            desc="Allow it to save, update, and forget memories mid-conversation through its own tags. Off: memory is read-only — only you edit it here, and the nightly roll-up still runs."
+            title="Let the nightly roll-up curate memory"
+            desc="As it distils each day, also mine it for lasting facts to save — who they are, their work, the people in their life — and drop ones the day made wrong. Off: the roll-up only writes the daily summary, and memory is yours alone to edit here."
           >
-            <Toggle checked={form.memoryWrites} onChange={(v) => set("memoryWrites", v)} />
+            <Toggle checked={form.memoryRollupExtract} onChange={(v) => set("memoryRollupExtract", v)} />
           </ToggleRow>
         </Card>
 

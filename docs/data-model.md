@@ -26,8 +26,8 @@ The current day is the live working memory; past days live on only as their summ
 
 ### `core` — the living "Core" document
 A singleton (`id = 1`) Markdown doc: the spine of who the companion is *with you* —
-relationship state, your projects, ongoing threads, the little things. Edited by the
-companion (via `<core>`) and by you in the web UI.
+relationship state, your projects, ongoing threads, the little things. Edited by you in the
+web UI.
 
 | column     | type    | notes |
 | ---------- | ------- | ----- |
@@ -36,7 +36,8 @@ companion (via `<core>`) and by you in the web UI.
 | updated_at | integer | timestamp |
 
 ### `memories` — discrete saved facts
-Individual facts the companion chooses to keep (via `<remember>`), or that you add.
+Individual durable facts: saved by the nightly roll-up as it reconciles memory against each
+day (and dropped by it when a day makes one wrong), or added/removed by you in the web UI.
 
 | column     | type      | notes |
 | ---------- | --------- | ----- |

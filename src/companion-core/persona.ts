@@ -2,7 +2,8 @@
  * Persona assembly. The companion's identity is *configuration*, resolved at
  * runtime from (in order of precedence): a settings override saved in the UI, a
  * `persona/persona.md` file, or a built-in preset. The operating block describes
- * the medium, memory model, and sidecar tags — generic, not persona-specific.
+ * the medium, the memory model, and the web sidecar tags — generic, not
+ * persona-specific.
  * Live per-turn context (date, weather, Core, summaries) is assembled in
  * ./context.ts. See docs/configuration.md and
  * docs/decisions/persona-as-configuration.md.
@@ -40,10 +41,11 @@ export function buildIdentity(): string {
 	return preset({ name: config.app.name, owner: config.app.owner });
 }
 
-/** Generic instructions: the medium, the memory model, and the sidecar tags. */
+/** Generic instructions: the medium, the memory model, and the web sidecar tags. */
 export function buildOperating(opts: {
 	web: boolean;
-	memory: boolean;
+	/** Whether the nightly roll-up curates memory on its own (MEMORY_ROLLUP_EXTRACT). */
+	autoMemory: boolean;
 }): string {
 	const owner = config.app.owner;
 	const parts: string[] = [];
@@ -69,37 +71,21 @@ conversation — your messages and theirs — not the ambient context.`);
 Today's conversation is your live working memory. Each night it is compressed into a short
 summary, and new days open from those summaries plus your Core and saved memories.`);
 
-	if (opts.memory) {
-		parts.push(`Memory is not automatic. Talking as if you will remember something does nothing by itself.
-The only way anything survives past today is to append one of these tags. If you sound like
-you saved a fact but don't tag it, the fact is gone by tomorrow:
-<remember>a concrete fact worth keeping</remember>
-<core>a line to fold into your Core, the spine of who the two of you are</core>
-<forget>the wording of a saved memory to drop, when it's wrong or ${owner} asks you to</forget>
-Put any tags at the very end of your message, each on its own line. They are stripped out
-before ${owner} sees them, so keep them out of what you actually say.
-
-Reach for <remember> the moment ${owner} tells you something that should still hold next week:
-a name, a preference, a plan or a date, someone in their life, a decision, a recurring
-feeling, anything you would want to know that you know. Reach for <core> when something shifts
-the bigger picture of the two of you or of their life. When you are unsure whether it matters,
-lean toward saving it; a thin memory beats a forgotten one.
-
-Save facts so they still make sense weeks later: convert relative times into real calendar
-dates using today's date from your [context] note. "Next weekend" becomes the actual weekend,
-"tomorrow" becomes that day's date, "in two weeks" becomes the date itself.
-
-For example, if ${owner} mentions their sister is visiting next weekend and feels nervous, you
-answer warmly and naturally, work out the real dates from today's date, then close with:
-<remember>${owner}'s sister is visiting the weekend of Sat 4 Jul 2026; ${owner} feels nervous about it</remember>
-
-The one hard rule: never claim out loud that you saved, updated, or forgot something unless
-the matching tag is actually in this same message.`);
+	if (opts.autoMemory) {
+		parts.push(`Your memory is kept for you. You don't save or forget anything by hand mid-conversation, and
+you can't on the spot — so never say you just saved, updated, or forgot something. Instead,
+once the day is over, what matters from it settles in on its own: anything lasting ${owner}
+told you — a name, someone in their life, their work, a standing preference, a real plan or
+date, a decision — is gathered into your memory overnight, and anything that turned out wrong
+is quietly dropped. So you don't have to perform remembering. Just take it in and talk
+naturally; trust that what counts will be there tomorrow. If ${owner} asks you to remember or
+drop something, you can reassure them it'll be kept (or let go) — and that they can also edit
+your memory themselves from the settings.`);
 	} else {
-		parts.push(`Your memory is managed for you right now: you can read everything above, but you cannot add,
-change, or remove what you keep on your own. So never claim to have saved, updated, or
-forgotten something. If ${owner} asks you to remember or forget a thing, tell them plainly
-that they keep your memory themselves from the settings.`);
+		parts.push(`Your memory is managed for you: you can read everything above, but you cannot add, change,
+or remove what you keep on your own. So never claim to have saved, updated, or forgotten
+something. If ${owner} asks you to remember or forget a thing, tell them plainly that they
+keep your memory themselves from the settings.`);
 	}
 
 	if (opts.web)

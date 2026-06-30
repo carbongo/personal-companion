@@ -13,7 +13,8 @@ Bun + Hono server with `/health`.
 - ✅ Memory layer: live day, Core, memories, daily summaries, nightly roll-up.
 - ✅ Persona assembled from configuration + neutral presets (no hardcoded character).
 - ✅ Context providers: date/time + weather (Open-Meteo).
-- ✅ Sidecar actions: `<remember>` / `<core>`.
+- ✅ Sidecar actions: `<search>` / `<fetch>` (web). _Memory tags moved to the nightly
+  roll-up's reconciliation pass — see the 2026-06-30 CHANGELOG entry._
 - ✅ Bounded web access: `<search>` / `<fetch>` with the SSRF guard.
 - ✅ **LLM provider abstraction**: Ollama + OpenAI-compatible (`anthropic` planned).
 - ✅ The `engine.respond(turn)` seam, with unit + integration tests. A terminal REPL

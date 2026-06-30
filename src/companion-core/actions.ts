@@ -1,11 +1,12 @@
 /**
- * Sidecar actions. Instead of an API tool-call loop (unreliable on small local
- * models), the companion may append tiny tags to its reply to act on its own
- * memory. We parse them, apply the side effects, and strip them from the text
- * the user sees. Tolerant by design: malformed or absent tags leave the reply
- * untouched. See docs/decisions/sidecar-tags-not-tool-calling.md.
+ * Memory sidecar tags. The companion no longer manages memory mid-conversation —
+ * that proved unreliable on small local models and now lives entirely in the
+ * nightly roll-up (see ./memory/rollup.ts). What remains here is the pure parser:
+ * the roll-up reuses it to read the `<remember>` / `<forget>` tags it asks the
+ * model for, and the engine reuses it to strip any stray tag a reply emits so it
+ * never leaks to the user. Tolerant by design: malformed or absent tags leave the
+ * reply untouched. See docs/decisions/sidecar-tags-not-tool-calling.md.
  */
-import { addMemory, forgetMemory, getCore, setCore } from "./memory/store.ts";
 
 const RE_REMEMBER = /<remember>([\s\S]*?)<\/remember>/gi;
 const RE_CORE = /<core>([\s\S]*?)<\/core>/gi;
@@ -44,30 +45,4 @@ export function parseActions(raw: string): ParsedActions {
 		forget: matches(raw, RE_FORGET),
 		cleaned,
 	};
-}
-
-/** Apply any sidecar tags in `raw` to memory, then return the cleaned reply. */
-export function applyActions(raw: string): string {
-	const parsed = parseActions(raw);
-	let applied = 0;
-
-	for (const fact of parsed.remember) {
-		addMemory(fact);
-		applied++;
-	}
-
-	for (const line of parsed.core) {
-		const existing = getCore().trim();
-		setCore(existing ? `${existing}\n${line}` : line);
-		applied++;
-	}
-
-	for (const query of parsed.forget) {
-		const dropped = forgetMemory(query);
-		if (dropped.length) applied += dropped.length;
-		else console.log(`[companion] <forget> matched nothing for: ${query}`);
-	}
-
-	if (applied) console.log(`[companion] applied ${applied} sidecar action(s)`);
-	return parsed.cleaned;
 }

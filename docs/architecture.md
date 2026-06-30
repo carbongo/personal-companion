@@ -13,8 +13,8 @@ channels/          how you talk to it (Telegram, built-in web chat)
 companion-core/    the engine — channel- and provider-agnostic
    ├─ persona      assemble the system prompt from configuration
    ├─ context      pluggable providers (datetime, weather, …)
-   ├─ memory       Core, saved memories, daily summaries, roll-up
-   ├─ actions      parse <remember>/<core> sidecar tags
+   ├─ memory       Core, saved memories, daily summaries, roll-up + reconcile
+   ├─ actions      memory-tag parser, reused by the roll-up; strips stray tags
    ├─ media        save/serve chat attachments under DATA_DIR/uploads
    ├─ web          bounded <search>/<fetch> egress
    └─ engine       respond(turn) -> { reply }   ← the seam
@@ -41,8 +41,8 @@ engine.respond(turn) -> { reply }
 
 A `turn` is channel-neutral: `{ text, images?, kind?, mediaUrl? }` (a voice note arrives as
 text once the channel transcribes it; `mediaUrl` holds saved `/uploads/…` attachment paths). Both the Telegram adapter and the web chat build a
-turn and call `respond`; neither knows anything about the model or the memory. Sidecar
-actions are applied inside the engine, so the channel only handles the returned `reply`. This is what lets new channels and new providers drop in without touching
+turn and call `respond`; neither knows anything about the model or the memory. Web sidecar
+lookups are run inside the engine, so the channel only handles the returned `reply`. This is what lets new channels and new providers drop in without touching
 the core. (See [decisions/channel-abstraction.md](./decisions/channel-abstraction.md)
 and [decisions/llm-provider-abstraction.md](./decisions/llm-provider-abstraction.md).)
 
@@ -58,8 +58,9 @@ and [decisions/llm-provider-abstraction.md](./decisions/llm-provider-abstraction
 4. If web access is on and the reply contains `<search>`/`<fetch>` tags, the engine runs
    them, feeds results back, and regenerates — a small bounded loop.
    (See [web-access.md](./web-access.md).)
-5. **Sidecar actions** (`<remember>`, `<core>`) are parsed out, applied to memory, and
-   stripped from the user-facing text.
+5. Any stray memory tag is **stripped** from the user-facing text (the companion no longer
+   edits memory mid-conversation — that happens in the nightly roll-up; see
+   [memory.md](./memory.md)).
 6. The channel sends the reply (Telegram splits it into paragraph-sized messages).
 
 ## Why no API tool-calling loop

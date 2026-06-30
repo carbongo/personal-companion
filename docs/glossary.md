@@ -29,11 +29,14 @@ and daily summaries.
 **Daily summary** — the compressed conclusion of one past day, produced by the roll-up
 and read on later days instead of raw transcript.
 
-**Roll-up** — the nightly job that summarizes the day and backfills any missed days.
+**Roll-up** — the nightly job that summarizes the day, reconciles long-term memory against
+it (saving new durable facts, dropping ones the day made wrong), and backfills any missed
+days.
 
-**Sidecar tag** — a small tag the model emits to act without API tool-calling:
-`<remember>`, `<core>` (memory) and `<search>`, `<fetch>` (web). Parsed, applied, and
-stripped before you see the reply.
+**Sidecar tag** — a small tag the model emits to act without API tool-calling. In the live
+conversation the only sidecar tags are `<search>` and `<fetch>` (web). The memory tags
+`<remember>` / `<forget>` survive only inside the nightly roll-up's reconciliation pass, not
+mid-conversation. Parsed and stripped before you see the reply.
 
 **Context provider** — a plugin that injects live context (date/time, weather, …) into a
 turn.

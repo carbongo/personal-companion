@@ -139,12 +139,13 @@ export interface MemoryConfig {
 	memoryLimit: number;
 	summaryCron: string;
 	/**
-	 * Whether the companion may manage its own memory mid-conversation via its
-	 * sidecar tags (<remember>/<core>/<forget>). When false, those tags are not
-	 * offered in the prompt and are ignored if emitted — memory becomes read-only,
-	 * editable only by the owner from the UI. The nightly roll-up is unaffected.
+	 * Whether the nightly roll-up curates memory on its own: mining each day for
+	 * durable facts to save (e.g. "{owner} works at a school as a software
+	 * developer") and dropping ones the day made wrong. This is the only automatic
+	 * memory management — the companion no longer writes memory mid-conversation.
+	 * Off: the roll-up only writes the daily summary, and memory is yours to edit.
 	 */
-	writesEnabled: boolean;
+	rollupExtract: boolean;
 }
 
 export interface WebConfig {
@@ -240,7 +241,7 @@ export function loadConfig(): Config {
 			contextDays: num("MEMORY_CONTEXT_DAYS", 7),
 			memoryLimit: num("MEMORY_LIMIT", 40),
 			summaryCron: str("MEMORY_SUMMARY_CRON", "55 23 * * *"),
-			writesEnabled: bool("MEMORY_WRITES", true),
+			rollupExtract: bool("MEMORY_ROLLUP_EXTRACT", true),
 		},
 		web: {
 			enabled: bool("WEB_ACCESS", true),

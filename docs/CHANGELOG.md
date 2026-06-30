@@ -3,10 +3,33 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
+## 2026-06-30
+
+- **Memory management moved to the nightly roll-up; inline tags retired.** The mid-conversation
+  approach from 2026-06-29 (below) didn't hold up — the default small local model almost never
+  emitted `<remember>` at the right moment, so memory effectively never persisted. Two changes:
+  - *The roll-up now reconciles long-term memory.* Right after it summarizes a finished day, a
+    second focused generation is shown the day's transcript and the current memories and asked
+    (in the same `<remember>` / `<forget>` vocabulary) for genuinely new durable facts and for any
+    saved memory the day made wrong — e.g. _"Alex works at a school as a software developer"_, or
+    dropping a job that ended. New facts are de-duplicated; drops use the conservative content
+    matcher; both directions are capped per run; the whole step is best-effort (never undoes the
+    summary). New code: `reconcileMemories` in `memory/rollup.ts`, reusing `parseActions`.
+  - *Inline memory management removed.* The companion no longer acts on `<remember>`/`<core>`/
+    `<forget>` mid-conversation; the operating prompt's memory section now tells it that what
+    matters is gathered overnight and it can't save/forget on the spot. `applyActions` is gone
+    (the engine only strips stray tags); `MEMORY_WRITES`/`config.memory.writesEnabled` and the
+    "Let the companion manage its own memory" switch are **removed**.
+  - *New toggle.* `MEMORY_ROLLUP_EXTRACT` (`config.memory.rollupExtract`, default `true`) — the
+    "Let the nightly roll-up curate memory" switch in **Memory** settings, mirroring `WEB_ACCESS`.
+    Off: the roll-up writes only the daily summary and memory is yours alone to edit. Wired through
+    config, the engine/persona (`buildOperating` now takes `autoMemory` instead of `memory`), the
+    setup API/state, and the SPA settings form.
+
 ## 2026-06-29
 
-- **Memory writes: stronger prompting + an on/off switch.** Two changes to how the companion
-  manages its own memory:
+- **Memory writes: stronger prompting + an on/off switch.** _(Superseded 2026-06-30 — see above.)_
+  Two changes to how the companion manages its own memory:
   - *Reworked the memory prompt.* The operating block's memory section now leads with "memory
     is not automatic" (narrating a save does nothing without the tag), names concrete triggers,
     carries a worked example, leans toward saving when unsure, and instructs the model to convert

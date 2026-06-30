@@ -9,7 +9,7 @@
 import { config } from "#/config/index.ts";
 import { ProviderUnreachableError, provider } from "#/llm/index.ts";
 import type { ChatMessage, GenerateOptions } from "#/llm/types.ts";
-import { applyActions, parseActions } from "./actions.ts";
+import { parseActions } from "./actions.ts";
 import { buildKnowledge, buildVolatile } from "./context.ts";
 import { appendMessage, messagesForDay, todayKey } from "./memory/store.ts";
 import { takeParagraphs } from "./paragraphs.ts";
@@ -109,7 +109,7 @@ async function buildTurn(
 		buildIdentity(),
 		buildOperating({
 			web: webConfigured(),
-			memory: config.memory.writesEnabled,
+			autoMemory: config.memory.rollupExtract,
 		}),
 		buildKnowledge(),
 	]
@@ -173,14 +173,13 @@ function cleanForDisplay(text: string): string {
 }
 
 /**
- * Commit the reply's sidecar actions and return the cleaned text. When memory
- * writes are disabled, the tags are only stripped, never applied — so the model
- * can't change memory and a stray tag still never leaks to the user.
+ * Strip any memory sidecar tags from the reply before it's shown or stored. The
+ * companion no longer manages memory mid-conversation (that lives in the nightly
+ * roll-up), so the tags are never acted on — only removed, in case a reply emits
+ * a stray one, so it never leaks to the user.
  */
 function commitActions(raw: string): string {
-	return config.memory.writesEnabled
-		? applyActions(raw)
-		: parseActions(raw).cleaned;
+	return parseActions(raw).cleaned;
 }
 
 /**
