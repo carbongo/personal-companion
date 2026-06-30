@@ -77,6 +77,8 @@ interface SetupBody {
 	memoryLimit?: string;
 	memorySummaryCron?: string;
 	memoryRollupExtract?: string;
+	memoryWeekly?: string;
+	memoryWeeklyCron?: string;
 	// web access
 	webEnabled?: string;
 	webSearchProvider?: string;
@@ -464,6 +466,8 @@ api.post("/setup", async (c) => {
 		MEMORY_LIMIT: opt(b.memoryLimit),
 		MEMORY_SUMMARY_CRON: opt(b.memorySummaryCron),
 		MEMORY_ROLLUP_EXTRACT: opt(b.memoryRollupExtract),
+		MEMORY_WEEKLY: opt(b.memoryWeekly),
+		MEMORY_WEEKLY_CRON: opt(b.memoryWeeklyCron),
 		WEB_ACCESS: opt(b.webEnabled),
 		WEB_SEARCH_PROVIDER: opt(b.webSearchProvider),
 		WEB_STEPS: opt(b.webSteps),

@@ -146,6 +146,15 @@ export interface MemoryConfig {
 	 * Off: the roll-up only writes the daily summary, and memory is yours to edit.
 	 */
 	rollupExtract: boolean;
+	/**
+	 * Whether a weekly pass also consolidates memory across the last week of daily
+	 * summaries — strengthening recurring patterns into confident facts, merging
+	 * near-duplicates, dropping one-offs, and fixing shifts the daily pass is too
+	 * myopic to see. Gated by `rollupExtract` (it edits memory). Off: no weekly pass.
+	 */
+	weekly: boolean;
+	/** When the weekly consolidation runs (5-field cron, in `TZ`). */
+	weeklyCron: string;
 }
 
 export interface WebConfig {
@@ -242,6 +251,9 @@ export function loadConfig(): Config {
 			memoryLimit: num("MEMORY_LIMIT", 40),
 			summaryCron: str("MEMORY_SUMMARY_CRON", "55 23 * * *"),
 			rollupExtract: bool("MEMORY_ROLLUP_EXTRACT", true),
+			weekly: bool("MEMORY_WEEKLY", true),
+			// Monday 04:00 — after the week's last daily roll-up, a quiet hour.
+			weeklyCron: str("MEMORY_WEEKLY_CRON", "0 4 * * 1"),
 		},
 		web: {
 			enabled: bool("WEB_ACCESS", true),

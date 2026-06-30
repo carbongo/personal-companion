@@ -10,6 +10,10 @@
  *   - a periodic safety tick backfills past days, covering the case where the
  *     box was asleep straight through the nightly minute and never restarted.
  *
+ * The same tick also drives the optional weekly consolidation on its own cron,
+ * with the same survive-downtime logic: an overdue weekly pass is caught up on
+ * boot and on the safety tick.
+ *
  * No daemons, no external cron — a dependency-free 5-field matcher plus a plain
  * interval. Timing and the roll-up calls are injected so it is fully testable.
  * See docs/memory.md.
@@ -106,6 +110,12 @@ export interface SchedulerDeps {
 	tz: string;
 	runDailyRollup: () => Promise<number>;
 	backfillPastDays: () => Promise<number>;
+	/** Cron for the weekly consolidation; omit to disable the weekly pass. */
+	weeklyCron?: string;
+	/** The scheduled weekly consolidation (fires on `weeklyCron`). */
+	runWeeklyConsolidation?: () => Promise<number>;
+	/** Overdue-only weekly catch-up, for boot and the safety tick. */
+	backfillWeeklyConsolidation?: () => Promise<number>;
 	now?: () => Date;
 	log?: (msg: string) => void;
 	/** Run the safety backfill every N ticks (one tick = one minute). */
@@ -122,6 +132,7 @@ export class RollupScheduler {
 	private readonly safetyEvery: number;
 	private ticks = 0;
 	private lastFired = "";
+	private lastWeeklyFired = "";
 	private busy = false;
 	private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -131,14 +142,37 @@ export class RollupScheduler {
 		this.safetyEvery = deps.safetyEveryTicks ?? 30;
 	}
 
-	/** Boot catch-up: wrap any finished past day that was missed while down. */
+	/**
+	 * Boot catch-up: wrap any finished past day that was missed while down, and
+	 * run the weekly consolidation if it's overdue (the box was off through its
+	 * scheduled minute).
+	 */
 	async boot(): Promise<void> {
 		await this.guard(() => this.deps.backfillPastDays());
+		if (this.deps.backfillWeeklyConsolidation)
+			await this.guard(this.deps.backfillWeeklyConsolidation);
 	}
 
-	/** Handle one minute tick; fires at most one roll-up per matched minute. */
+	/** Handle one minute tick; fires at most one of each pass per matched minute. */
 	tick(at: Date = this.now()): void {
 		this.ticks++;
+
+		// Weekly consolidation, when configured — fire once per matched minute.
+		if (
+			this.deps.weeklyCron &&
+			this.deps.runWeeklyConsolidation &&
+			cronMatches(this.deps.weeklyCron, at, this.deps.tz)
+		) {
+			const key = minuteKey(at, this.deps.tz);
+			if (key !== this.lastWeeklyFired) {
+				this.lastWeeklyFired = key;
+				this.log(`[companion] weekly consolidation triggered (${key})`);
+				const run = this.deps.runWeeklyConsolidation;
+				void this.guard(() => run());
+			}
+		}
+
+		// Nightly roll-up — fire once per matched minute.
 		if (cronMatches(this.deps.cron, at, this.deps.tz)) {
 			const key = minuteKey(at, this.deps.tz);
 			if (key !== this.lastFired) {
@@ -148,8 +182,18 @@ export class RollupScheduler {
 			}
 			return;
 		}
-		if (this.ticks % this.safetyEvery === 0)
-			void this.guard(() => this.deps.backfillPastDays());
+
+		// Periodic safety: backfill missed days, and catch up an overdue weekly pass.
+		// Both run inside one guard, in sequence — the guard drops *concurrent* work,
+		// so firing them as two separate calls would silently skip the second.
+		if (this.ticks % this.safetyEvery === 0) {
+			const weeklyBackfill = this.deps.backfillWeeklyConsolidation;
+			void this.guard(async () => {
+				let n = await this.deps.backfillPastDays();
+				if (weeklyBackfill) n += await weeklyBackfill();
+				return n;
+			});
+		}
 	}
 
 	start(): void {

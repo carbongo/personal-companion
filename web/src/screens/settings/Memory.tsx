@@ -181,6 +181,16 @@ export function MemorySection({ form, set, toast }: SectionProps) {
           >
             <Toggle checked={form.memoryRollupExtract} onChange={(v) => set("memoryRollupExtract", v)} />
           </ToggleRow>
+          <ToggleRow
+            title="Weekly consolidation"
+            desc="A weekly pass steps back over the last week to firm up consistent habits, merge duplicates, drop one-offs, and fix what changed — things one day alone can't show. Needs the curate switch above."
+          >
+            <Toggle
+              checked={form.memoryWeekly}
+              disabled={!form.memoryRollupExtract}
+              onChange={(v) => set("memoryWeekly", v)}
+            />
+          </ToggleRow>
         </Card>
 
         <Card title="Core — always in mind">
@@ -294,6 +304,14 @@ export function MemorySection({ form, set, toast }: SectionProps) {
             placeholder="0 3 * * *"
             mono
             help="When the companion distills the day on its own."
+          />
+          <Field
+            label="Weekly consolidation schedule (cron)"
+            value={form.memoryWeeklyCron}
+            onChange={(v) => set("memoryWeeklyCron", v)}
+            placeholder="0 4 * * 1"
+            mono
+            help="When it steps back over the week to firm up memory. Used only when weekly consolidation is on."
           />
         </Card>
       </div>

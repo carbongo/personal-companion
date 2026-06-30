@@ -182,21 +182,24 @@ export function Toggle({
   checked,
   onChange,
   label,
+  disabled,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={() => {
         onChange(!checked);
         sfx.play("toggle");
       }}
-      className="group inline-flex items-center gap-3"
+      className={`group inline-flex items-center gap-3 ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
     >
       <span
         className={`relative h-[26px] w-[46px] rounded-full border transition-all duration-300 ${

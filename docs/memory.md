@@ -71,6 +71,22 @@ the nightly run is the only one that wraps *today*, as the day closes. The new d
 its own: messages are bucketed by the live local day (`TZ`), so the first message after
 midnight simply lands in the new day's bucket.
 
+## The weekly consolidation
+
+The daily reconcile is **myopic** — it sees one day, so it can't tell a one-off from a habit
+or notice what's *consistent*. A weekly pass (`MEMORY_WEEKLY`, default on; gated by
+`MEMORY_ROLLUP_EXTRACT`) steps back over the **last week of daily summaries** — cheap, already
+compressed — plus the current memories, and tidies the set: **strengthen** a pattern that
+recurred into a confident fact (many morning runs → "usually runs in the morning"), **merge**
+near-duplicates into one precise memory, **drop** a one-off that never became a pattern, and
+**fix** a fact the week shows changed. It's deliberately conservative — absence from the week
+is never a reason to forget, and anything the owner explicitly asked to keep is left alone —
+and it uses the same `<remember>`/`<forget>` machinery as the daily pass.
+
+It runs on its own cron (`MEMORY_WEEKLY_CRON`, default Monday 04:00 in `TZ`) and survives
+downtime the same way the nightly roll-up does: an overdue weekly pass (a week or more since it
+last ran, tracked in a settings key) is caught up on boot and on the periodic safety tick.
+
 ## Token frugality
 
 The prompt is split so a local model's KV cache is reused across turns:

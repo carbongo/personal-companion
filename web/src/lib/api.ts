@@ -79,6 +79,8 @@ export interface SetupValues {
   memoryLimit: number;
   memorySummaryCron: string;
   memoryRollupExtract: boolean;
+  memoryWeekly: boolean;
+  memoryWeeklyCron: string;
   webEnabled: boolean;
   webSearchProvider: string;
   tavilyConfigured: boolean;

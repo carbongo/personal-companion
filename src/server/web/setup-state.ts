@@ -52,6 +52,8 @@ export interface SetupValues {
 	memoryLimit: number;
 	memorySummaryCron: string;
 	memoryRollupExtract: boolean;
+	memoryWeekly: boolean;
+	memoryWeeklyCron: string;
 	// web access
 	webEnabled: boolean;
 	webSearchProvider: string;
@@ -127,6 +129,8 @@ export function currentSetupValues(): SetupValues {
 		memoryLimit: config.memory.memoryLimit,
 		memorySummaryCron: config.memory.summaryCron,
 		memoryRollupExtract: config.memory.rollupExtract,
+		memoryWeekly: config.memory.weekly,
+		memoryWeeklyCron: config.memory.weeklyCron,
 		webEnabled: config.web.enabled,
 		webSearchProvider: config.web.searchProvider,
 		tavilyConfigured: !!config.web.tavilyKey,

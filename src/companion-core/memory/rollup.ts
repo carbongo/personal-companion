@@ -1,11 +1,13 @@
 /**
- * Nightly roll-up: compress each day's messages into one durable summary the
- * companion reads on later days, reconcile its long-term memory against the day
- * (save lasting new facts, drop ones the day made wrong), and backfill any
- * earlier day that has messages but no summary yet (e.g. a night the box was
- * off). Memory management lives here, not in the live conversation. Pauses
- * gracefully if the model is unreachable and catches up next run. See
- * docs/memory.md.
+ * Roll-ups. The nightly pass compresses each day's messages into one durable
+ * summary the companion reads on later days, reconciles its long-term memory
+ * against the day (save lasting new facts, drop ones the day made wrong), and
+ * backfills any earlier day that has messages but no summary yet (e.g. a night
+ * the box was off). A weekly pass then steps back over the last week of
+ * summaries to consolidate memory — strengthen consistent patterns, merge
+ * duplicates, drop one-offs, fix shifts. Memory management lives here, not in the
+ * live conversation. Pauses gracefully if the model is unreachable and catches up
+ * next run. See docs/memory.md.
  */
 import { config } from "#/config/index.ts";
 import type { Memory, Message } from "#/db/schema.ts";
@@ -16,8 +18,11 @@ import {
 	distinctMessageDays,
 	forgetMemory,
 	getDailySummary,
+	getSetting,
+	listDailySummaries,
 	listMemories,
 	messagesForDay,
+	setSetting,
 	todayKey,
 	upsertDailySummary,
 } from "./store.ts";
@@ -109,6 +114,33 @@ export interface MemoryReconcile {
  * no-op. Both directions are capped per run so a degenerate reply can't flood or
  * gut memory. Best-effort: the caller treats a failure as non-fatal.
  */
+/**
+ * Apply a reconcile reply (`<remember>` / `<forget>` tags) to the store: drop
+ * matched memories first, then add the genuinely new ones — de-duplicated
+ * against what's stored after the drops, so a corrected fact isn't blocked by
+ * the stale one it replaces. `cap` bounds each direction so a degenerate reply
+ * can't flood or gut memory. Shared by the daily and weekly passes.
+ */
+function applyReconcile(raw: string, cap: number): MemoryReconcile {
+	const { remember, forget } = parseActions(raw);
+
+	const forgotten: string[] = [];
+	for (const query of forget.slice(0, cap))
+		for (const m of forgetMemory(query)) forgotten.push(m.content);
+
+	const seen = new Set(listMemories(DEDUP_SCAN).map((m) => norm(m.content)));
+	const saved: string[] = [];
+	for (const fact of remember) {
+		const key = norm(fact);
+		if (!key || seen.has(key)) continue;
+		seen.add(key);
+		addMemory(fact);
+		saved.push(fact);
+		if (saved.length >= cap) break;
+	}
+	return { saved, forgotten };
+}
+
 export async function reconcileMemories(
 	day: string,
 	messages: Message[],
@@ -121,24 +153,7 @@ export async function reconcileMemories(
 		],
 		{ think: false, maxTokens: 512 },
 	);
-	const { remember, forget } = parseActions(raw);
-
-	const forgotten: string[] = [];
-	for (const query of forget.slice(0, MAX_CHANGES_PER_DAY))
-		for (const m of forgetMemory(query)) forgotten.push(m.content);
-
-	// Re-scan: a fact we just dropped shouldn't block re-saving a corrected form.
-	const seen = new Set(listMemories(DEDUP_SCAN).map((m) => norm(m.content)));
-	const saved: string[] = [];
-	for (const fact of remember) {
-		const key = norm(fact);
-		if (!key || seen.has(key)) continue;
-		seen.add(key);
-		addMemory(fact);
-		saved.push(fact);
-		if (saved.length >= MAX_CHANGES_PER_DAY) break;
-	}
-	return { saved, forgotten };
+	return applyReconcile(raw, MAX_CHANGES_PER_DAY);
 }
 
 /**
@@ -211,4 +226,124 @@ export function runDailyRollup(): Promise<number> {
  */
 export function backfillPastDays(): Promise<number> {
 	return rollup(false);
+}
+
+// --- weekly consolidation ----------------------------------------------------
+//
+// The daily reconcile is myopic — it sees one day, so it can't tell a one-off
+// from a habit or notice what's consistent. A weekly pass steps back over the
+// last several days of summaries to keep memory sharp: strengthen patterns that
+// recurred, merge near-duplicates, drop one-offs, and fix facts that shifted.
+
+/** Setting key holding the day the weekly consolidation last ran (todayKey). */
+const WEEKLY_LAST_RUN = "weekly_consolidation_last_run";
+/** How many recent daily summaries the weekly pass reads, and its cadence. */
+const WEEKLY_WINDOW_DAYS = 7;
+/** Per-run cap on memory changes, like the daily pass but a touch roomier. */
+const MAX_CHANGES_PER_WEEK = 20;
+
+function weeklySystem(known: Memory[]): string {
+	const { name, owner } = config.app;
+	const knownList = known.length
+		? known.map((m) => `- ${m.content}`).join("\n")
+		: "(nothing saved yet)";
+	return `You are ${name}. Step back over this past week with ${owner} — you'll see your own daily summaries for it below — and tidy your long-term memory. You are not logging new events here; you are looking across the whole week for what's consistent, and keeping your memory sharp and true. Be conservative: change something only when the week clearly shows a reason.
+
+Your saved memories right now:
+${knownList}
+
+Looking across the week as a whole, do any of these — but only with clear support from the summaries:
+- STRENGTHEN a pattern: if something recurred across several days, make sure it's saved as a confident, durable fact (e.g. many morning runs → "${owner} usually runs in the morning"). Replace a tentative or vague memory with the sharper version.
+- MERGE duplicates: if two saved memories say nearly the same thing, drop the weaker wording and keep one precise version.
+- DROP a one-off: if a saved memory turns out to have been a single occasion rather than a real pattern, remove it.
+- FIX a shift: if the week shows a fact changed, drop the old wording and save the new.
+
+Leave a memory alone if the week simply didn't bring it up — absence is not a reason to forget. Never drop something ${owner} explicitly asked you to remember.
+
+Reply using ONLY these tags, each on its own line, and nothing else:
+<remember>a durable fact to keep or sharpen, one short standalone sentence</remember>
+<forget>the exact wording of a saved memory above to drop</forget>
+If nothing needs changing, reply with nothing at all.`;
+}
+
+/** Whole days from `a` to `b`, both "YYYY-MM-DD" (b − a). */
+function daysBetweenKeys(a: string, b: string): number {
+	const [ay, am, ad] = a.split("-").map(Number) as [number, number, number];
+	const [by, bm, bd] = b.split("-").map(Number) as [number, number, number];
+	const ms = Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad);
+	return Math.round(ms / 86_400_000);
+}
+
+/** Whether the weekly pass is due: never run, or ≥ a week since it last did. */
+export function weeklyDue(): boolean {
+	const last = getSetting(WEEKLY_LAST_RUN);
+	if (!last) return true;
+	return daysBetweenKeys(last, todayKey()) >= WEEKLY_WINDOW_DAYS;
+}
+
+/**
+ * Consolidate memory against the last week of daily summaries, then record that
+ * the pass ran (so the boot/safety catch-up knows it's covered). Returns what
+ * changed. A no-op with no summaries yet. Records the run only after a
+ * successful model call, so an unreachable model is retried rather than skipped.
+ */
+export async function weeklyConsolidate(): Promise<MemoryReconcile> {
+	const summaries = listDailySummaries(WEEKLY_WINDOW_DAYS).slice().reverse();
+	if (!summaries.length) return { saved: [], forgotten: [] };
+	const known = listMemories(DEDUP_SCAN);
+	const block = summaries
+		.map((s) => `### ${s.day}\n${s.summaryMd}`)
+		.join("\n\n");
+	const raw = await provider.chat(
+		[
+			{ role: "system", content: weeklySystem(known) },
+			{ role: "user", content: `This past week, day by day:\n\n${block}` },
+		],
+		{ think: false, maxTokens: 768 },
+	);
+	const result = applyReconcile(raw, MAX_CHANGES_PER_WEEK);
+	setSetting(WEEKLY_LAST_RUN, todayKey());
+	return result;
+}
+
+/** Gate + run + log the weekly consolidation; swallow a transient model outage. */
+async function weeklyRun(): Promise<number> {
+	if (!config.memory.rollupExtract || !config.memory.weekly) return 0;
+	try {
+		const { saved, forgotten } = await weeklyConsolidate();
+		if (saved.length || forgotten.length)
+			console.log(
+				`[companion] weekly consolidation: ` +
+					`+${saved.length} saved, -${forgotten.length} forgotten`,
+			);
+		return saved.length + forgotten.length;
+	} catch (err) {
+		if (err instanceof ProviderUnreachableError) {
+			console.log(
+				"[companion] weekly consolidation paused (model unreachable); will retry",
+			);
+			return 0;
+		}
+		console.error(
+			"[companion] weekly consolidation failed:",
+			(err as Error).message,
+		);
+		return 0;
+	}
+}
+
+/** The scheduled weekly pass (fires on `MEMORY_WEEKLY_CRON`). */
+export function runWeeklyConsolidation(): Promise<number> {
+	return weeklyRun();
+}
+
+/**
+ * Run the weekly pass only if it's overdue — for boot and the periodic safety
+ * tick, so a week missed while the box was off/asleep is still caught up the
+ * moment it's back. Idempotent: a no-op until a week has elapsed.
+ */
+export function backfillWeeklyConsolidation(): Promise<number> {
+	if (!config.memory.rollupExtract || !config.memory.weekly || !weeklyDue())
+		return Promise.resolve(0);
+	return weeklyRun();
 }

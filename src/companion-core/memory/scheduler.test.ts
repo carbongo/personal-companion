@@ -134,4 +134,77 @@ describe("RollupScheduler", () => {
 		expect(backfill.state.n).toBe(1);
 		expect(nightly.state.n).toBe(0);
 	});
+
+	// 2026-06-22 is a Monday; Tokyo is UTC+9, so Mon 04:00 Tokyo == Sun 19:00 UTC.
+	const weeklyMatch = new Date("2026-06-21T19:00:00Z"); // = Mon 2026-06-22 04:00 Tokyo
+
+	it("fires the weekly consolidation once per matched minute", async () => {
+		const nightly = spy();
+		const backfill = spy();
+		const weekly = spy();
+		const weeklyBackfill = spy();
+		const s = new RollupScheduler({
+			cron: "55 23 * * *",
+			tz,
+			runDailyRollup: nightly.fn,
+			backfillPastDays: backfill.fn,
+			weeklyCron: "0 4 * * 1",
+			runWeeklyConsolidation: weekly.fn,
+			backfillWeeklyConsolidation: weeklyBackfill.fn,
+		});
+		s.tick(weeklyMatch);
+		s.tick(weeklyMatch); // same minute — must not fire again
+		await flush();
+		expect(weekly.state.n).toBe(1);
+		expect(nightly.state.n).toBe(0); // different cron, didn't fire
+	});
+
+	it("boot catches up an overdue weekly pass", async () => {
+		const weeklyBackfill = spy();
+		const s = new RollupScheduler({
+			cron: "55 23 * * *",
+			tz,
+			runDailyRollup: spy().fn,
+			backfillPastDays: spy().fn,
+			weeklyCron: "0 4 * * 1",
+			runWeeklyConsolidation: spy().fn,
+			backfillWeeklyConsolidation: weeklyBackfill.fn,
+		});
+		await s.boot();
+		expect(weeklyBackfill.state.n).toBe(1);
+	});
+
+	it("the safety tick also catches up an overdue weekly pass", async () => {
+		const weekly = spy();
+		const weeklyBackfill = spy();
+		const s = new RollupScheduler({
+			cron: "55 23 * * *",
+			tz,
+			runDailyRollup: spy().fn,
+			backfillPastDays: spy().fn,
+			weeklyCron: "0 4 * * 1",
+			runWeeklyConsolidation: weekly.fn,
+			backfillWeeklyConsolidation: weeklyBackfill.fn,
+			safetyEveryTicks: 2,
+		});
+		s.tick(noMatch);
+		s.tick(noMatch); // 2nd idle tick → safety: past-day + overdue weekly
+		await flush();
+		expect(weeklyBackfill.state.n).toBe(1);
+		expect(weekly.state.n).toBe(0); // scheduled weekly didn't fire (no cron match)
+	});
+
+	it("leaves the weekly pass alone when not configured", async () => {
+		const nightly = spy();
+		const s = new RollupScheduler({
+			cron: "0 4 * * 1", // even if the daily cron coincides with a Monday 04:00
+			tz,
+			runDailyRollup: nightly.fn,
+			backfillPastDays: spy().fn,
+		});
+		await s.boot();
+		s.tick(weeklyMatch);
+		await flush();
+		expect(nightly.state.n).toBe(1); // daily still fires; no weekly wiring needed
+	});
 });

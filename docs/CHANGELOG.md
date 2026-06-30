@@ -5,6 +5,20 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-06-30
 
+- **Weekly memory consolidation.** Added a weekly pass that steps back over the last week of
+  daily summaries (cheap — already compressed) plus the current memories and tidies the set:
+  strengthen a pattern that recurred into a confident fact (many morning runs → "usually runs
+  in the morning"), merge near-duplicates, drop one-offs, fix shifts — the consistency the
+  myopic per-day reconcile can't see. Conservative: absence from the week never forgets, and
+  explicit "remember this" facts are left alone. New code: `weeklyConsolidate` /
+  `runWeeklyConsolidation` / `backfillWeeklyConsolidation` in `memory/rollup.ts` (sharing the
+  daily pass's `applyReconcile`); the `RollupScheduler` now drives a second cron with the same
+  survive-downtime catch-up (overdue pass tracked in a settings key, caught up on boot + the
+  safety tick). New env: `MEMORY_WEEKLY` (default on, gated by `MEMORY_ROLLUP_EXTRACT`) and
+  `MEMORY_WEEKLY_CRON` (default `0 4 * * 1`), wired through config, the setup API/state, and the
+  SPA settings form (`Toggle` gained a `disabled` prop). `scripts/reconcile-history.ts` still
+  covers retroactive per-day reconciliation.
+
 - **Memory management moved to the nightly roll-up; inline tags retired.** The mid-conversation
   approach from 2026-06-29 (below) didn't hold up — the default small local model almost never
   emitted `<remember>` at the right moment, so memory effectively never persisted. Two changes:

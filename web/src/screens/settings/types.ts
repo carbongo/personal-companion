@@ -56,6 +56,8 @@ export interface Form {
   memoryLimit: number;
   memorySummaryCron: string;
   memoryRollupExtract: boolean;
+  memoryWeekly: boolean;
+  memoryWeeklyCron: string;
   // System
   timezone: string;
   dataDir: string;
@@ -117,6 +119,8 @@ export function formFromValues(v: SetupValues): Form {
     memoryLimit: v.memoryLimit,
     memorySummaryCron: v.memorySummaryCron,
     memoryRollupExtract: v.memoryRollupExtract,
+    memoryWeekly: v.memoryWeekly,
+    memoryWeeklyCron: v.memoryWeeklyCron,
     timezone: v.timezone,
     dataDir: v.dataDir,
     port: v.port,
@@ -176,6 +180,8 @@ export function bodyFromForm(f: Form): Record<string, string> {
     memoryLimit: s(f.memoryLimit),
     memorySummaryCron: f.memorySummaryCron,
     memoryRollupExtract: b(f.memoryRollupExtract),
+    memoryWeekly: b(f.memoryWeekly),
+    memoryWeeklyCron: f.memoryWeeklyCron,
     timezone: f.timezone,
     dataDir: f.dataDir,
     port: s(f.port),

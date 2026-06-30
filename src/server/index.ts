@@ -16,7 +16,9 @@ import {
 import { companionConfigured } from "#/companion-core/engine.ts";
 import {
 	backfillPastDays,
+	backfillWeeklyConsolidation,
 	runDailyRollup,
+	runWeeklyConsolidation,
 } from "#/companion-core/memory/rollup.ts";
 import { RollupScheduler } from "#/companion-core/memory/scheduler.ts";
 import { config } from "#/config/index.ts";
@@ -55,17 +57,25 @@ console.log(
 // to the box being off at the scheduled minute: it catches up missed days on boot
 // and on a periodic safety tick. No-op while no model is configured.
 if (companionConfigured()) {
+	// The weekly consolidation only matters when the roll-up curates memory at all.
+	const weeklyOn = config.memory.rollupExtract && config.memory.weekly;
 	const scheduler = new RollupScheduler({
 		cron: config.memory.summaryCron,
 		tz: config.app.timezone,
 		runDailyRollup,
 		backfillPastDays,
+		weeklyCron: weeklyOn ? config.memory.weeklyCron : undefined,
+		runWeeklyConsolidation: weeklyOn ? runWeeklyConsolidation : undefined,
+		backfillWeeklyConsolidation: weeklyOn
+			? backfillWeeklyConsolidation
+			: undefined,
 		log: (m) => console.log(m),
 	});
 	void scheduler.boot();
 	scheduler.start();
 	console.log(
-		`[companion] roll-up scheduler: on (cron "${config.memory.summaryCron}", ${config.app.timezone}; catches up on boot)`,
+		`[companion] roll-up scheduler: on (cron "${config.memory.summaryCron}", ${config.app.timezone}; catches up on boot)` +
+			(weeklyOn ? `; weekly consolidation "${config.memory.weeklyCron}"` : ""),
 	);
 } else {
 	console.log("[companion] roll-up scheduler: off (no model configured)");
