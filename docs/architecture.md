@@ -56,12 +56,22 @@ and [decisions/llm-provider-abstraction.md](./decisions/llm-provider-abstraction
    high and tokens low. (See [memory.md](./memory.md).)
 3. The **LLM provider** generates a reply.
 4. If web access is on and the reply contains `<search>`/`<fetch>` tags, the engine runs
-   them, feeds results back, and regenerates — a small bounded loop.
+   them, feeds results back, and regenerates — a small bounded loop. A model often mis-types
+   a link the owner shared, so a `<fetch>` is **snapped back to the owner's exact URL** when it
+   matches one they actually sent (small models 404 on their own retyped URLs otherwise).
    (See [web-access.md](./web-access.md).)
 5. Any stray memory tag is **stripped** from the user-facing text (the companion no longer
    edits memory mid-conversation — that happens in the nightly roll-up; see
    [memory.md](./memory.md)).
 6. The channel sends the reply (Telegram splits it into paragraph-sized messages).
+
+Two robustness guards keep a single hiccup from stalling a whole day (both from the 2026-07-01
+[CHANGELOG](./CHANGELOG.md) entry). A **wholly empty draw** (small quantized models occasionally
+sample the stop token first) is re-asked a couple of times; if it's still empty the user sees a
+`"…"` placeholder, but that placeholder is **never stored** as an assistant turn — a stored
+`"…"` gets mimicked by the model and would stall the whole day in empty replies. And because an
+un-stored reply leaves two user turns back to back (which Gemma's template answers with silence),
+`buildTurn` **merges consecutive same-role turns** so the history always strictly alternates.
 
 ## Why no API tool-calling loop
 

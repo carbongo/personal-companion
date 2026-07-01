@@ -3,6 +3,34 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
+## 2026-07-01
+
+Diagnosed and fixed a stall where the companion answered only `"…"` after the owner shared a
+link to their own article. Four independent bugs compounded; each is now fixed in the engine's
+`respond`/`respondStream` path (no new deps, env, or schema).
+
+- **Shared links are now fetched with the owner's exact URL (browsing fix).** The root cause: a
+  small model **retypes** a link when it emits `<fetch>` and mangles it — here `valve-s` →
+  `Valve-s`, which **404s** on the owner's own page, so the article never got read. `web.ts` now
+  exports `extractUrls`, and `runWebRequests` takes the set of URLs the owner actually sent and
+  **snaps** a requested fetch back to the owner's exact URL when it matches case-insensitively
+  (ignoring a trailing slash). The engine collects those URLs from the real user turns before the
+  web loop and threads them through both generate paths.
+- **Consecutive user turns are merged so history strictly alternates.** Gemma's chat template
+  returns nothing when two user turns sit back to back — which happens whenever a turn produced
+  no stored reply. `buildTurn` now runs `alternate()` to collapse consecutive same-role turns
+  (joining text, concatenating images). This alone un-stuck the existing conversation.
+- **Empty completions are re-asked (`EMPTY_RETRIES` = 2).** A quantized model at temperature 1
+  occasionally samples the stop token first and returns nothing; a fresh draw almost always
+  yields real text. A reply carrying a `<search>`/`<fetch>` tag counts as work, not empty, so
+  it's never retried. Wired into both `chatNonEmpty` (non-streaming) and `runOnce` (streaming).
+- **The `"…"` placeholder is never persisted.** It's still shown to the user on a truly empty
+  draw, but is no longer stored as an assistant turn — a stored `"…"` gets mimicked and used to
+  seed a whole run of empty replies for the day.
+
+Temperature is left at the gemma-recommended `1` (not the fix). No manual DB surgery is needed
+to recover a stuck day — `alternate()` self-heals the dangling turns on the next message.
+
 ## 2026-06-30
 
 - **Weekly memory consolidation.** Added a weekly pass that steps back over the last week of

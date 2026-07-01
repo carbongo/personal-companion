@@ -15,6 +15,7 @@ import { appendMessage, messagesForDay, todayKey } from "./memory/store.ts";
 import { takeParagraphs } from "./paragraphs.ts";
 import { buildIdentity, buildOperating } from "./persona.ts";
 import {
+	extractUrls,
 	extractWebRequests,
 	runWebRequests,
 	stripWebTags,
@@ -85,6 +86,26 @@ async function visionPlan(
 	return { canSee };
 }
 
+/**
+ * Collapse consecutive same-role turns so history strictly alternates. Some chat
+ * templates (Gemma's included) return nothing when two user turns sit back to
+ * back — which now happens whenever a turn produced no stored reply (an empty
+ * draw is shown as "…" but never logged). Merging keeps the model answering.
+ */
+function alternate(messages: ChatMessage[]): ChatMessage[] {
+	const out: ChatMessage[] = [];
+	for (const m of messages) {
+		const prev = out[out.length - 1];
+		if (prev && prev.role === m.role && m.role !== "system") {
+			prev.content = `${prev.content}\n\n${m.content}`.trim();
+			if (m.images?.length) prev.images = [...(prev.images ?? []), ...m.images];
+		} else {
+			out.push({ ...m });
+		}
+	}
+	return out;
+}
+
 /** The framing for web-lookup results fed back into the model. */
 function webResultsMessage(results: string): string {
 	return (
@@ -146,7 +167,42 @@ async function buildTurn(
 	// can burn the whole budget and return nothing) and a picture rarely needs
 	// deliberation. This also avoids a 400 on a vision model that can't "think".
 	if (turn.images?.length && plan.canSee) genOpts.think = false;
-	return { messages, genOpts };
+	return { messages: alternate(messages), genOpts };
+}
+
+/**
+ * How many times to re-ask the model when a draw comes back wholly empty. Small
+ * quantized models at higher temperature occasionally sample the stop token first
+ * and return nothing; a fresh draw almost always yields real text. A reply that
+ * carries a web tag isn't empty — it's work to run — so it's never retried.
+ */
+const EMPTY_RETRIES = 2;
+
+/** True when a draw has no user-visible text and no web request to run. */
+function isBlankReply(raw: string): boolean {
+	if (extractWebRequests(raw).length) return false;
+	return !cleanForDisplay(raw);
+}
+
+/** One model call, re-drawn a couple of times if it returns nothing. */
+async function chatNonEmpty(
+	messages: ChatMessage[],
+	opts: GenerateOptions,
+): Promise<string> {
+	let raw = await provider.chat(messages, opts);
+	for (let i = 0; i < EMPTY_RETRIES && isBlankReply(raw); i++)
+		raw = await provider.chat(messages, opts);
+	return raw;
+}
+
+/** Links the owner actually sent, so a mangled `<fetch>` can be snapped back to
+ * the real URL. Collected before the web loop, while every turn is still real. */
+function userUrls(messages: ChatMessage[]): string[] {
+	const out: string[] = [];
+	for (const m of messages)
+		if (m.role === "user")
+			for (const u of extractUrls(m.content)) if (!out.includes(u)) out.push(u);
+	return out;
 }
 
 /** One non-streaming reply, including the bounded web-lookup loop. */
@@ -154,15 +210,16 @@ async function generate(
 	messages: ChatMessage[],
 	opts: GenerateOptions,
 ): Promise<string> {
-	let raw = await provider.chat(messages, opts);
+	const urls = userUrls(messages);
+	let raw = await chatNonEmpty(messages, opts);
 	if (!webConfigured()) return raw;
 	for (let step = 0; step < config.web.steps; step++) {
 		const reqs = extractWebRequests(raw);
 		if (!reqs.length) break;
-		const results = await runWebRequests(reqs);
+		const results = await runWebRequests(reqs, urls);
 		messages.push({ role: "assistant", content: raw });
 		messages.push({ role: "user", content: webResultsMessage(results) });
-		raw = await provider.chat(messages, opts);
+		raw = await chatNonEmpty(messages, opts);
 	}
 	return raw;
 }
@@ -203,21 +260,33 @@ async function generateStream(
 			if (cleaned) await emit(cleaned);
 		}
 	};
-	const runOnce = (msgs: ChatMessage[]): Promise<string> =>
+	const draw = (msgs: ChatMessage[]): Promise<string> =>
 		provider.chatStream
 			? provider.chatStream(msgs, onDelta, opts)
 			: provider.chat(msgs, opts).then(async (full) => {
 					await onDelta(full);
 					return full;
 				});
+	// Re-draw a wholly empty stream (nothing shown, nothing buffered, no web tag).
+	const runOnce = async (msgs: ChatMessage[]): Promise<string> => {
+		let out = await draw(msgs);
+		for (
+			let i = 0;
+			i < EMPTY_RETRIES && isBlankReply(out) && !buffer.trim();
+			i++
+		)
+			out = await draw(msgs);
+		return out;
+	};
 
+	const urls = userUrls(messages);
 	let raw = await runOnce(messages);
 	if (webConfigured()) {
 		for (let step = 0; step < config.web.steps; step++) {
 			const reqs = extractWebRequests(raw);
 			if (!reqs.length) break;
 			buffer = ""; // discard the web-tag-only partial before regenerating
-			const results = await runWebRequests(reqs);
+			const results = await runWebRequests(reqs, urls);
 			messages.push({ role: "assistant", content: raw });
 			messages.push({ role: "user", content: webResultsMessage(results) });
 			raw = await runOnce(messages);
@@ -253,9 +322,11 @@ export async function respond(turn: Turn): Promise<EngineReply> {
 		throw err;
 	}
 
-	const reply = commitActions(stripWebTags(raw)) || "…";
-	appendMessage({ day, role: "assistant", content: reply });
-	return { reply };
+	// Only a real reply is logged. A blank draw is shown as "…" but never stored:
+	// a stored "…" turn gets mimicked, seeding a run of empty replies for the day.
+	const cleaned = commitActions(stripWebTags(raw));
+	if (cleaned) appendMessage({ day, role: "assistant", content: cleaned });
+	return { reply: cleaned || "…" };
 }
 
 /**
@@ -298,8 +369,11 @@ export async function respondStream(
 		throw err;
 	}
 
-	const reply = commitActions(stripWebTags(raw)) || "…";
-	appendMessage({ day, role: "assistant", content: reply });
+	// Only a real reply is logged; a blank "…" is shown but never stored (a stored
+	// "…" turn gets mimicked, seeding a run of empty replies for the day).
+	const cleaned = commitActions(stripWebTags(raw));
+	if (cleaned) appendMessage({ day, role: "assistant", content: cleaned });
+	const reply = cleaned || "…";
 	// If nothing was streamable (e.g. the reply was only sidecar tags), still
 	// hand the client the final text so a bubble always appears.
 	if (!emitted) await emit(reply);

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test";
 
-import { extractWebRequests, guardUrl, stripWebTags } from "./web.ts";
+import {
+	extractUrls,
+	extractWebRequests,
+	guardUrl,
+	snapToUserUrl,
+	stripWebTags,
+} from "./web.ts";
 
 describe("web tags", () => {
 	it("extracts search and fetch requests in order", () => {
@@ -20,6 +26,32 @@ describe("web tags", () => {
 
 	it("strips tags from the user-facing text", () => {
 		expect(stripWebTags("answer\n\n<search>q</search>")).toBe("answer");
+	});
+});
+
+describe("shared-link snapping", () => {
+	const owner =
+		"https://georgiiantipin.com/blog/valve-s-action-to-conquer-the-pc-world-has-begun";
+
+	it("pulls http(s) URLs out of a message, trimming trailing punctuation", () => {
+		expect(
+			extractUrls(`read this: ${owner}. wdyt? and (https://example.com)`),
+		).toEqual([owner, "https://example.com"]);
+	});
+
+	it("snaps a mangled-case fetch back to the owner's exact URL", () => {
+		const mangled = owner.replace("valve-s", "Valve-s"); // what a small model emits → 404
+		expect(snapToUserUrl(mangled, [owner])).toBe(owner);
+	});
+
+	it("ignores a trailing slash when matching", () => {
+		expect(snapToUserUrl(`${owner}/`, [owner])).toBe(owner);
+	});
+
+	it("leaves a genuinely different URL alone", () => {
+		expect(snapToUserUrl("https://elsewhere.com/x", [owner])).toBe(
+			"https://elsewhere.com/x",
+		);
 	});
 });
 

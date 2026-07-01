@@ -60,8 +60,33 @@ export function stripWebTags(raw: string): string {
 		.trim();
 }
 
+/** Every http(s) URL mentioned in a blob of text (trailing punctuation trimmed). */
+export function extractUrls(text: string): string[] {
+	const out: string[] = [];
+	for (const m of text.matchAll(/https?:\/\/[^\s<>"'`)\]]+/gi)) {
+		const u = m[0].replace(/[).,;!?]+$/, "");
+		if (!out.includes(u)) out.push(u);
+	}
+	return out;
+}
+
+/**
+ * Small models retype a link the owner shared and often mangle its casing or tail,
+ * so a `<fetch>` 404s on the owner's own page. If a requested URL matches one the
+ * owner actually sent (case-insensitively, ignoring a trailing slash), fetch the
+ * owner's exact URL instead. A genuinely new URL the model found is left alone.
+ */
+export function snapToUserUrl(requested: string, userUrls: string[]): string {
+	const norm = (u: string) => u.trim().toLowerCase().replace(/\/+$/, "");
+	const want = norm(requested);
+	return userUrls.find((u) => norm(u) === want) ?? requested;
+}
+
 /** Run a round of requests concurrently and format one text block to feed back. */
-export async function runWebRequests(reqs: WebRequest[]): Promise<string> {
+export async function runWebRequests(
+	reqs: WebRequest[],
+	userUrls: string[] = [],
+): Promise<string> {
 	const blocks = await Promise.all(
 		reqs.map(async (r) => {
 			try {
@@ -74,8 +99,9 @@ export async function runWebRequests(reqs: WebRequest[]): Promise<string> {
 					);
 					return `SEARCH "${r.value}":\n${lines.join("\n")}`;
 				}
-				console.log(`[companion] web fetch: ${r.value}`);
-				const page = await fetchPage(r.value);
+				const url = snapToUserUrl(r.value, userUrls);
+				console.log(`[companion] web fetch: ${url}`);
+				const page = await fetchPage(url);
 				return `PAGE ${page.url}${page.title ? ` — ${page.title}` : ""}:\n${page.text}`;
 			} catch (err) {
 				const msg = (err as Error).message || "lookup failed";
