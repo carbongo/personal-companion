@@ -6,6 +6,7 @@ const STT = [
   { value: "off", label: "Off — no transcription" },
   { value: "openai", label: "OpenAI-compatible (Whisper API)" },
   { value: "whisper-http", label: "Local Whisper (speaches / faster-whisper)" },
+  { value: "local", label: "whisper.cpp — on this machine (whisper-cli)" },
 ];
 
 export function VoiceSection({ form, set, values }: SectionProps) {
