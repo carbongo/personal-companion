@@ -14,8 +14,10 @@ built-in providers:
 
 - **Ollama** (local, the default) — implemented,
 - **OpenAI-compatible** (OpenAI, OpenRouter, Groq, LM Studio, vLLM, …) — implemented,
-- **Anthropic** (native) — planned; until then, Anthropic models are reachable through an
-  OpenAI-compatible gateway (e.g. OpenRouter).
+- **Claude CLI** (spawns the local `claude` command; no API key) — implemented, see
+  [claude-cli-provider](./claude-cli-provider.md),
+- **Anthropic** (native) — planned; until then, Anthropic models are reachable through the
+  Claude CLI provider or an OpenAI-compatible gateway (e.g. OpenRouter).
 
 Provider and model are chosen by config (`LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`,
 `LLM_API_KEY`). The engine depends only on the interface.

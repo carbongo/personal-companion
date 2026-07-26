@@ -17,6 +17,7 @@ export interface Form {
   ollamaUrl: string;
   baseUrl: string;
   apiKey: string;
+  claudeBin: string;
   temperature: number;
   numCtx: number;
   maxTokens: number;
@@ -85,6 +86,7 @@ export function formFromValues(v: SetupValues): Form {
     ollamaUrl: v.ollamaUrl,
     baseUrl: v.baseUrl,
     apiKey: "",
+    claudeBin: v.claudeBin,
     temperature: v.temperature,
     numCtx: v.numCtx,
     maxTokens: v.maxTokens,
@@ -146,6 +148,7 @@ export function bodyFromForm(f: Form): Record<string, string> {
     ollamaUrl: f.ollamaUrl,
     baseUrl: f.baseUrl,
     apiKey: f.apiKey,
+    claudeBin: f.claudeBin,
     temperature: s(f.temperature),
     numCtx: s(f.numCtx),
     maxTokens: s(f.maxTokens),
@@ -198,5 +201,6 @@ export function testBodyFromForm(f: Form): Record<string, string> {
     ollamaUrl: f.ollamaUrl,
     baseUrl: f.baseUrl,
     apiKey: f.apiKey,
+    claudeBin: f.claudeBin,
   };
 }

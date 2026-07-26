@@ -64,7 +64,11 @@ export interface AppConfig {
 	autoRestartOnSave: boolean;
 }
 
-export type LlmProviderName = "ollama" | "openai-compatible" | "anthropic";
+export type LlmProviderName =
+	| "ollama"
+	| "openai-compatible"
+	| "claude-cli"
+	| "anthropic";
 
 export interface LlmConfig {
 	provider: LlmProviderName;
@@ -82,6 +86,11 @@ export interface LlmConfig {
 	baseUrl: string;
 	/** API key for hosted providers. */
 	apiKey: string;
+	/**
+	 * The `claude` binary (provider "claude-cli"); resolved on PATH if bare. The
+	 * CLI brings its own auth, so that provider needs no key or URL.
+	 */
+	claudeBin: string;
 	temperature: number;
 	numCtx: number;
 	maxTokens: number;
@@ -213,6 +222,7 @@ export function loadConfig(): Config {
 			),
 			baseUrl: str("LLM_BASE_URL", "").replace(/\/+$/, ""),
 			apiKey: str("LLM_API_KEY", ""),
+			claudeBin: str("LLM_CLAUDE_BIN", "claude"),
 			temperature: num("LLM_TEMPERATURE", 0.7),
 			numCtx: num("LLM_NUM_CTX", 8192),
 			maxTokens: num("LLM_MAX_TOKENS", 1000),

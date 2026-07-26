@@ -33,6 +33,7 @@ export interface SetupValues {
 	visionModel: string;
 	ollamaUrl: string;
 	baseUrl: string;
+	claudeBin: string;
 	temperature: number;
 	numCtx: number;
 	maxTokens: number;
@@ -113,6 +114,7 @@ export function currentSetupValues(): SetupValues {
 		visionModel: config.llm.visionModel,
 		ollamaUrl: config.llm.ollamaUrl,
 		baseUrl: config.llm.baseUrl,
+		claudeBin: config.llm.claudeBin,
 		temperature: config.llm.temperature,
 		numCtx: config.llm.numCtx,
 		maxTokens: config.llm.maxTokens,

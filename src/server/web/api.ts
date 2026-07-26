@@ -58,6 +58,7 @@ interface SetupBody {
 	ollamaUrl?: string;
 	baseUrl?: string;
 	apiKey?: string;
+	claudeBin?: string;
 	temperature?: string;
 	numCtx?: string;
 	maxTokens?: string;
@@ -113,6 +114,7 @@ function mergedLlmConfig(b: SetupBody): LlmConfig {
 		ollamaUrl: trimEnd(b.ollamaUrl?.trim() || config.llm.ollamaUrl),
 		baseUrl: trimEnd(b.baseUrl?.trim() || config.llm.baseUrl),
 		apiKey: b.apiKey || config.llm.apiKey,
+		claudeBin: b.claudeBin?.trim() || config.llm.claudeBin,
 		// Keep the wizard responsive — a real generation shouldn't hang the page.
 		timeoutMs: 20000,
 	};
@@ -487,6 +489,9 @@ api.post("/setup", async (c) => {
 	};
 	if (providerName === "ollama") {
 		env.LLM_OLLAMA_URL = trimEnd(b.ollamaUrl?.trim() ?? "") || undefined;
+	} else if (providerName === "claude-cli") {
+		// The CLI carries its own auth — only where to find the binary is ours.
+		env.LLM_CLAUDE_BIN = opt(b.claudeBin);
 	} else {
 		env.LLM_BASE_URL = trimEnd(b.baseUrl?.trim() ?? "") || undefined;
 		if (b.apiKey) env.LLM_API_KEY = b.apiKey;

@@ -4,6 +4,7 @@
  * docs/decisions/llm-provider-abstraction.md.
  */
 import { config, type LlmConfig } from "#/config/index.ts";
+import { ClaudeCliProvider } from "./claude-cli.ts";
 import { OllamaProvider } from "./ollama.ts";
 import { OpenAICompatProvider } from "./openai-compat.ts";
 import type { LLMProvider } from "./types.ts";
@@ -14,6 +15,8 @@ export function createProvider(cfg: LlmConfig = config.llm): LLMProvider {
 			return new OllamaProvider(cfg);
 		case "openai-compatible":
 			return new OpenAICompatProvider(cfg);
+		case "claude-cli":
+			return new ClaudeCliProvider(cfg);
 		case "anthropic":
 			// Native Anthropic lands in a later increment. Anthropic models are
 			// reachable today via the openai-compatible provider (e.g. through an

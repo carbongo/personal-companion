@@ -13,7 +13,7 @@ consumes it.
 over the engine.
 
 **Provider** — an LLM backend behind a common `chat()` interface (Ollama,
-OpenAI-compatible, Anthropic).
+OpenAI-compatible, Claude CLI, Anthropic).
 
 **Persona** — the configuration that defines *who* the companion is: identity,
 relationship, tone, interests, language, style rules. Never hardcoded.

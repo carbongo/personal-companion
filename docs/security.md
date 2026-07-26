@@ -9,6 +9,11 @@ stays on your infrastructure, and the few ways in are locked down.**
   your machine. Choosing a hosted provider is an explicit opt-in that sends turns to that
   provider — your call. (See
   [decisions/local-first-default-and-web-auth.md](./decisions/local-first-default-and-web-auth.md).)
+- **`claude-cli` runs a local process, not a local model.** It spawns the `claude` binary on
+  the host, so turns still go to Anthropic — treat it as a hosted provider for privacy
+  purposes. The spawned CLI is stripped of every capability it doesn't need (`--tools ""`,
+  `--strict-mcp-config`, `--setting-sources ""`, `--no-session-persistence`), so it cannot
+  read files, run commands, load the host's hooks or MCP servers, or leave sessions on disk.
 - **Your data is yours.** All state is one local SQLite file under `DATA_DIR`. No
   telemetry, no phone-home.
 - **No personal data in the repo.** The project ships zero real-person data; your
