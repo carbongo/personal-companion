@@ -32,6 +32,10 @@ of starting fresh each conversation. There are four moving parts, all in SQLite 
    school as a software developer"_, a person, a standing preference — still gets kept the
    night it's mentioned, and a fact that's no longer true is let go.
 
+   The summary records *genuinely* open threads only: a topic the owner simply stopped
+   answering is treated as closed, so it isn't carried into tomorrow as a loose end for the
+   companion to pick at. (See [conversation-dynamics.md](./conversation-dynamics.md).)
+
 ## How a new day opens
 
 A fresh day starts from: the **Core**, the **saved memories**, and the **recent daily

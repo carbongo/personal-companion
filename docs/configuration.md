@@ -223,8 +223,22 @@ Neutral, original archetypes ship as starting points (none is a fixed character)
 - **Coach** — blunt, accountability-focused.
 - **Companion** — neutral default.
 
-Pick one in the wizard and tweak from there. See
+Pick one in the wizard and tweak from there. Each preset carries its own **interests**
+alongside its identity. See
 [decisions/persona-as-configuration.md](./decisions/persona-as-configuration.md).
+
+### Interests
+
+What the companion is into *apart from you* — the material it steers toward when a thread
+has run out, so the conversation moves instead of circling back to whatever you last
+mentioned. Edit it in **Settings → Persona → Interests**; it is persisted to the
+`settings` table as `interests` and applies immediately, with `{{name}}` / `{{owner}}`
+interpolated.
+
+Left empty, the chosen preset's interests are used — but only when the preset is also
+supplying the identity. If you wrote a custom persona, it defines the whole character and
+no stock archetype's tastes are bolted onto it; put the interests in the persona text, or
+fill this field. See [conversation-dynamics.md](./conversation-dynamics.md).
 
 ## Context providers
 

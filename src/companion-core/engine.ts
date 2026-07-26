@@ -11,9 +11,10 @@ import { ProviderUnreachableError, provider } from "#/llm/index.ts";
 import type { ChatMessage, GenerateOptions } from "#/llm/types.ts";
 import { parseActions } from "./actions.ts";
 import { buildKnowledge, buildVolatile } from "./context.ts";
+import { buildConversationNote } from "./conversation.ts";
 import { appendMessage, messagesForDay, todayKey } from "./memory/store.ts";
 import { takeParagraphs } from "./paragraphs.ts";
-import { buildIdentity, buildOperating } from "./persona.ts";
+import { buildIdentity, buildInterests, buildOperating } from "./persona.ts";
 import {
 	extractUrls,
 	extractWebRequests,
@@ -130,6 +131,7 @@ async function buildTurn(
 
 	const system = [
 		buildIdentity(),
+		buildInterests(),
 		buildOperating({
 			web: webConfigured(),
 			autoMemory: config.memory.rollupExtract,
@@ -148,7 +150,12 @@ async function buildTurn(
 		messages.splice(1, 1);
 
 	const volatile = await buildVolatile();
-	const header = `[context for you, not ${owner}'s words]\n${volatile}\n[end context]\n\n`;
+	// The movement note rides on this turn only, like the volatile context — it
+	// describes the last few exchanges, so it must never harden into the history.
+	const note = buildConversationNote(history);
+	const header =
+		`[context for you, not ${owner}'s words]\n${volatile}\n[end context]\n\n` +
+		(note ? `${note}\n\n` : "");
 	const plan = await visionPlan(turn);
 	const body = turn.text || (turn.images?.length ? "(sent a photo)" : "");
 	const userMsg: ChatMessage = { role: "user", content: `${header}${body}` };

@@ -44,6 +44,7 @@ interface SetupBody {
 	owner?: string;
 	preset?: string;
 	persona?: string;
+	interests?: string;
 	coreSeed?: string;
 	// app
 	timezone?: string;
@@ -512,9 +513,11 @@ api.post("/setup", async (c) => {
 		);
 	}
 
-	// Persona and Core apply live (the engine reads them from the DB each turn):
-	// a custom persona overrides the preset; an empty one falls back to the preset.
+	// Persona, interests, and Core apply live (the engine reads them from the DB
+	// each turn): a custom persona overrides the preset; an empty one falls back
+	// to the preset, and so do empty interests.
 	setSetting("persona", b.persona?.trim() ?? "");
+	setSetting("interests", b.interests?.trim() ?? "");
 	if (b.coreSeed?.trim()) setCore(b.coreSeed.trim());
 	setSetting("setup_complete", "1");
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { config } from "#/config/index.ts";
 import { setSetting } from "./memory/store.ts";
-import { buildIdentity, buildOperating } from "./persona.ts";
+import { buildIdentity, buildInterests, buildOperating } from "./persona.ts";
 
 describe("buildIdentity", () => {
 	it("falls back to a preset that names the companion", () => {
@@ -47,5 +47,37 @@ describe("buildOperating", () => {
 		expect(buildOperating({ web: false, autoMemory: true })).not.toContain(
 			"<search>",
 		);
+	});
+
+	it("tells the companion to drop what the owner didn't pick up", () => {
+		const op = buildOperating({ web: false, autoMemory: true }).toLowerCase();
+		expect(op).toContain("how the conversation moves");
+		expect(op).toContain("that is the answer");
+		expect(op).toContain("allowed to change the subject");
+	});
+});
+
+describe("buildInterests", () => {
+	// The preset fallback isn't asserted here: it only applies when no persona
+	// override and no persona/persona.md exist, and the file is the owner's — a
+	// dev box that has one would flip the result. PRESETS is covered directly in
+	// presets.test.ts instead.
+
+	it("honors an override with {{owner}} interpolation", () => {
+		setSetting("persona", "");
+		setSetting(
+			"interests",
+			"shipping forecasts and {{owner}}'s terrible taste",
+		);
+		expect(buildInterests()).toContain(
+			`shipping forecasts and ${config.app.owner}'s terrible taste`,
+		);
+	});
+
+	it("stays out of the way of a hand-written persona", () => {
+		setSetting("interests", "");
+		setSetting("persona", "I am {{name}}. That is all there is to say.");
+		expect(buildInterests()).toBe("");
+		setSetting("persona", "");
 	});
 });

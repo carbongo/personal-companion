@@ -10,6 +10,7 @@ export interface Form {
   owner: string;
   preset: string;
   persona: string;
+  interests: string;
   // Mind (LLM)
   provider: string;
   model: string;
@@ -80,6 +81,7 @@ export function formFromValues(v: SetupValues): Form {
     owner: v.owner,
     preset: v.preset || "companion",
     persona: v.persona,
+    interests: v.interests,
     provider: v.provider,
     model: v.model,
     visionModel: v.visionModel,
@@ -142,6 +144,7 @@ export function bodyFromForm(f: Form): Record<string, string> {
     owner: f.owner,
     preset: f.preset,
     persona: f.persona,
+    interests: f.interests,
     provider: f.provider,
     model: f.model,
     visionModel: f.visionModel,

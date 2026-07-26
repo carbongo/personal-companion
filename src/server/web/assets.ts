@@ -597,6 +597,7 @@ function body() {
 		owner: val('owner'),
 		preset: (presetRadios().find(r => r.checked) || {}).value || 'companion',
 		persona: val('persona'),
+		interests: val('interests'),
 		coreSeed: val('coreSeed'),
 		timezone: val('timezone'),
 		dataDir: val('dataDir'),

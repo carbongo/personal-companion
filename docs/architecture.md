@@ -13,6 +13,7 @@ channels/          how you talk to it (Telegram, built-in web chat)
 companion-core/    the engine — channel- and provider-agnostic
    ├─ persona      assemble the system prompt from configuration
    ├─ context      pluggable providers (datetime, weather, …)
+   ├─ conversation the per-turn read of how the exchange is going (circling, echoing)
    ├─ memory       Core, saved memories, daily summaries, roll-up + reconcile
    ├─ actions      memory-tag parser, reused by the roll-up; strips stray tags
    ├─ media        save/serve chat attachments under DATA_DIR/uploads
@@ -50,10 +51,13 @@ and [decisions/llm-provider-abstraction.md](./decisions/llm-provider-abstraction
 
 1. A **channel** receives input (a Telegram message, or a web-chat POST), normalizes it
    to a `turn`, and calls `engine.respond`.
-2. The engine builds the prompt: a **stable cached system prefix** (persona +
-   semi-stable knowledge: Core, memories, recent summaries) plus a small **per-turn
-   delta** (date, weather) on the latest message. This keeps local-model KV cache reuse
-   high and tokens low. (See [memory.md](./memory.md).)
+2. The engine builds the prompt: a **stable cached system prefix** (persona, its
+   interests, and semi-stable knowledge: Core, memories, recent summaries) plus a small
+   **per-turn delta** on the latest message — date, weather, and, when the last few
+   exchanges warrant it, a short note telling the companion it's circling a topic the
+   owner dropped. This keeps local-model KV cache reuse high and tokens low. (See
+   [memory.md](./memory.md) and
+   [conversation-dynamics.md](./conversation-dynamics.md).)
 3. The **LLM provider** generates a reply.
 4. If web access is on and the reply contains `<search>`/`<fetch>` tags, the engine runs
    them, feeds results back, and regenerates — a small bounded loop. A model often mis-types

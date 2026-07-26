@@ -1,12 +1,15 @@
 /**
  * Persona assembly. The companion's identity is *configuration*, resolved at
  * runtime from (in order of precedence): a settings override saved in the UI, a
- * `persona/persona.md` file, or a built-in preset. The operating block describes
- * the medium, the memory model, and the web sidecar tags — generic, not
+ * `persona/persona.md` file, or a built-in preset. Its *interests* — what it's
+ * drawn to on its own, and steers toward when a thread has run out — resolve the
+ * same way. The operating block describes the medium, the memory model, how the
+ * conversation is expected to move, and the web sidecar tags — generic, not
  * persona-specific.
  * Live per-turn context (date, weather, Core, summaries) is assembled in
- * ./context.ts. See docs/configuration.md and
- * docs/decisions/persona-as-configuration.md.
+ * ./context.ts, and the per-turn read of how the conversation is going in
+ * ./conversation.ts. See docs/configuration.md,
+ * docs/conversation-dynamics.md and docs/decisions/persona-as-configuration.md.
  */
 import { existsSync, readFileSync } from "node:fs";
 
@@ -23,8 +26,8 @@ function interpolate(text: string): string {
 		.replaceAll("{{owner}}", config.app.owner);
 }
 
-/** The resolved identity block (no operating instructions, no live context). */
-export function buildIdentity(): string {
+/** Persona text written by the owner, if there is any. */
+function customPersona(): string | null {
 	const override = getSetting("persona");
 	if (override?.trim()) return interpolate(override);
 
@@ -36,12 +39,51 @@ export function buildIdentity(): string {
 			// fall through to a preset
 		}
 	}
-
-	const preset = PRESETS[config.persona.preset] ?? companionPreset;
-	return preset({ name: config.app.name, owner: config.app.owner });
+	return null;
 }
 
-/** Generic instructions: the medium, the memory model, and the web sidecar tags. */
+function preset() {
+	return PRESETS[config.persona.preset] ?? companionPreset;
+}
+
+/** The resolved identity block (no operating instructions, no live context). */
+export function buildIdentity(): string {
+	return (
+		customPersona() ??
+		preset().identity({ name: config.app.name, owner: config.app.owner })
+	);
+}
+
+/**
+ * What the companion is into on its own — the material it reaches for when it
+ * has nothing to mirror. An owner-written `interests` setting wins. Otherwise
+ * the preset's own interests are used *only* when the preset is also supplying
+ * the identity: a hand-written persona defines the whole character, and bolting
+ * a stock archetype's tastes onto it would contradict it.
+ */
+export function buildInterests(): string {
+	const owner = config.app.owner;
+	const saved = getSetting("interests");
+	const text = saved?.trim()
+		? interpolate(saved)
+		: customPersona()
+			? ""
+			: preset().interests({ name: config.app.name, owner });
+	if (!text.trim()) return "";
+
+	return `## What you're into
+
+${text.trim()}
+
+These are yours — they don't need ${owner}'s permission or a reason. Bring one up when a
+thread has run out, when something ${owner} said brushes against one, or just because it's
+on your mind. Have real opinions about them, including ones ${owner} won't share.`;
+}
+
+/**
+ * Generic instructions: the medium, the memory model, how the conversation is
+ * expected to move, and the web sidecar tags.
+ */
 export function buildOperating(opts: {
 	web: boolean;
 	/** Whether the nightly roll-up curates memory on its own (MEMORY_ROLLUP_EXTRACT). */
@@ -65,6 +107,36 @@ something to save as a memory. Use it naturally, the way someone who knows ${own
 would, and never mention these notes or that they exist. When ${owner} says "remember that"
 or "the last thing you said" or "that fact", they mean what was actually said in your
 conversation — your messages and theirs — not the ambient context.`);
+
+	parts.push(`## How the conversation moves
+
+A conversation goes somewhere. ${owner} is not a subject you are following up on, and you
+are not their echo.
+
+When ${owner} doesn't pick something up, that is the answer: they're done with it. Drop it
+for good. Don't raise it again, don't ask about it once more from a different angle, don't
+circle back to it later in the day, and don't fold it into something else. If it still
+matters to them, they will bring it back themselves. Having to say "let's move on" means
+you already missed this.
+
+Don't end every message with a question. Ask one when you genuinely want to know something,
+and then let it rest; otherwise say your piece and stop. A stack of questions reads as
+pressure, not interest.
+
+Reflecting back what ${owner} just said is not a reply. Add something that wasn't already
+in their message: what you make of it, where you'd disagree, something it reminded you of,
+a plain fact you know. If all you have is agreement, keep it short and move.
+
+You are allowed to change the subject. When a thread has run its course, start another one
+— from what you're into, from something you remember, from what the day looks like. No
+permission needed, no announcing it; just talk about the new thing the way people do.
+
+Let quiet be quiet. When there's nothing to add, a short plain reply beats manufacturing
+concern, interest, or a follow-up you don't actually have.
+
+Sometimes the system will hand you a short [how this is going] note with its read of the
+last few turns. It's a mirror held up to you, not something ${owner} said and not something
+to mention. Take the correction and move.`);
 
 	parts.push(`## Your memory
 

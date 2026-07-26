@@ -68,6 +68,9 @@ docs/
   configuration.md   env vars, persona files, presets, providers
   channels.md        Telegram + the built-in web chat
   memory.md          Core, memories, daily summaries, roll-up
+  conversation-dynamics.md
+                     letting a topic go: the computed per-turn read, the movement
+                     rules, and the companion's own interests
   web-access.md      bounded <search>/<fetch> egress
   security.md        auth, allowlists, SSRF guard, privacy posture
   deployment.md      Docker / Compose / bare Bun
@@ -93,6 +96,11 @@ docs/
   talking HTTP — see
   [`docs/decisions/claude-cli-provider.md`](./docs/decisions/claude-cli-provider.md)). Adding
   one means a new file in `src/llm/`, a case in `createProvider`, and both settings UIs.
+- **Conversational movement is measured, not asked for.** `src/companion-core/conversation.ts`
+  computes whether the companion is circling a dropped topic, interrogating, or echoing, and
+  hands it a short per-turn note; the model is never asked to audit itself (see
+  [`docs/conversation-dynamics.md`](./docs/conversation-dynamics.md)). Keep the note per-turn
+  and unpersisted, and keep the thresholds as named constants rather than env vars.
 - **The engine is the seam.** Channels build a `Turn` and call
   `companion-core/engine.respond` — keep channel- and provider-specific code out of the
   core (see [`docs/architecture.md`](./docs/architecture.md)). The built-in web chat is a

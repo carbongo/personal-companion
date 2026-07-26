@@ -320,6 +320,20 @@ export const SetupPage = (props: {
 				</Field>
 
 				<Field
+					id="interests"
+					label="What it's into, apart from you (optional)"
+					hint="Its own tastes — what it steers toward when a thread has run out, so the conversation can move instead of circling back. Leave empty to use the preset's; ignored when a custom persona is written above."
+				>
+					<textarea
+						id="interests"
+						rows={4}
+						placeholder="How things are built, cities and maps, long stories worth arguing about…"
+					>
+						{v.interests}
+					</textarea>
+				</Field>
+
+				<Field
 					id="coreSeed"
 					label="A few facts about you to start from (optional)"
 					hint="Seeds the living “Core” memory on first save — your name, what you do, what matters right now. The companion edits this itself over time."

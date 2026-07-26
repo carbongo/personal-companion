@@ -14,6 +14,7 @@ engineer. Keep them short: Context, Decision, Consequences, and Alternatives con
 - [claude-cli-provider](./claude-cli-provider.md) — the local `claude` command as a brain
 - [channel-abstraction](./channel-abstraction.md) — the `engine.respond(turn)` seam
 - [persona-as-configuration](./persona-as-configuration.md) — personality is config, not code
+- [computed-conversation-note](./computed-conversation-note.md) — circling is measured in code, not self-reported
 - [local-first-default-and-web-auth](./local-first-default-and-web-auth.md) — privacy posture
 - [web-ui-server-rendered-no-build](./web-ui-server-rendered-no-build.md) — Hono JSX, no SPA bundler
 - [sidecar-tags-not-tool-calling](./sidecar-tags-not-tool-calling.md) — how the model acts

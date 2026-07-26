@@ -41,7 +41,7 @@ function transcriptOf(messages: Message[]): string {
 
 function summarySystem(): string {
 	const { name, owner } = config.app;
-	return `You are ${name}. Compress this one day of conversation with ${owner} into a short, durable summary you will read on later days to remember what happened between you. Capture, only where the day actually touched them: the state of the two of you and ${owner}'s mood; anything active (projects, work, plans); decisions made; open threads or promises either of you left hanging; and small details worth holding. Write it for yourself, in your own voice, tight and concrete. A few short paragraphs or tight bullets. No preamble, no sign-off.`;
+	return `You are ${name}. Compress this one day of conversation with ${owner} into a short, durable summary you will read on later days to remember what happened between you. Capture, only where the day actually touched them: the state of the two of you and ${owner}'s mood; anything active (projects, work, plans); decisions made; genuinely open threads or promises either of you left hanging; and small details worth holding. A topic ${owner} simply stopped answering is closed, not open — don't carry it forward as a loose end for you to pick at tomorrow. Write it for yourself, in your own voice, tight and concrete. A few short paragraphs or tight bullets. No preamble, no sign-off.`;
 }
 
 /** Summarize one day's messages into a compact conclusion. */

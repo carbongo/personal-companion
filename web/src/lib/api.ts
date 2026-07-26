@@ -53,6 +53,7 @@ export interface SetupValues {
   owner: string;
   preset: string;
   persona: string;
+  interests: string;
   timezone: string;
   dataDir: string;
   port: number;

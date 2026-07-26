@@ -3,6 +3,36 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
+## 2026-07-26 (latest)
+
+**The companion stops circling, and has interests of its own.** It clung to recent topics —
+re-raising something the owner had quietly dropped, asking about it again from another
+angle, ending every message with a question, handing the owner's own words back — until the
+owner said "let's move on". It read as a mirror. Three changes, documented in the new
+[conversation-dynamics.md](./conversation-dynamics.md):
+
+- **New `src/companion-core/conversation.ts`** — a per-turn, computed read of the last few
+  exchanges. It measures topics the companion keeps raising that the owner has stopped
+  answering, a streak of messages ending in questions, and a reply made mostly of the
+  owner's own words. When a threshold is crossed a short `[how this is going]` note rides
+  along with that turn only (next to the volatile context, never persisted); otherwise it
+  contributes nothing at all. Asking the model to self-monitor was the thing that was
+  already failing — see
+  [decisions/computed-conversation-note.md](./decisions/computed-conversation-note.md).
+- **A "How the conversation moves" block** in `buildOperating()`, persona-agnostic: silence
+  is an answer, don't end every message with a question, reflecting back isn't a reply,
+  changing the subject needs no permission, let quiet be quiet. The neutral presets lost the
+  wording that produced mirroring (*"reflect enough that {owner} feels heard"*, *"ask good
+  questions before offering answers"*), and Coach is now told to name avoidance once and
+  then drop it.
+- **Interests** — new `interests` setting and per-preset defaults (`PRESETS` entries are now
+  `{ identity, interests }`), resolved by `buildInterests()` and rendered into the cached
+  system prefix. Letting a topic go leaves a hole; this is what fills it. Editable in
+  Settings → Persona and in the server-rendered setup page. An owner-written persona
+  suppresses the preset's interests rather than contradicting it.
+- The nightly summary prompt no longer records a topic the owner stopped answering as an
+  open thread, so a dropped subject doesn't come back tomorrow.
+
 ## 2026-07-26 (later)
 
 **Fixed: `claude-cli` read as "no model configured".** `companionConfigured()` knew only two

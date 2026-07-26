@@ -19,6 +19,7 @@ Pages cross-link each other and use flat, descriptive names (no number prefixes)
 - [data-model](./data-model.md) — the SQLite tables and what they hold
 - [channels](./channels.md) — Telegram and the built-in web chat
 - [memory](./memory.md) — Core, saved memories, daily summaries, the nightly roll-up
+- [conversation-dynamics](./conversation-dynamics.md) — how it lets a topic go, and its own interests
 - [web-access](./web-access.md) — the bounded `<search>`/`<fetch>` egress
 - [security](./security.md) — auth, allowlists, the SSRF guard, privacy posture
 

@@ -42,6 +42,17 @@ export function PersonaSection({ form, set }: SectionProps) {
             help="Markdown. Voice, manner, what they know about you, what they care about. Leave empty to fall back to the archetype."
           />
         </Card>
+
+        <Card title="Interests">
+          <TextArea
+            label="What they're into"
+            value={form.interests}
+            onChange={(v) => set("interests", v)}
+            rows={6}
+            placeholder="How things are built, cities and maps, long stories worth arguing about…"
+            help="Their own tastes, apart from you — what they steer toward when a thread has run out, so the conversation can move instead of circling. Leave empty to use the archetype's (ignored when a custom character is written above)."
+          />
+        </Card>
       </div>
     </div>
   );

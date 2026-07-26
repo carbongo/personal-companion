@@ -21,6 +21,7 @@ export interface SetupValues {
 	owner: string;
 	preset: string;
 	persona: string;
+	interests: string;
 	// app
 	timezone: string;
 	dataDir: string;
@@ -104,6 +105,7 @@ export function currentSetupValues(): SetupValues {
 		owner: config.app.owner,
 		preset: config.persona.preset,
 		persona: effectivePersona(),
+		interests: getSetting("interests") ?? "",
 		timezone: config.app.timezone,
 		dataDir: config.app.dataDir,
 		port: config.app.port,
