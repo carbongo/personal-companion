@@ -24,11 +24,12 @@ All vars are documented in [`.env.example`](../.env.example). The ones you'll us
 | `DATA_DIR`                | `./data`             | Where the SQLite DB lives (and, by convention, local models under `data/models/`). |
 | `PORT`                    | `8080`               | Web interface port. |
 | `WEB_AUTH_PASSWORD`       | (empty)              | Protects the web UI. Set it unless behind a trusted network. |
-| `LLM_PROVIDER`            | `ollama`             | `ollama` \| `openai-compatible` \| `anthropic` (planned — not yet implemented; use `openai-compatible` against an Anthropic-compatible gateway). |
+| `LLM_PROVIDER`            | `ollama`             | `ollama` \| `openai-compatible` \| `claude-cli` \| `anthropic` (planned — not yet implemented; use `claude-cli` or `openai-compatible` against an Anthropic-compatible gateway). |
 | `LLM_MODEL`               | `gemma4:12b`         | Model name for the chosen provider (recommended local default). |
 | `LLM_VISION_MODEL`        | (empty)              | Optional. Model for image turns when `LLM_MODEL` can't see (e.g. a text-only model). Leave empty if `LLM_MODEL` is vision-capable. Ollama example: `qwen2.5vl:7b`. |
 | `LLM_OLLAMA_URL`          | `http://localhost:11434` | Local Ollama endpoint. |
 | `LLM_API_KEY` / `LLM_BASE_URL` | (empty)         | For hosted providers. |
+| `LLM_CLAUDE_BIN`          | `claude`             | The Claude CLI command (provider `claude-cli`); resolved on `PATH` if bare. |
 | `TELEGRAM_BOT_TOKEN`      | (empty)              | Enables the Telegram channel; empty = web chat only. |
 | `TELEGRAM_ALLOWED_USER_IDS` | (empty)            | Comma-separated allowlist of Telegram user IDs. |
 
@@ -70,12 +71,56 @@ server-side and served straight from the Bun process.
   machine.
 - **Hosted:** set `LLM_PROVIDER=openai-compatible`, `LLM_BASE_URL`, and `LLM_API_KEY`.
   Works with OpenAI, OpenRouter, Groq, LM Studio, vLLM, and similar. (Native `anthropic`
-  is planned; until then, reach Anthropic models through an OpenAI-compatible gateway such
-  as OpenRouter.) `LLM_THINK` effort levels (`minimal`/`low`/`medium`/`high`) are sent as
-  the standard `reasoning_effort` field — honored by reasoning models (OpenAI o-series/GPT-5,
-  OpenRouter) and ignored elsewhere; `true`/`false` defer to the endpoint's own default.
+  is planned; until then, reach Anthropic models through the Claude CLI below or an
+  OpenAI-compatible gateway such as OpenRouter.) `LLM_THINK` effort levels
+  (`minimal`/`low`/`medium`/`high`) are sent as the standard `reasoning_effort` field —
+  honored by reasoning models (OpenAI o-series/GPT-5, OpenRouter) and ignored elsewhere;
+  `true`/`false` defer to the endpoint's own default.
+- **Claude CLI:** set `LLM_PROVIDER=claude-cli` and `LLM_MODEL` to a Claude alias or full
+  name (`haiku`, `sonnet`, `claude-haiku-4-5`). **No API key and no URL** — it spawns the
+  `claude` command already installed and signed in on this machine
+  (`LLM_CLAUDE_BIN` if it isn't on `PATH`). See [the CLI as a brain](#the-claude-cli-as-a-brain).
 
 See [decisions/llm-provider-abstraction.md](./decisions/llm-provider-abstraction.md).
+
+### The Claude CLI as a brain
+
+This is the pragmatic option for an **always-on host**. If your companion runs on a laptop
+with a local model, it goes quiet whenever the lid is shut — which is exactly when texting it
+from your phone matters. Move the deployment to a machine that stays up, and if that machine
+already has the Claude CLI signed in, it already has a brain: nothing to provision, no key to
+store, no model to download.
+
+Each turn spawns `claude -p` once and reads back one reply. The CLI is stripped to a plain
+chat model — `--tools ""`, `--strict-mcp-config`, `--setting-sources ""`, so it can't read
+files, run commands, or pick up the host's settings, hooks, MCP servers, or `CLAUDE.md` — and
+your persona is passed as `--system-prompt`, replacing Claude Code's own prompt entirely.
+Streaming and images both work as usual.
+
+Setup on the host, in full:
+
+```bash
+claude            # once, interactively, to sign in
+# then in .env:
+LLM_PROVIDER="claude-cli"
+LLM_MODEL="haiku"
+LLM_THINK="medium"
+```
+
+Worth knowing:
+
+- **Usage is billed to whatever the CLI is signed in as.** On a subscription, companion chat
+  draws on the same allowance as your coding. Haiku turns are cheap, but this is not local and
+  not free — stay on Ollama if you want zero egress.
+- **`LLM_THINK` maps to `--effort`** (`low`/`medium`/`high`, plus `xhigh`/`max`). The CLI has
+  no off switch, so `false` becomes `low`.
+- **`LLM_TEMPERATURE`, `LLM_NUM_CTX` and `LLM_MAX_TOKENS` are ignored** — the CLI exposes no
+  equivalents, and reasoning tokens share the output budget, so a cap would truncate replies
+  rather than shorten them. Ask for brevity in the persona instead.
+- **`LLM_MODEL` must be a Claude name.** An Ollama-style tag like `gemma4:12b` is refused with
+  a clear error rather than a cryptic CLI failure — a common slip when switching providers.
+
+See [decisions/claude-cli-provider.md](./decisions/claude-cli-provider.md) for the trade-offs.
 
 ## Talking over Telegram (optional)
 

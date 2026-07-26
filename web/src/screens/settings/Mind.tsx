@@ -9,6 +9,7 @@ import { Card, Grid, SectionIntro } from "./ui.tsx";
 const PROVIDERS = [
   { value: "ollama", label: "Ollama — local, private" },
   { value: "openai-compatible", label: "OpenAI-compatible endpoint" },
+  { value: "claude-cli", label: "Claude CLI — local command, no key" },
   { value: "anthropic", label: "Anthropic (use a compatible gateway)" },
 ];
 
@@ -16,6 +17,7 @@ export function MindSection({ form, set, values }: SectionProps) {
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; detail: string } | null>(null);
   const isOllama = form.provider === "ollama";
+  const isClaudeCli = form.provider === "claude-cli";
 
   const attune = async () => {
     setTesting(true);
@@ -37,7 +39,7 @@ export function MindSection({ form, set, values }: SectionProps) {
     <div>
       <SectionIntro
         title="The Mind"
-        blurb="The model that thinks behind the companion. Keep it local with Ollama, or point at any OpenAI-compatible endpoint."
+        blurb="The model that thinks behind the companion. Keep it local with Ollama, point at any OpenAI-compatible endpoint, or run the Claude CLI that's already signed in on this machine."
       />
       <div className="flex flex-col gap-5">
         <Card title="Model">
@@ -53,7 +55,16 @@ export function MindSection({ form, set, values }: SectionProps) {
             mono
             help="Used only for turns that include an image, when the main model can't see. Leave blank if the main model is already vision-capable."
           />
-          {isOllama ? (
+          {isClaudeCli ? (
+            <Field
+              label="claude binary"
+              value={form.claudeBin}
+              onChange={(v) => set("claudeBin", v)}
+              placeholder="claude"
+              mono
+              help="The Claude CLI command — leave it as claude if it's on PATH. Sign in once with `claude` on this machine and there's no key to set. Model takes an alias like haiku or sonnet."
+            />
+          ) : isOllama ? (
             <Field
               label="Ollama URL"
               value={form.ollamaUrl}

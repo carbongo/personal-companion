@@ -25,7 +25,8 @@ Three ideas hold the project together:
 
 2. **Local-first, but your choice.** The default brain is a local
    [Ollama](https://ollama.com) model, so conversations never leave your machine. You can
-   instead point it at any OpenAI-compatible or Anthropic endpoint. (See
+   instead point it at any OpenAI-compatible or Anthropic endpoint, or hand it the Claude
+   CLI already signed in on the host — no key needed. (See
    [decisions/local-first-default-and-web-auth.md](./decisions/local-first-default-and-web-auth.md).)
 
 3. **Memory is the spine.** It keeps a living "Core" picture of you, saves discrete

@@ -238,8 +238,10 @@ export const SetupPage = (props: {
 	complete: boolean;
 }) => {
 	const v = props.values;
-	const ollama =
-		v.provider !== "openai-compatible" && v.provider !== "anthropic";
+	const claudeCli = v.provider === "claude-cli";
+	const hosted =
+		v.provider === "openai-compatible" || v.provider === "anthropic";
+	const ollama = !claudeCli && !hosted;
 	return (
 		<Layout
 			title={`${props.name} — Settings`}
@@ -340,7 +342,9 @@ export const SetupPage = (props: {
 							<strong>Ollama</strong> runs a model on this machine — private,
 							free, nothing leaves the box. <strong>OpenAI-compatible</strong>{" "}
 							talks to any hosted endpoint (OpenAI, OpenRouter, Groq, LM Studio,
-							vLLM, …).
+							vLLM, …). <strong>Claude CLI</strong> runs the <code>claude</code>{" "}
+							command already installed here — no API key, since the CLI brings
+							its own sign-in.
 						</>
 					}
 				>
@@ -353,6 +357,9 @@ export const SetupPage = (props: {
 							selected={v.provider === "openai-compatible"}
 						>
 							OpenAI-compatible (hosted)
+						</option>
+						<option value="claude-cli" selected={claudeCli}>
+							Claude CLI (local command, no key)
 						</option>
 					</select>
 				</Field>
@@ -382,6 +389,8 @@ export const SetupPage = (props: {
 						<option value="gpt-4o-mini" />
 						<option value="gpt-4o" />
 						<option value="anthropic/claude-3.5-sonnet" />
+						<option value="haiku" />
+						<option value="sonnet" />
 					</datalist>
 				</Field>
 
@@ -400,7 +409,22 @@ export const SetupPage = (props: {
 					</Field>
 				</div>
 
-				<div id="hostedRows" class={ollama ? "hidden" : ""}>
+				<div id="claudeRow" class={claudeCli ? "" : "hidden"}>
+					<Field
+						id="claudeBin"
+						label="claude binary"
+						hint="The Claude CLI command. Leave it as claude if it's on PATH; give a full path otherwise. Sign in once with `claude` on this machine and there's no key to set."
+					>
+						<input
+							type="text"
+							id="claudeBin"
+							value={v.claudeBin}
+							placeholder="claude"
+						/>
+					</Field>
+				</div>
+
+				<div id="hostedRows" class={hosted ? "" : "hidden"}>
 					<Field
 						id="baseUrl"
 						label="Base URL"
@@ -437,7 +461,8 @@ export const SetupPage = (props: {
 							<code>false</code> toggle it; <code>low</code>/<code>medium</code>
 							/<code>high</code> set the effort. Ollama honors all five; hosted
 							endpoints map the effort levels to <code>reasoning_effort</code>{" "}
-							(ignored by non-reasoning models).
+							(ignored by non-reasoning models); the Claude CLI maps them to{" "}
+							<code>--effort</code>.
 						</>
 					}
 				>

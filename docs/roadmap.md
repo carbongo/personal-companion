@@ -16,7 +16,8 @@ Bun + Hono server with `/health`.
 - ✅ Sidecar actions: `<search>` / `<fetch>` (web). _Memory tags moved to the nightly
   roll-up's reconciliation pass — see the 2026-06-30 CHANGELOG entry._
 - ✅ Bounded web access: `<search>` / `<fetch>` with the SSRF guard.
-- ✅ **LLM provider abstraction**: Ollama + OpenAI-compatible (`anthropic` planned).
+- ✅ **LLM provider abstraction**: Ollama + OpenAI-compatible + Claude CLI (native
+  `anthropic` over HTTP still planned).
 - ✅ The `engine.respond(turn)` seam, with unit + integration tests. A terminal REPL
   (`bun run chat`) exercises it end-to-end.
 

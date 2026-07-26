@@ -88,6 +88,11 @@ docs/
 - **Imports:** use the `#/` alias for `src/` (e.g. `import { config } from "#/config/index.ts"`).
 - **Env access** goes through `src/config/` only; the rest of the code takes a typed
   `config` object.
+- **Providers live behind one interface** (`src/llm/types.ts`): `ollama`,
+  `openai-compatible`, and `claude-cli` (which spawns the local `claude` binary instead of
+  talking HTTP — see
+  [`docs/decisions/claude-cli-provider.md`](./docs/decisions/claude-cli-provider.md)). Adding
+  one means a new file in `src/llm/`, a case in `createProvider`, and both settings UIs.
 - **The engine is the seam.** Channels build a `Turn` and call
   `companion-core/engine.respond` — keep channel- and provider-specific code out of the
   core (see [`docs/architecture.md`](./docs/architecture.md)). The built-in web chat is a

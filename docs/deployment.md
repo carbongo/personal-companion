@@ -26,6 +26,14 @@ host port comes from `PORT` in `.env` (mapped to `8080`).
 By default the companion expects an Ollama you already run — set
 `LLM_OLLAMA_URL` (e.g. `http://host.docker.internal:11434`).
 
+**A model on an always-on host without a key:** if the box already has the Claude CLI signed
+in, set `LLM_PROVIDER=claude-cli` and `LLM_MODEL=haiku` and you're done — no key, no model
+download, no second service. This suits a small always-on server that can't hold a decent
+local model, and it keeps the companion reachable when your laptop is shut. Note that a
+container has to be able to *see* the CLI: run bare-Bun on the host (see below), or mount
+the binary and its credentials into the image. See
+[configuration.md](./configuration.md#the-claude-cli-as-a-brain).
+
 **Bundled Ollama (fully-local stack):** bring the model up alongside the app with the
 `ollama` compose profile, then pull a model into it:
 
@@ -69,6 +77,11 @@ anywhere — a home server, a VPS, a spare box. Two things to weigh:
   (`LLM_OLLAMA_URL=http://localhost:11434`) — one endpoint, no network hop. If the model
   lives on a different machine, point `LLM_OLLAMA_URL` at it (and keep that link private,
   e.g. over a VPN/Tailscale).
+- **Can the always-on box hold a model at all?** Often not — and a laptop that can is asleep
+  in a bag half the day, which is when a companion you text is most useful. If that box
+  already has the Claude CLI signed in, `LLM_PROVIDER=claude-cli` gives it a brain with no
+  key and nothing extra to run (see
+  [configuration.md](./configuration.md#the-claude-cli-as-a-brain)).
 
 ## Updating
 

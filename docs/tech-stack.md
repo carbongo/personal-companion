@@ -15,6 +15,7 @@ That favors a small dependency surface, zero-config storage, and a single proces
 | Lint/format    | [Biome](https://biomejs.dev)    | One fast tool for both; no ESLint+Prettier sprawl. |
 | LLM (default)  | [Ollama](https://ollama.com)    | Local-first brain, no key, no egress. |
 | LLM (hosted)   | OpenAI-compatible / Anthropic   | Bring your own key for a hosted model. |
+| LLM (no key)   | Claude CLI (`claude -p`)        | Spawns the signed-in CLI already on the host — the practical brain for an always-on box. |
 | Web search     | DuckDuckGo (keyless) / Tavily   | Works out of the box; sharper with a Tavily key. |
 | Container      | `oven/bun` image + Compose      | One image runs bot + web; optional bundled Ollama service. |
 

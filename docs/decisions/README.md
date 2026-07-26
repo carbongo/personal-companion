@@ -11,6 +11,7 @@ engineer. Keep them short: Context, Decision, Consequences, and Alternatives con
 - [runtime-bun-typescript](./runtime-bun-typescript.md) — Bun + TypeScript, one process
 - [storage-sqlite-drizzle](./storage-sqlite-drizzle.md) — SQLite + Drizzle for state
 - [llm-provider-abstraction](./llm-provider-abstraction.md) — pluggable model backends
+- [claude-cli-provider](./claude-cli-provider.md) — the local `claude` command as a brain
 - [channel-abstraction](./channel-abstraction.md) — the `engine.respond(turn)` seam
 - [persona-as-configuration](./persona-as-configuration.md) — personality is config, not code
 - [local-first-default-and-web-auth](./local-first-default-and-web-auth.md) — privacy posture

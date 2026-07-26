@@ -63,6 +63,7 @@ export interface SetupValues {
   visionModel: string;
   ollamaUrl: string;
   baseUrl: string;
+  claudeBin: string;
   temperature: number;
   numCtx: number;
   maxTokens: number;

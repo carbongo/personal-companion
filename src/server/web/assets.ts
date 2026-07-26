@@ -463,6 +463,7 @@ export const SETUP_JS = `
 const provider = document.getElementById('provider');
 const ollamaRow = document.getElementById('ollamaRow');
 const hostedRows = document.getElementById('hostedRows');
+const claudeRow = document.getElementById('claudeRow');
 const testNote = document.getElementById('testNote');
 const saveNote = document.getElementById('saveNote');
 const presetRadios = () => Array.from(document.querySelectorAll('input[name=preset]'));
@@ -471,9 +472,11 @@ const val = (id) => document.getElementById(id).value.trim();
 const raw = (id) => document.getElementById(id).value;
 
 function syncProvider() {
+	const claudeCli = provider.value === 'claude-cli';
 	const ollama = provider.value === 'ollama';
 	ollamaRow.classList.toggle('hidden', !ollama);
-	hostedRows.classList.toggle('hidden', ollama);
+	claudeRow.classList.toggle('hidden', !claudeCli);
+	hostedRows.classList.toggle('hidden', ollama || claudeCli);
 }
 provider.addEventListener('change', syncProvider); syncProvider();
 
@@ -605,6 +608,7 @@ function body() {
 		ollamaUrl: val('ollamaUrl'),
 		baseUrl: val('baseUrl'),
 		apiKey: raw('apiKey'),
+		claudeBin: val('claudeBin'),
 		temperature: val('temperature'),
 		numCtx: val('numCtx'),
 		maxTokens: val('maxTokens'),

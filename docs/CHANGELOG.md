@@ -3,6 +3,43 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
+## 2026-07-26
+
+Added a third LLM provider, **`claude-cli`** — a Claude model reached by spawning the locally
+installed `claude` binary in headless mode, with **no API key**: the CLI carries its own
+sign-in. This is for the always-on-host case, where the box that stays awake can't hold a
+decent local model (and a laptop that can is shut in a bag) but already has Claude Code on it.
+
+- **New provider `src/llm/claude-cli.ts`** behind the existing `LLMProvider` interface, so the
+  engine is untouched. One `claude -p` process per generation: the persona goes in as
+  `--system-prompt` (which *replaces* Claude Code's own prompt — no CLAUDE.md, no coding
+  scaffolding), and `--tools ""`, `--strict-mcp-config`, `--setting-sources ""`,
+  `--no-session-persistence` strip it to a plain chat model that can't touch the host.
+  Streaming (`--include-partial-messages` → text deltas) and vision (base64 image blocks)
+  both work; `supportsVision()` is always true.
+- **History is flattened into one labelled transcript** inside a single user message. It
+  cannot be sent as separate stream-json messages: the CLI answers *each* user message it
+  reads, which would generate and bill a reply per historical line.
+- **New env var `LLM_CLAUDE_BIN`** (default `claude`, resolved on `PATH`). No `LLM_BASE_URL`
+  or `LLM_API_KEY` needed. `LLM_MODEL` takes a Claude alias or full name (`haiku`, `sonnet`,
+  `claude-haiku-4-5`); an Ollama-style tag such as `gemma4:12b` is refused with a clear
+  message, since that slip is easy to make when switching providers.
+- **`LLM_THINK` maps to `--effort`** (`low`/`medium`/`high`, plus `xhigh`/`max`); the CLI has
+  no off switch, so `false` becomes `low`. **`LLM_TEMPERATURE`, `LLM_NUM_CTX` and
+  `LLM_MAX_TOKENS` are ignored** — the CLI exposes no equivalents, and since reasoning tokens
+  share the output budget a cap would truncate replies rather than shorten them.
+- **Both settings UIs** offer it: the SPA's "Mind" section and the server-rendered `/setup`
+  page show a "claude binary" field in place of the URL/key fields, and the live
+  "test connection" button works against it.
+- **Docs:** new ADR [decisions/claude-cli-provider.md](./decisions/claude-cli-provider.md);
+  a "The Claude CLI as a brain" section in [configuration.md](./configuration.md); notes in
+  [deployment.md](./deployment.md) (choosing where it runs) and
+  [security.md](./security.md) (it is a local *process*, not a local *model* — turns still
+  leave the machine).
+- **Tests:** `src/llm/claude-cli.test.ts` covers prompt flattening, media-type sniffing,
+  effort mapping, the hardening flags, image blocks, and streaming — driving a stub binary,
+  so the whole spawn/parse path runs without network access.
+
 ## 2026-07-01
 
 Diagnosed and fixed a stall where the companion answered only `"…"` after the owner shared a
