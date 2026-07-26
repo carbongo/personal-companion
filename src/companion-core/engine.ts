@@ -47,6 +47,8 @@ const AWAY_MESSAGE =
 /** Whether a reply can be produced at all (a model endpoint is configured). */
 export function companionConfigured(): boolean {
 	if (config.llm.provider === "ollama") return !!config.llm.ollamaUrl;
+	// claude-cli has no endpoint to point at — the brain is a binary on this box.
+	if (config.llm.provider === "claude-cli") return !!config.llm.claudeBin;
 	return !!config.llm.baseUrl;
 }
 

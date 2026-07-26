@@ -3,6 +3,18 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
+## 2026-07-26 (later)
+
+**Fixed: `claude-cli` read as "no model configured".** `companionConfigured()` knew only two
+shapes of provider — Ollama (needs `LLM_OLLAMA_URL`) and everything else (needs
+`LLM_BASE_URL`) — so the new provider, which is configured by a *binary* and deliberately has
+no endpoint, fell through to the base-URL check and answered `false`. Telegram was unaffected
+(it goes through `provider.reachable()`), but on a `claude-cli` deployment the built-in web
+chat refused every message with `503 No model is configured yet. Visit Setup.`, and the
+nightly memory roll-up scheduler never started — memory silently stopped being curated.
+`companionConfigured()` now checks `LLM_CLAUDE_BIN` for `claude-cli`; covered by
+`src/companion-core/engine.test.ts`.
+
 ## 2026-07-26
 
 Added a third LLM provider, **`claude-cli`** — a Claude model reached by spawning the locally
