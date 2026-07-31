@@ -143,6 +143,22 @@ export interface SttConfig {
 	language: string;
 }
 
+export type TtsProviderName = "off" | "openai" | "http" | "local";
+
+export interface TtsConfig {
+	provider: TtsProviderName;
+	/** Full speech-synthesis endpoint URL (provider "http"). */
+	apiUrl: string;
+	apiKey: string;
+	model: string;
+	/** Voice name/id passed to the hosted API (provider "openai" or "http"). */
+	voice: string;
+	/** Piper CLI binary (provider "local"); resolved on PATH if bare. */
+	localBin: string;
+	/** Path to a Piper .onnx voice model file (provider "local"). */
+	localModel: string;
+}
+
 export interface MemoryConfig {
 	contextDays: number;
 	memoryLimit: number;
@@ -195,6 +211,7 @@ export interface Config {
 	chat: ChatConfig;
 	telegram: TelegramConfig;
 	stt: SttConfig;
+	tts: TtsConfig;
 	memory: MemoryConfig;
 	web: WebConfig;
 	weather: WeatherConfig;
@@ -255,6 +272,18 @@ export function loadConfig(): Config {
 			localModel: str("STT_LOCAL_MODEL", ""),
 			ffmpegBin: str("STT_FFMPEG_BIN", "ffmpeg"),
 			language: str("STT_LANGUAGE", "auto"),
+		},
+		// Local (Piper) is the default: no network round-trip, matching the
+		// project's local-first ethos and a latency priority. It stays gracefully
+		// "unconfigured" until a voice model file is actually provided.
+		tts: {
+			provider: str("TTS_PROVIDER", "local") as TtsProviderName,
+			apiUrl: str("TTS_API_URL", "").replace(/\/+$/, ""),
+			apiKey: str("TTS_API_KEY", ""),
+			model: str("TTS_MODEL", "tts-1"),
+			voice: str("TTS_VOICE", ""),
+			localBin: str("TTS_LOCAL_BIN", "piper"),
+			localModel: str("TTS_LOCAL_MODEL", ""),
 		},
 		memory: {
 			contextDays: num("MEMORY_CONTEXT_DAYS", 7),

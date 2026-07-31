@@ -9,6 +9,7 @@ import { type Context, Hono } from "hono";
 import { stream } from "hono/streaming";
 import { sttConfigured, transcribe } from "#/channels/stt.ts";
 import { telegramConfigured } from "#/channels/telegram/index.ts";
+import { ttsConfigured } from "#/channels/tts.ts";
 import {
 	companionConfigured,
 	respond,
@@ -98,6 +99,13 @@ interface SetupBody {
 	sttModel?: string;
 	sttLocalModel?: string;
 	sttLanguage?: string;
+	// text-to-speech
+	ttsProvider?: string;
+	ttsApiUrl?: string;
+	ttsApiKey?: string;
+	ttsModel?: string;
+	ttsVoice?: string;
+	ttsLocalModel?: string;
 	// weather
 	weatherLat?: string;
 	weatherLon?: string;
@@ -147,6 +155,7 @@ api.get("/state", (c) => {
 			batchStepMs: config.chat.batchStepMs,
 			batchMaxMs: config.chat.batchMaxMs,
 			voice: sttConfigured(),
+			speak: ttsConfigured(),
 		},
 	});
 });
@@ -484,6 +493,11 @@ api.post("/setup", async (c) => {
 		STT_MODEL: opt(b.sttModel),
 		STT_LOCAL_MODEL: opt(b.sttLocalModel),
 		STT_LANGUAGE: opt(b.sttLanguage),
+		TTS_PROVIDER: opt(b.ttsProvider),
+		TTS_API_URL: opt(b.ttsApiUrl),
+		TTS_MODEL: opt(b.ttsModel),
+		TTS_VOICE: opt(b.ttsVoice),
+		TTS_LOCAL_MODEL: opt(b.ttsLocalModel),
 		WEATHER_LAT: opt(b.weatherLat),
 		WEATHER_LON: opt(b.weatherLon),
 		WEATHER_LOCATION_NAME: opt(b.weatherLocationName),
@@ -503,6 +517,7 @@ api.post("/setup", async (c) => {
 	if (b.webAuthPassword) env.WEB_AUTH_PASSWORD = b.webAuthPassword;
 	if (b.tavilyKey) env.TAVILY_API_KEY = b.tavilyKey;
 	if (b.sttApiKey) env.STT_API_KEY = b.sttApiKey;
+	if (b.ttsApiKey) env.TTS_API_KEY = b.ttsApiKey;
 
 	try {
 		writeEnvFile(".env", env);
