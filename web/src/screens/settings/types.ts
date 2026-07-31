@@ -36,6 +36,16 @@ export interface Form {
   sttModel: string;
   sttLocalModel: string;
   sttLanguage: string;
+  // Speaking (TTS)
+  ttsProvider: string;
+  ttsApiUrl: string;
+  ttsApiKey: string;
+  ttsModel: string;
+  ttsVoice: string;
+  ttsLocalModel: string;
+  speakMirror: boolean;
+  speakOnRequest: boolean;
+  speakSometimes: boolean;
   // Web access
   webEnabled: boolean;
   webSearchProvider: string;
@@ -104,6 +114,15 @@ export function formFromValues(v: SetupValues): Form {
     sttModel: v.sttModel,
     sttLocalModel: v.sttLocalModel,
     sttLanguage: v.sttLanguage,
+    ttsProvider: v.ttsProvider,
+    ttsApiUrl: v.ttsApiUrl,
+    ttsApiKey: "",
+    ttsModel: v.ttsModel,
+    ttsVoice: v.ttsVoice,
+    ttsLocalModel: v.ttsLocalModel,
+    speakMirror: v.speakMirror,
+    speakOnRequest: v.speakOnRequest,
+    speakSometimes: v.speakSometimes,
     webEnabled: v.webEnabled,
     webSearchProvider: v.webSearchProvider,
     tavilyKey: "",
@@ -167,6 +186,15 @@ export function bodyFromForm(f: Form): Record<string, string> {
     sttModel: f.sttModel,
     sttLocalModel: f.sttLocalModel,
     sttLanguage: f.sttLanguage,
+    ttsProvider: f.ttsProvider,
+    ttsApiUrl: f.ttsApiUrl,
+    ttsApiKey: f.ttsApiKey,
+    ttsModel: f.ttsModel,
+    ttsVoice: f.ttsVoice,
+    ttsLocalModel: f.ttsLocalModel,
+    speakMirror: b(f.speakMirror),
+    speakOnRequest: b(f.speakOnRequest),
+    speakSometimes: b(f.speakSometimes),
     webEnabled: b(f.webEnabled),
     webSearchProvider: f.webSearchProvider,
     tavilyKey: f.tavilyKey,

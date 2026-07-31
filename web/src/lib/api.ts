@@ -98,6 +98,15 @@ export interface SetupValues {
   sttModel: string;
   sttLocalModel: string;
   sttLanguage: string;
+  ttsProvider: string;
+  ttsApiUrl: string;
+  ttsConfigured: boolean;
+  ttsModel: string;
+  ttsVoice: string;
+  ttsLocalModel: string;
+  speakMirror: boolean;
+  speakOnRequest: boolean;
+  speakSometimes: boolean;
   weatherLat: string;
   weatherLon: string;
   weatherLocationName: string;
