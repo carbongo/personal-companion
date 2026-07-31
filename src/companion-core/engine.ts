@@ -6,6 +6,7 @@
  * same but emits the reply paragraph-by-paragraph as the model writes it, for the
  * web chat's live streaming. See docs/architecture.md.
  */
+import { synthesize, ttsConfigured } from "#/channels/tts.ts";
 import { config } from "#/config/index.ts";
 import { ProviderUnreachableError, provider } from "#/llm/index.ts";
 import type { ChatMessage, GenerateOptions } from "#/llm/types.ts";
@@ -15,6 +16,12 @@ import { buildConversationNote } from "./conversation.ts";
 import { appendMessage, messagesForDay, todayKey } from "./memory/store.ts";
 import { takeParagraphs } from "./paragraphs.ts";
 import { buildIdentity, buildInterests, buildOperating } from "./persona.ts";
+import {
+	shouldSpeak,
+	speakState,
+	stripSpeakTags,
+	wantsSpeak,
+} from "./speak.ts";
 import {
 	extractUrls,
 	extractWebRequests,
@@ -33,14 +40,40 @@ export interface Turn {
 	kind?: "text" | "voice" | "photo";
 	/** One or more `/uploads/…` paths (newline-separated) for saved attachments. */
 	mediaUrl?: string | null;
+	/**
+	 * The owner asked for this reply to be spoken (a channel's voice toggle or
+	 * command). Absent means no such request — never that speaking is off.
+	 */
+	wantsVoice?: boolean;
 }
 
 export interface EngineReply {
 	reply: string;
+	/**
+	 * Whether this reply should be said out loud (see ./speak.ts). The streaming
+	 * path already synthesized it per paragraph; a channel that takes the reply
+	 * whole (Telegram) uses this to decide whether to synthesize it itself.
+	 */
+	spoken: boolean;
+}
+
+/** One finished paragraph of a streamed reply. */
+export interface ParagraphChunk {
+	/** The user-facing text, all sidecar tags removed. */
+	text: string;
+	/** Synthesized speech for this paragraph, when the turn is being spoken. */
+	audio?: Uint8Array;
 }
 
 /** Called with each finished paragraph of a streamed reply. May be async. */
-export type ParagraphSink = (paragraph: string) => void | Promise<void>;
+export type ParagraphSink = (chunk: ParagraphChunk) => void | Promise<void>;
+
+/**
+ * Internal: like `ParagraphSink`, but also handed the paragraph's raw text with
+ * its tags intact, so the caller can see whether the model asked for it to be
+ * spoken before deciding to synthesize.
+ */
+type DraftSink = (cleaned: string, raw: string) => void | Promise<void>;
 
 const AWAY_MESSAGE =
 	"I can't reach my model right now. Give me a moment and try me again.";
@@ -235,7 +268,7 @@ async function generate(
 
 /** Strip sidecar + web tags from a chunk so only display text remains. */
 function cleanForDisplay(text: string): string {
-	return parseActions(stripWebTags(text)).cleaned;
+	return commitActions(stripWebTags(text));
 }
 
 /**
@@ -243,9 +276,27 @@ function cleanForDisplay(text: string): string {
  * companion no longer manages memory mid-conversation (that lives in the nightly
  * roll-up), so the tags are never acted on — only removed, in case a reply emits
  * a stray one, so it never leaks to the user.
+ *
+ * The `<speak>` markers come off here too — the words inside are ordinary reply
+ * text and stay, only the request to say them out loud is consumed.
  */
 function commitActions(raw: string): string {
-	return parseActions(raw).cleaned;
+	return parseActions(stripSpeakTags(raw)).cleaned;
+}
+
+/**
+ * Synthesize a paragraph, best-effort. A backend that's missing, slow, or
+ * unhappy must never cost the owner the reply itself, so a failure degrades to
+ * text exactly as if speaking were off.
+ */
+async function speakAloud(text: string): Promise<Uint8Array | undefined> {
+	if (!ttsConfigured()) return undefined;
+	try {
+		return await synthesize(text);
+	} catch (err) {
+		console.error("[companion] tts failed:", (err as Error).message);
+		return undefined;
+	}
 }
 
 /**
@@ -257,7 +308,7 @@ function commitActions(raw: string): string {
 async function generateStream(
 	messages: ChatMessage[],
 	opts: GenerateOptions,
-	emit: ParagraphSink,
+	emit: DraftSink,
 ): Promise<string> {
 	let buffer = "";
 	const onDelta = async (delta: string): Promise<void> => {
@@ -266,7 +317,7 @@ async function generateStream(
 		buffer = rest;
 		for (const p of paragraphs) {
 			const cleaned = cleanForDisplay(p);
-			if (cleaned) await emit(cleaned);
+			if (cleaned) await emit(cleaned, p);
 		}
 	};
 	const draw = (msgs: ChatMessage[]): Promise<string> =>
@@ -303,7 +354,7 @@ async function generateStream(
 	}
 	// Flush the final generation's trailing paragraph (no blank line after it).
 	const tail = cleanForDisplay(buffer);
-	if (tail) await emit(tail);
+	if (tail) await emit(tail, buffer);
 	return raw;
 }
 
@@ -314,7 +365,7 @@ export async function respond(turn: Turn): Promise<EngineReply> {
 	// incoming turn either way so it's caught up on a later turn / roll-up.
 	if (!(await provider.reachable())) {
 		persistUser(turn, day);
-		return { reply: AWAY_MESSAGE };
+		return { reply: AWAY_MESSAGE, spoken: false };
 	}
 
 	const { messages, genOpts } = await buildTurn(turn, day);
@@ -327,7 +378,8 @@ export async function respond(turn: Turn): Promise<EngineReply> {
 	try {
 		raw = await generate(messages, genOpts);
 	} catch (err) {
-		if (err instanceof ProviderUnreachableError) return { reply: AWAY_MESSAGE };
+		if (err instanceof ProviderUnreachableError)
+			return { reply: AWAY_MESSAGE, spoken: false };
 		throw err;
 	}
 
@@ -335,7 +387,14 @@ export async function respond(turn: Turn): Promise<EngineReply> {
 	// a stored "…" turn gets mimicked, seeding a run of empty replies for the day.
 	const cleaned = commitActions(stripWebTags(raw));
 	if (cleaned) appendMessage({ day, role: "assistant", content: cleaned });
-	return { reply: cleaned || "…" };
+	// The reply goes back whole here, so the channel synthesizes it (if it can)
+	// rather than the engine — the engine only says whether it should be spoken.
+	const spoken = shouldSpeak(config.tts, {
+		turnWasVoice: turn.kind === "voice",
+		requestedVoice: turn.wantsVoice ?? false,
+		modelWantsSpeak: wantsSpeak(raw),
+	});
+	return { reply: cleaned || "…", spoken };
 }
 
 /**
@@ -351,8 +410,8 @@ export async function respondStream(
 
 	if (!(await provider.reachable())) {
 		persistUser(turn, day);
-		await emit(AWAY_MESSAGE);
-		return { reply: AWAY_MESSAGE };
+		await emit({ text: AWAY_MESSAGE });
+		return { reply: AWAY_MESSAGE, spoken: false };
 	}
 
 	const { messages, genOpts } = await buildTurn(turn, day);
@@ -362,9 +421,24 @@ export async function respondStream(
 	persistUser(turn, day);
 
 	let emitted = 0;
-	const sink: ParagraphSink = async (p) => {
+	let spoken = false;
+	// A `<speak>` passage can span paragraphs, so its open/closed state is carried
+	// from one chunk to the next (see ./speak.ts).
+	let speakOpen = false;
+	const sink: DraftSink = async (text, draft) => {
 		emitted++;
-		await emit(p);
+		const state = speakState(draft, speakOpen);
+		speakOpen = state.open;
+		const say = shouldSpeak(config.tts, {
+			turnWasVoice: turn.kind === "voice",
+			requestedVoice: turn.wantsVoice ?? false,
+			modelWantsSpeak: state.speak,
+		});
+		// Synthesized here, paragraph by paragraph, so audio starts playing while
+		// the model is still writing the rest.
+		const audio = say ? await speakAloud(text) : undefined;
+		if (audio) spoken = true;
+		await emit(audio ? { text, audio } : { text });
 	};
 
 	let raw: string;
@@ -372,8 +446,8 @@ export async function respondStream(
 		raw = await generateStream(messages, genOpts, sink);
 	} catch (err) {
 		if (err instanceof ProviderUnreachableError) {
-			if (!emitted) await emit(AWAY_MESSAGE);
-			return { reply: AWAY_MESSAGE };
+			if (!emitted) await emit({ text: AWAY_MESSAGE });
+			return { reply: AWAY_MESSAGE, spoken: false };
 		}
 		throw err;
 	}
@@ -385,6 +459,6 @@ export async function respondStream(
 	const reply = cleaned || "…";
 	// If nothing was streamable (e.g. the reply was only sidecar tags), still
 	// hand the client the final text so a bubble always appears.
-	if (!emitted) await emit(reply);
-	return { reply };
+	if (!emitted) await emit({ text: reply });
+	return { reply, spoken };
 }

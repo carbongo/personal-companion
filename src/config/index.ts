@@ -157,6 +157,14 @@ export interface TtsConfig {
 	localBin: string;
 	/** Path to a Piper .onnx voice model file (provider "local"). */
 	localModel: string;
+	/**
+	 * When a reply is spoken. Three independent triggers (see
+	 * companion-core/speak.ts): speak back when spoken to, speak when asked on
+	 * the turn, and let the companion choose via its `<speak>` tag.
+	 */
+	speakMirror: boolean;
+	speakOnRequest: boolean;
+	speakSometimes: boolean;
 }
 
 export interface MemoryConfig {
@@ -284,6 +292,12 @@ export function loadConfig(): Config {
 			voice: str("TTS_VOICE", ""),
 			localBin: str("TTS_LOCAL_BIN", "piper"),
 			localModel: str("TTS_LOCAL_MODEL", ""),
+			// Mirroring and asking are the unsurprising triggers: audio only ever
+			// answers audio, or an explicit request. Letting the companion speak
+			// up on its own stays off until it's wanted.
+			speakMirror: bool("TTS_SPEAK_MIRROR", true),
+			speakOnRequest: bool("TTS_SPEAK_ON_REQUEST", true),
+			speakSometimes: bool("TTS_SPEAK_SOMETIMES", false),
 		},
 		memory: {
 			contextDays: num("MEMORY_CONTEXT_DAYS", 7),

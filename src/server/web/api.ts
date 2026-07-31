@@ -106,6 +106,9 @@ interface SetupBody {
 	ttsModel?: string;
 	ttsVoice?: string;
 	ttsLocalModel?: string;
+	ttsSpeakMirror?: string;
+	ttsSpeakOnRequest?: string;
+	ttsSpeakSometimes?: string;
 	// weather
 	weatherLat?: string;
 	weatherLon?: string;
@@ -271,8 +274,10 @@ api.post("/chat/stream", async (c) => {
 			STREAM_PING_MS,
 		);
 		try {
-			const { reply } = await respondStream(turn, async (paragraph) => {
-				await write({ type: "paragraph", text: paragraph });
+			// A chunk may also carry `audio` (synthesized speech for that
+			// paragraph); persisting and sending it is the voice-playback work.
+			const { reply } = await respondStream(turn, async (chunk) => {
+				await write({ type: "paragraph", text: chunk.text });
 			});
 			await write({ type: "done", reply });
 		} catch (err) {
@@ -498,6 +503,9 @@ api.post("/setup", async (c) => {
 		TTS_MODEL: opt(b.ttsModel),
 		TTS_VOICE: opt(b.ttsVoice),
 		TTS_LOCAL_MODEL: opt(b.ttsLocalModel),
+		TTS_SPEAK_MIRROR: opt(b.ttsSpeakMirror),
+		TTS_SPEAK_ON_REQUEST: opt(b.ttsSpeakOnRequest),
+		TTS_SPEAK_SOMETIMES: opt(b.ttsSpeakSometimes),
 		WEATHER_LAT: opt(b.weatherLat),
 		WEATHER_LON: opt(b.weatherLon),
 		WEATHER_LOCATION_NAME: opt(b.weatherLocationName),
