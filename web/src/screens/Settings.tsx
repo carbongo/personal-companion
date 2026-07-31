@@ -7,11 +7,14 @@ import { panelVariants } from "../lib/motion.ts";
 import { sfx } from "../lib/sound.ts";
 import { AppearanceSection } from "./settings/Appearance.tsx";
 import { ChannelsSection } from "./settings/Channels.tsx";
+import { ActionsSection } from "./settings/Actions.tsx";
 import { MemorySection } from "./settings/Memory.tsx";
 import { MindSection } from "./settings/Mind.tsx";
 import { PersonaSection } from "./settings/Persona.tsx";
+import { SpeakingSection } from "./settings/Speaking.tsx";
 import { SystemSection } from "./settings/System.tsx";
 import { bodyFromForm, type Form, formFromValues, type SectionProps } from "./settings/types.ts";
+import { SubTabs } from "./settings/ui.tsx";
 import { VoiceSection } from "./settings/Voice.tsx";
 import { WebSection } from "./settings/Web.tsx";
 import { WeatherSection } from "./settings/Weather.tsx";
@@ -22,16 +25,29 @@ interface Category {
   glyph: string;
   icon: IconName;
   render: (p: SectionProps) => ReactNode;
+  isNested?: boolean;
 }
+
+interface CapabilityTab {
+  id: string;
+  label: string;
+  render: (p: SectionProps) => ReactNode;
+}
+
+const CAPABILITY_TABS: CapabilityTab[] = [
+  { id: "memory", label: "Memory", render: (p) => <MemorySection {...p} /> },
+  { id: "listening", label: "Listening", render: (p) => <VoiceSection {...p} /> },
+  { id: "speaking", label: "Speaking", render: (p) => <SpeakingSection {...p} /> },
+  { id: "internet", label: "Internet", render: (p) => <WebSection {...p} /> },
+  { id: "location", label: "Location", render: (p) => <WeatherSection {...p} /> },
+  { id: "actions", label: "Actions", render: (p) => <ActionsSection {...p} /> },
+];
 
 const CATEGORIES: Category[] = [
   { id: "persona", label: "Persona", glyph: "Who they are", icon: "persona", render: (p) => <PersonaSection {...p} /> },
   { id: "mind", label: "The Mind", glyph: "Model & temperament", icon: "brain", render: (p) => <MindSection {...p} /> },
-  { id: "memory", label: "Memory", glyph: "Core & chronicle", icon: "memory", render: (p) => <MemorySection {...p} /> },
+  { id: "capabilities", label: "Capabilities", glyph: "Senses & reach", icon: "sparkle", render: () => null, isNested: true },
   { id: "channels", label: "Channels", glyph: "Telegram & reach", icon: "channels", render: (p) => <ChannelsSection {...p} /> },
-  { id: "voice", label: "Voice", glyph: "Speech to text", icon: "voice", render: (p) => <VoiceSection {...p} /> },
-  { id: "web", label: "The Sight", glyph: "Web access", icon: "web", render: (p) => <WebSection {...p} /> },
-  { id: "weather", label: "The Sky", glyph: "Location & weather", icon: "weather", render: (p) => <WeatherSection {...p} /> },
   { id: "atmosphere", label: "Atmosphere", glyph: "Sound & motion", icon: "appearance", render: () => <AppearanceSection /> },
   { id: "realm", label: "The Realm", glyph: "Access & host", icon: "security", render: (p) => <SystemSection {...p} /> },
 ];
@@ -58,6 +74,7 @@ export function Settings({ state }: { state: AppState }) {
   const [form, setForm] = useState<Form | null>(null);
   const baseline = useRef("");
   const [active, setActive] = useState("persona");
+  const [selectedCapabilityTab, setSelectedCapabilityTab] = useState("memory");
   const [saving, setSaving] = useState(false);
   const [reattuning, setReattuning] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -131,6 +148,26 @@ export function Settings({ state }: { state: AppState }) {
   const current = CATEGORIES.find((c) => c.id === active) ?? CATEGORIES[0];
   const props: SectionProps = { form, set, values, toast };
 
+  const renderContent = () => {
+    if (current.isNested && active === "capabilities") {
+      const selectedTab = CAPABILITY_TABS.find((t) => t.id === selectedCapabilityTab) ?? CAPABILITY_TABS[0];
+      return (
+        <div>
+          <SubTabs
+            tabs={CAPABILITY_TABS}
+            active={selectedCapabilityTab}
+            onSelect={(id) => {
+              setSelectedCapabilityTab(id);
+              sfx.play("tap");
+            }}
+          />
+          <div className="mt-6">{selectedTab.render(props)}</div>
+        </div>
+      );
+    }
+    return current.render(props);
+  };
+
   return (
     <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-0 px-2 sm:flex-row sm:gap-6 sm:px-5">
       {/* Rail */}
@@ -172,7 +209,7 @@ export function Settings({ state }: { state: AppState }) {
       <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto pb-28 pt-3 sm:pt-6">
         <AnimatePresence mode="wait">
           <motion.div key={active} variants={panelVariants} initial="initial" animate="enter" exit="exit">
-            {current.render(props)}
+            {renderContent()}
           </motion.div>
         </AnimatePresence>
       </div>

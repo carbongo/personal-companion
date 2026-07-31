@@ -1,4 +1,5 @@
 /** Layout primitives shared by every settings panel. */
+import { motion } from "motion/react";
 import type { ReactNode } from "react";
 
 export function SectionIntro({ title, blurb }: { title: string; blurb: string }) {
@@ -7,6 +8,42 @@ export function SectionIntro({ title, blurb }: { title: string; blurb: string })
       <h2 className="display text-[22px] text-ink">{title}</h2>
       <p className="mt-1.5 max-w-xl text-sm text-ink-dim">{blurb}</p>
       <div className="rune-line mt-4 w-full max-w-md" />
+    </div>
+  );
+}
+
+export function SubTabs({
+  tabs,
+  active,
+  onSelect,
+}: {
+  tabs: { id: string; label: string }[];
+  active: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="flex gap-0.5 border-b border-[var(--line)] pb-0">
+      {tabs.map((tab) => {
+        const on = tab.id === active;
+        return (
+          <button
+            key={tab.id}
+            onClick={() => onSelect(tab.id)}
+            className={`relative px-3.5 py-3 text-[14px] transition-colors ${
+              on ? "text-ink" : "text-ink-faint hover:text-ink-dim"
+            }`}
+          >
+            {on && (
+              <motion.span
+                layoutId="subtab-active"
+                className="absolute inset-x-0 -bottom-1 h-0.5 bg-cyan"
+                transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              />
+            )}
+            <span className="relative">{tab.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
