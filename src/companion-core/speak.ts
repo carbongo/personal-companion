@@ -50,6 +50,74 @@ export function wantsSpeak(raw: string): boolean {
 	return speakState(raw).speak;
 }
 
+/**
+ * Reduce reply text to what should actually be read aloud. The reply text
+ * shown on screen keeps its markdown — the web and Telegram clients render
+ * it — but a TTS voice has no renderer, so a literal `**word**` comes out as
+ * "asterisk asterisk word asterisk asterisk". This strips markdown
+ * formatting (keeping the words inside bold/code/links) and drops the
+ * punctuation-only artifacts (headers, bullets, table rules, stray
+ * fence/format characters) that a voice model would otherwise pronounce as
+ * symbol names. Single-asterisk/underscore spans (`*sighs*`, `*goes quiet
+ * for a second*`) are dropped whole rather than unwrapped — that's how chat
+ * models write non-verbal action beats, never actual dialogue, so a voice
+ * has nothing sensible to say for them. Only `synthesize()` callers use
+ * this — the text sent for display is untouched.
+ */
+export function sanitizeForSpeech(text: string): string {
+	let out = text;
+
+	// Fenced code blocks: drop the fence + language tag, keep the body.
+	out = out.replace(/```[^\n]*\n?/g, "").replace(/```/g, "");
+
+	// Images and links: keep the visible label, drop the target.
+	out = out.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1");
+	out = out.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+
+	// Bold/bold-italic is real emphasis on real words — keep them, drop the
+	// markers (longest run first).
+	out = out.replace(/\*\*\*([^*]+)\*\*\*/g, "$1");
+	out = out.replace(/\*\*([^*]+)\*\*/g, "$1");
+	out = out.replace(/___([^_]+)___/g, "$1");
+	out = out.replace(/__([^_]+)__/g, "$1");
+
+	// Single-asterisk/underscore spans are how chat models write non-verbal
+	// action beats (*sighs*, *goes quiet for a second*) — never dialogue, so
+	// they're dropped whole rather than spoken as if they were words.
+	out = out.replace(/\*([^*\n]+)\*/g, "");
+	out = out.replace(/(?<![A-Za-z0-9_])_([^_\n]+)_(?![A-Za-z0-9_])/g, "");
+
+	// Inline code and strikethrough: keep the words.
+	out = out.replace(/`([^`]+)`/g, "$1");
+	out = out.replace(/~~([^~]+)~~/g, "$1");
+
+	// Headers: drop the leading #'s, keep the heading text. `[ \t]`, not `\s`
+	// — `\s` matches `\n` too, which would reach into the next line.
+	out = out.replace(/^#{1,6}[ \t]+/gm, "");
+
+	// Horizontal rules and table separator rows: pure punctuation, drop the
+	// line (but not the blank line it sat on — same `[ \t]` reasoning).
+	out = out.replace(/^[ \t]*[-*_](?:[ \t]*[-*_]){2,}[ \t]*$/gm, "");
+	out = out.replace(/^[ \t]*\|?[ \t:|-]*-[ \t:|-]*\|?[ \t]*$/gm, "");
+
+	// List bullets: keep the item, drop the marker.
+	out = out.replace(/^[ \t]*[-*+][ \t]+/gm, "");
+
+	// Table pipes read as "pipe" otherwise; a pause reads better.
+	out = out.replace(/\|/g, ", ");
+
+	// Anything left over (a stray #, *, `, ~ that wasn't part of a pair) would
+	// otherwise be spoken as its symbol name. Underscore is excluded here —
+	// a lone one in running text is far more likely a snake_case identifier
+	// than orphaned markdown, and the paired case is already handled above.
+	out = out.replace(/[*`~#]/g, "");
+
+	return out
+		.replace(/[ \t]{2,}/g, " ")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+}
+
 /** The speaking triggers, as configured (a subset of `config.tts`). */
 export interface SpeakModes {
 	/** Speak back when the owner spoke first. */

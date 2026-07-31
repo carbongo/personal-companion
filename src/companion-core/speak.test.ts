@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+	sanitizeForSpeech,
 	shouldSpeak,
 	speakState,
 	stripSpeakTags,
@@ -84,5 +85,59 @@ describe("shouldSpeak", () => {
 				{ ...ctx, modelWantsSpeak: true },
 			),
 		).toBe(true);
+	});
+});
+
+describe("sanitizeForSpeech", () => {
+	it("drops bold markers but keeps the words", () => {
+		expect(sanitizeForSpeech("this is **very** important")).toBe(
+			"this is very important",
+		);
+		expect(sanitizeForSpeech("___bold italic___")).toBe("bold italic");
+	});
+
+	it("drops single-asterisk/underscore action beats whole, not just the markers", () => {
+		expect(sanitizeForSpeech("*quiet a second*")).toBe("");
+		expect(sanitizeForSpeech("sure. *sighs* let me check")).toBe(
+			"sure. let me check",
+		);
+		expect(sanitizeForSpeech("a _thoughtful pause_ then yes")).toBe(
+			"a then yes",
+		);
+	});
+
+	it("leaves snake_case identifiers alone", () => {
+		expect(sanitizeForSpeech("run my_variable_name now")).toBe(
+			"run my_variable_name now",
+		);
+	});
+
+	it("keeps link/image text and drops the target", () => {
+		expect(sanitizeForSpeech("see [the docs](https://example.com)")).toBe(
+			"see the docs",
+		);
+		expect(sanitizeForSpeech("![a cat](cat.png)")).toBe("a cat");
+	});
+
+	it("keeps code text and drops the fences", () => {
+		expect(sanitizeForSpeech("run `bun test`")).toBe("run bun test");
+		expect(sanitizeForSpeech("```ts\nconst x = 1;\n```")).toBe("const x = 1;");
+	});
+
+	it("drops headers and bullet markers, keeping the text", () => {
+		expect(sanitizeForSpeech("## Heading\n\n- one\n- two")).toBe(
+			"Heading\n\none\ntwo",
+		);
+	});
+
+	it("drops horizontal rules and table rules entirely", () => {
+		expect(sanitizeForSpeech("above\n---\nbelow")).toBe("above\n\nbelow");
+		expect(sanitizeForSpeech("a | b\n---|---\n1 | 2")).toBe("a , b\n\n1 , 2");
+	});
+
+	it("strips any stray formatting symbol left over", () => {
+		expect(sanitizeForSpeech("weird ~~strike~~ # text")).toBe(
+			"weird strike text",
+		);
 	});
 });

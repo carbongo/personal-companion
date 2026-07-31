@@ -5,6 +5,19 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-07-31 (latest)
 
+**Spoken replies stopped narrating their own markdown.** A voice reply built from the
+model's raw text was reading `**word**` as "asterisk asterisk word asterisk asterisk" and
+speaking action beats like `*sighs*` as literal words ("sighs"). `src/companion-core/speak.ts`
+gained `sanitizeForSpeech()`: it strips markdown formatting (bold/code/links/headers/bullets/
+tables), keeping the words inside, and — since single-asterisk/underscore spans are how chat
+models write non-verbal action beats, never dialogue — drops those whole rather than reading
+them aloud. Wired in ahead of both `synthesize()` call sites
+(`src/companion-core/engine.ts`'s `speakAloud`, `src/channels/telegram/index.ts`'s
+`trySendVoice`); the text shown on screen is untouched, since the web/Telegram clients
+already render the markdown correctly.
+
+## 2026-07-31
+
 **The companion can talk back, and Settings grew a Capabilities rail.** Phases 6 and 7:
 
 - **Capabilities settings rail** — `web/src/screens/Settings.tsx` gained one top-level

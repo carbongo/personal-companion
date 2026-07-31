@@ -12,6 +12,7 @@ import { sttConfigured, transcribe } from "#/channels/stt.ts";
 import { synthesize, ttsConfigured } from "#/channels/tts.ts";
 import { respond, type Turn } from "#/companion-core/engine.ts";
 import { saveUpload } from "#/companion-core/media.ts";
+import { sanitizeForSpeech } from "#/companion-core/speak.ts";
 import { config } from "#/config/index.ts";
 import { Batcher, type BatchItem } from "./batcher.ts";
 import { splitReply } from "./split.ts";
@@ -100,7 +101,7 @@ export function startTelegram(): void {
 	async function trySendVoice(chatId: number, reply: string): Promise<boolean> {
 		const stopRecording = startAction(chatId, "record_voice");
 		try {
-			const audio = await synthesize(reply);
+			const audio = await synthesize(sanitizeForSpeech(reply));
 			// Telegram voice notes are normally OGG/Opus; the synthesized bytes go
 			// out as-is regardless of provider, same graceful-degradation posture
 			// as the rest of TTS — worst case the waveform/duration UI is off, not

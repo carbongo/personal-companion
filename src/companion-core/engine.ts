@@ -17,6 +17,7 @@ import { appendMessage, messagesForDay, todayKey } from "./memory/store.ts";
 import { takeParagraphs } from "./paragraphs.ts";
 import { buildIdentity, buildInterests, buildOperating } from "./persona.ts";
 import {
+	sanitizeForSpeech,
 	shouldSpeak,
 	speakState,
 	stripSpeakTags,
@@ -298,7 +299,7 @@ function commitActions(raw: string): string {
 async function speakAloud(text: string): Promise<Uint8Array | undefined> {
 	if (!ttsConfigured()) return undefined;
 	try {
-		return await synthesize(text);
+		return await synthesize(sanitizeForSpeech(text));
 	} catch (err) {
 		console.error("[companion] tts failed:", (err as Error).message);
 		return undefined;
