@@ -59,6 +59,19 @@ export function appendMessage(m: NewMessage): Message {
 		.get();
 }
 
+/**
+ * Attach saved media to an already-logged message. A spoken reply is streamed
+ * and synthesized paragraph by paragraph, so its audio only exists once the
+ * reply is over — the row is written first, then pointed at the clips.
+ */
+export function setMessageMedia(
+	id: number,
+	kind: "text" | "voice" | "photo",
+	mediaUrl: string | null,
+): void {
+	db.update(messages).set({ kind, mediaUrl }).where(eq(messages.id, id)).run();
+}
+
 export function messagesForDay(day: string): Message[] {
 	return db
 		.select()

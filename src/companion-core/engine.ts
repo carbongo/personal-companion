@@ -55,6 +55,12 @@ export interface EngineReply {
 	 * whole (Telegram) uses this to decide whether to synthesize it itself.
 	 */
 	spoken: boolean;
+	/**
+	 * The id of the logged assistant row, when one was written. A channel that
+	 * saved audio for the reply uses it to point that row at the clips (see
+	 * `setMessageMedia`); absent when the reply was blank and never stored.
+	 */
+	messageId?: number;
 }
 
 /** One finished paragraph of a streamed reply. */
@@ -386,7 +392,9 @@ export async function respond(turn: Turn): Promise<EngineReply> {
 	// Only a real reply is logged. A blank draw is shown as "…" but never stored:
 	// a stored "…" turn gets mimicked, seeding a run of empty replies for the day.
 	const cleaned = commitActions(stripWebTags(raw));
-	if (cleaned) appendMessage({ day, role: "assistant", content: cleaned });
+	const row = cleaned
+		? appendMessage({ day, role: "assistant", content: cleaned })
+		: undefined;
 	// The reply goes back whole here, so the channel synthesizes it (if it can)
 	// rather than the engine — the engine only says whether it should be spoken.
 	const spoken = shouldSpeak(config.tts, {
@@ -394,7 +402,7 @@ export async function respond(turn: Turn): Promise<EngineReply> {
 		requestedVoice: turn.wantsVoice ?? false,
 		modelWantsSpeak: wantsSpeak(raw),
 	});
-	return { reply: cleaned || "…", spoken };
+	return { reply: cleaned || "…", spoken, messageId: row?.id };
 }
 
 /**
@@ -455,10 +463,12 @@ export async function respondStream(
 	// Only a real reply is logged; a blank "…" is shown but never stored (a stored
 	// "…" turn gets mimicked, seeding a run of empty replies for the day).
 	const cleaned = commitActions(stripWebTags(raw));
-	if (cleaned) appendMessage({ day, role: "assistant", content: cleaned });
+	const row = cleaned
+		? appendMessage({ day, role: "assistant", content: cleaned })
+		: undefined;
 	const reply = cleaned || "…";
 	// If nothing was streamable (e.g. the reply was only sidecar tags), still
 	// hand the client the final text so a bubble always appears.
 	if (!emitted) await emit({ text: reply });
-	return { reply, spoken };
+	return { reply, spoken, messageId: row?.id };
 }

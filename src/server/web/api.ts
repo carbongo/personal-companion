@@ -15,7 +15,11 @@ import {
 	respond,
 	respondStream,
 } from "#/companion-core/engine.ts";
-import { saveUpload, sniffImageExt } from "#/companion-core/media.ts";
+import {
+	saveUpload,
+	sniffAudioExt,
+	sniffImageExt,
+} from "#/companion-core/media.ts";
 import { runDailyRollup } from "#/companion-core/memory/rollup.ts";
 import {
 	addMemory,
@@ -26,6 +30,7 @@ import {
 	messagesForDay,
 	searchMemories,
 	setCore,
+	setMessageMedia,
 	setSetting,
 	todayKey,
 } from "#/companion-core/memory/store.ts";
@@ -195,6 +200,7 @@ async function prepareTurn(c: Context) {
 		text?: string;
 		images?: string[];
 		kind?: "text" | "voice" | "photo";
+		speak?: boolean;
 	};
 	const text = (body.text ?? "").trim();
 	// base64 image data (no data: prefix), one entry per attached image.
@@ -227,6 +233,9 @@ async function prepareTurn(c: Context) {
 			images: images.length ? images : undefined,
 			kind,
 			mediaUrl,
+			// The composer's voice toggle: this turn asked to be answered aloud.
+			// Whether that actually happens is the engine's gate (`shouldSpeak`).
+			wantsVoice: body.speak === true,
 		},
 	};
 }
@@ -243,8 +252,9 @@ api.post("/chat", async (c) => {
 });
 
 // Streaming chat: newline-delimited JSON (one object per line). The reply is
-// emitted paragraph-by-paragraph as the model writes it — `{type:"paragraph"}` —
-// then a final `{type:"done", reply}` (or `{type:"error"}`). A `{type:"ping"}`
+// emitted paragraph-by-paragraph as the model writes it — `{type:"paragraph"}`,
+// carrying an `audioUrl` when that paragraph was spoken — then a final
+// `{type:"done", reply}` (or `{type:"error"}`). A `{type:"ping"}`
 // keepalive is sent every few seconds so the connection survives the long silent
 // stretch while the model "thinks" before any token lands (otherwise Bun's idle
 // timeout drops it mid-think and the reply never reaches the browser). The web
@@ -273,12 +283,31 @@ api.post("/chat/stream", async (c) => {
 			() => void write({ type: "ping" }),
 			STREAM_PING_MS,
 		);
+		// Each spoken paragraph's audio is written to /uploads the moment it's
+		// synthesized and the browser is handed only the URL — it starts playing
+		// while the model is still writing, and the bytes never ride the NDJSON
+		// stream. The clips stay separate (audio files can't be concatenated), so
+		// the finished reply keeps the whole ordered list on its row.
+		const audioUrls: string[] = [];
 		try {
-			// A chunk may also carry `audio` (synthesized speech for that
-			// paragraph); persisting and sending it is the voice-playback work.
-			const { reply } = await respondStream(turn, async (chunk) => {
-				await write({ type: "paragraph", text: chunk.text });
+			const { reply, messageId } = await respondStream(turn, async (chunk) => {
+				let audioUrl: string | undefined;
+				if (chunk.audio?.length) {
+					const url = await saveUpload(chunk.audio, sniffAudioExt(chunk.audio));
+					if (url) {
+						audioUrls.push(url);
+						audioUrl = url;
+					}
+				}
+				await write(
+					audioUrl
+						? { type: "paragraph", text: chunk.text, audioUrl }
+						: { type: "paragraph", text: chunk.text },
+				);
 			});
+			// Point the logged reply at its clips, so a reload replays it.
+			if (messageId && audioUrls.length)
+				setMessageMedia(messageId, "voice", audioUrls.join("\n"));
 			await write({ type: "done", reply });
 		} catch (err) {
 			await write({ type: "error", error: (err as Error).message });

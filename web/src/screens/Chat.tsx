@@ -5,6 +5,7 @@ import { useToast } from "../components/Toast.tsx";
 import { api, type AppState, type ChatMessage } from "../lib/api.ts";
 import { formatTime, greeting, renderMarkdown } from "../lib/format.tsx";
 import { sfx } from "../lib/sound.ts";
+import { usePlayingVoice, voice } from "../lib/voice.ts";
 
 /** A delivery state for the messages you send, mirrored on the bubble like a
  *  messenger: one tick = queued (batching, not sent yet, or it errored), two
@@ -17,6 +18,8 @@ interface Bubble {
   content: string;
   mediaUrls: string[];
   createdAt: string;
+  /** Spoken audio for this bubble, in order — one clip per paragraph. */
+  audioUrls?: string[];
   /** Assistant placeholder while the model gathers itself. */
   pending?: boolean;
   /** Delivery state, on your own messages only. */
@@ -28,6 +31,14 @@ interface Queued {
   id: string;
   text: string;
   images: string[];
+  /** This message asked for the reply to be spoken back. */
+  speak: boolean;
+}
+
+/** One finished paragraph off the stream, with its clip when it was spoken. */
+interface Para {
+  text: string;
+  audioUrl?: string;
 }
 
 let seq = 0;
@@ -84,8 +95,49 @@ function Ticks({ status }: { status: Status }) {
   );
 }
 
-function Bubble({ m }: { m: Bubble }) {
+/** The voice control on a spoken reply: bars while it plays, a tap to silence
+ *  it (or to hear it again later, from the history). */
+function VoiceTag({ urls, speaking }: { urls: string[]; speaking: boolean }) {
+  return (
+    <button
+      onClick={() => {
+        if (speaking) voice.stop();
+        else voice.play(urls);
+        sfx.play("tap");
+      }}
+      onPointerEnter={() => sfx.play("hover")}
+      title={speaking ? "Silence" : "Play aloud"}
+      className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 transition ${
+        speaking
+          ? "border-cyan/40 bg-cyan/10 text-cyan shadow-[var(--glow-cyan)]"
+          : "border-[var(--line)] text-ink-faint hover:border-cyan/30 hover:text-cyan"
+      }`}
+    >
+      {speaking ? (
+        <span className="flex h-3 items-center gap-[2px]">
+          {[0, 1, 2].map((i) => (
+            <motion.span
+              key={i}
+              className="w-[2px] rounded-full bg-cyan"
+              animate={{ height: [3, 11, 5, 9, 3] }}
+              transition={{ repeat: Infinity, duration: 1.1, delay: i * 0.13, ease: "easeInOut" }}
+            />
+          ))}
+        </span>
+      ) : (
+        <Icon name="sound" size={12} />
+      )}
+      <span className="font-mono text-[10px] uppercase tracking-wide">
+        {speaking ? "speaking" : "play"}
+      </span>
+    </button>
+  );
+}
+
+function Bubble({ m, playing }: { m: Bubble; playing: string | null }) {
   const mine = m.role === "user";
+  const clips = m.audioUrls ?? [];
+  const speaking = !!playing && clips.includes(playing);
   return (
     <motion.div
       layout
@@ -115,8 +167,9 @@ function Bubble({ m }: { m: Bubble }) {
             <div className="whitespace-pre-wrap break-words">{renderMarkdown(m.content)}</div>
           )}
         </div>
-        <span className="flex items-center gap-1 px-1 font-mono text-[10.5px] text-ink-faint">
+        <span className="flex items-center gap-1.5 px-1 font-mono text-[10.5px] text-ink-faint">
           <span className="opacity-0 transition group-hover:opacity-100">{formatTime(m.createdAt)}</span>
+          {clips.length > 0 && <VoiceTag urls={clips} speaking={speaking} />}
           {mine && m.status && <Ticks status={m.status} />}
         </span>
       </div>
@@ -130,6 +183,10 @@ export function Chat({ state }: { state: AppState }) {
   const [text, setText] = useState("");
   const [images, setImages] = useState<{ b64: string; preview: string }[]>([]);
   const [recording, setRecording] = useState(false);
+  // Ask for the reply to be spoken. Stays on until switched off, so a spoken
+  // exchange keeps flowing; the server still decides whether it can speak.
+  const [speakBack, setSpeakBack] = useState(false);
+  const playing = usePlayingVoice();
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const recRef = useRef<MediaRecorder | null>(null);
@@ -211,10 +268,13 @@ export function Chat({ state }: { state: AppState }) {
     ]);
     scrollToBottom();
 
-    const paraQueue: string[] = [];
+    const paraQueue: Para[] = [];
     let streamDone = false;
-    const onParagraph = (p: string) => {
+    const onParagraph = (p: Para) => {
       paraQueue.push(p);
+      // Audio starts the moment its clip exists — ahead of the paced bubbles, so
+      // the reply is heard while the model is still writing the rest of it.
+      if (p.audioUrl) voice.enqueue(p.audioUrl);
     };
 
     // Drains paragraphs onto the screen, one at a time, paced — runs alongside
@@ -231,8 +291,9 @@ export function Chat({ state }: { state: AppState }) {
         const bubble = {
           id: `${typingId}-p${shown}`,
           role: "assistant" as const,
-          content: p,
+          content: p.text,
           mediaUrls: [],
+          audioUrls: p.audioUrl ? [p.audioUrl] : undefined,
           createdAt: nowIso(),
         };
         setMessages((m) => {
@@ -256,6 +317,8 @@ export function Chat({ state }: { state: AppState }) {
           text: combinedText,
           images: payloadImages.length ? payloadImages : undefined,
           kind: payloadImages.length ? "photo" : "text",
+          // One asked-for voice reply in the burst speaks the whole answer.
+          speak: batch.some((b) => b.speak),
         },
         onParagraph,
       );
@@ -313,7 +376,13 @@ export function Chat({ state }: { state: AppState }) {
     const bodyText = text.trim();
     if (!bodyText && images.length === 0) return;
     const id = uid("msg");
-    queueRef.current = [...queueRef.current, { id, text: bodyText, images: images.map((i) => i.b64) }];
+    // Browsers only allow audio that a gesture asked for, and the reply's clips
+    // land seconds after this click — so playback is primed here, on the send.
+    if (state.chat.speak) voice.unlock();
+    queueRef.current = [
+      ...queueRef.current,
+      { id, text: bodyText, images: images.map((i) => i.b64), speak: speakBack },
+    ];
     setMessages((m) => [
       ...m,
       {
@@ -390,7 +459,7 @@ export function Chat({ state }: { state: AppState }) {
           <div className="flex flex-col gap-4">
             <AnimatePresence initial={false}>
               {messages.map((m) => (
-                <Bubble key={m.id} m={m} />
+                <Bubble key={m.id} m={m} playing={playing} />
               ))}
             </AnimatePresence>
           </div>
@@ -459,6 +528,28 @@ export function Chat({ state }: { state: AppState }) {
             </button>
           )}
 
+          {state.chat.speak && (
+            <button
+              onClick={() => {
+                const on = !speakBack;
+                setSpeakBack(on);
+                // The toggle is itself a gesture — prime playback while we have it.
+                if (on) voice.unlock();
+                else voice.stop();
+                sfx.play("toggle");
+              }}
+              onPointerEnter={() => sfx.play("hover")}
+              className={`grid h-10 w-10 place-items-center rounded-xl transition ${
+                speakBack
+                  ? "bg-cyan/15 text-cyan shadow-[var(--glow-cyan)]"
+                  : "text-ink-faint hover:bg-white/5 hover:text-cyan"
+              }`}
+              title={speakBack ? "Replies are spoken aloud" : "Ask for the reply aloud"}
+            >
+              <Icon name={speakBack ? "sound" : "mute"} size={19} />
+            </button>
+          )}
+
           <button
             onClick={queue}
             disabled={!text.trim() && images.length === 0}
@@ -478,7 +569,10 @@ export function Chat({ state }: { state: AppState }) {
 }
 
 /** Turn stored history into bubbles: your messages show as delivered; the
- *  companion's replies are split back into the paragraphs they were sent as. */
+ *  companion's replies are split back into the paragraphs they were sent as.
+ *  A spoken reply carries one clip per paragraph on its row, so they line back
+ *  up with the paragraphs; if the counts ever drift, the first bubble plays the
+ *  lot in order rather than mismatching them. */
 function historyToBubbles(rows: ChatMessage[]): Bubble[] {
   const out: Bubble[] = [];
   for (const m of rows) {
@@ -494,12 +588,16 @@ function historyToBubbles(rows: ChatMessage[]): Bubble[] {
     } else {
       const paras = splitParagraphs(m.content);
       const blocks = paras.length ? paras : [m.content];
+      // Audio lives in the same column as images; only a voice row holds clips.
+      const clips = m.kind === "voice" ? m.mediaUrls : [];
+      const perBlock = clips.length === blocks.length;
       blocks.forEach((p, i) => {
         out.push({
           id: `m${m.id}-${i}`,
           role: "assistant",
           content: p,
-          mediaUrls: i === 0 ? m.mediaUrls : [],
+          mediaUrls: i === 0 && !clips.length ? m.mediaUrls : [],
+          audioUrls: perBlock ? [clips[i] as string] : i === 0 && clips.length ? clips : undefined,
           createdAt: m.createdAt,
         });
       });

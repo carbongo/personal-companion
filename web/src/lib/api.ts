@@ -23,6 +23,8 @@ export interface AppState {
     batchStepMs: number;
     batchMaxMs: number;
     voice: boolean;
+    /** Whether replies can be spoken back (text-to-speech is configured). */
+    speak?: boolean;
   };
 }
 
@@ -160,17 +162,18 @@ export const api = {
       `/api/messages${day ? `?day=${encodeURIComponent(day)}` : ""}`,
     ),
   days: () => req<{ days: string[] }>("/api/days"),
-  send: (payload: { text?: string; images?: string[]; kind?: string }) =>
+  send: (payload: { text?: string; images?: string[]; kind?: string; speak?: boolean }) =>
     req<{ reply: string }>("/api/chat", { method: "POST", body: body(payload) }),
 
   /**
    * Streaming chat: POSTs the turn and reads newline-delimited JSON back,
-   * calling `onParagraph` for each finished paragraph as it arrives. Resolves
-   * with the full reply once the stream closes.
+   * calling `onParagraph` for each finished paragraph as it arrives — with the
+   * URL of that paragraph's audio when the reply is being spoken. Resolves with
+   * the full reply once the stream closes.
    */
   sendStream: async (
-    payload: { text?: string; images?: string[]; kind?: string },
-    onParagraph: (text: string) => void,
+    payload: { text?: string; images?: string[]; kind?: string; speak?: boolean },
+    onParagraph: (p: { text: string; audioUrl?: string }) => void,
   ): Promise<{ reply: string }> => {
     const res = await fetch("/api/chat/stream", {
       method: "POST",
@@ -198,13 +201,20 @@ export const api = {
     const handle = (line: string) => {
       const trimmed = line.trim();
       if (!trimmed) return;
-      let obj: { type?: string; text?: string; reply?: string; error?: string };
+      let obj: {
+        type?: string;
+        text?: string;
+        audioUrl?: string;
+        reply?: string;
+        error?: string;
+      };
       try {
         obj = JSON.parse(trimmed);
       } catch {
         return;
       }
-      if (obj.type === "paragraph" && obj.text) onParagraph(obj.text);
+      if (obj.type === "paragraph" && obj.text)
+        onParagraph({ text: obj.text, audioUrl: obj.audioUrl });
       else if (obj.type === "done") reply = obj.reply ?? reply;
       else if (obj.type === "error")
         throw new ApiError(obj.error ?? "The companion couldn't reply.", 500);

@@ -6,6 +6,7 @@ import {
 	extOf,
 	resolveUpload,
 	saveUpload,
+	sniffAudioExt,
 	sniffImageExt,
 	uploadsDir,
 } from "./media.ts";
@@ -41,6 +42,32 @@ describe("sniffImageExt", () => {
 
 	it("defaults to .jpg for unknown bytes", () => {
 		expect(sniffImageExt(new Uint8Array([0, 1, 2, 3]))).toBe(".jpg");
+	});
+});
+
+describe("sniffAudioExt", () => {
+	it("recognizes what the TTS backends hand back", () => {
+		const wav = new Uint8Array([
+			0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x41, 0x56, 0x45,
+		]);
+		expect(sniffAudioExt(wav)).toBe(".wav");
+		expect(sniffAudioExt(new Uint8Array([0x4f, 0x67, 0x67, 0x53]))).toBe(
+			".ogg",
+		);
+		expect(sniffAudioExt(new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]))).toBe(
+			".webm",
+		);
+		expect(sniffAudioExt(new Uint8Array([0x49, 0x44, 0x33, 0x04]))).toBe(
+			".mp3",
+		);
+		expect(sniffAudioExt(new Uint8Array([0xff, 0xfb, 0x90]))).toBe(".mp3");
+	});
+
+	it("serves an unknown blob as mp3, the common case", () => {
+		expect(sniffAudioExt(new Uint8Array([0, 1, 2, 3]))).toBe(".mp3");
+		expect(contentTypeFor(`clip${sniffAudioExt(new Uint8Array())}`)).toBe(
+			"audio/mpeg",
+		);
 	});
 });
 

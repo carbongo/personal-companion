@@ -82,6 +82,52 @@ export function sniffImageExt(b: Uint8Array): string {
 	return ".jpg";
 }
 
+/**
+ * Guess an audio extension from the leading magic bytes (default ".mp3"). What
+ * a TTS backend hands back varies — Piper writes a wav, hosted APIs usually mp3,
+ * self-hosted ones often ogg — and the file has to be served with a content type
+ * the browser will actually play.
+ */
+export function sniffAudioExt(b: Uint8Array): string {
+	// "RIFF….WAVE"
+	if (
+		b.length >= 12 &&
+		b[0] === 0x52 &&
+		b[1] === 0x49 &&
+		b[2] === 0x46 &&
+		b[3] === 0x46 &&
+		b[8] === 0x57 &&
+		b[9] === 0x41 &&
+		b[10] === 0x56 &&
+		b[11] === 0x45
+	)
+		return ".wav";
+	// "OggS"
+	if (
+		b.length >= 4 &&
+		b[0] === 0x4f &&
+		b[1] === 0x67 &&
+		b[2] === 0x67 &&
+		b[3] === 0x53
+	)
+		return ".ogg";
+	// EBML header — a webm/matroska container.
+	if (
+		b.length >= 4 &&
+		b[0] === 0x1a &&
+		b[1] === 0x45 &&
+		b[2] === 0xdf &&
+		b[3] === 0xa3
+	)
+		return ".webm";
+	// An "ID3" tag or a bare MPEG frame sync.
+	if (b.length >= 3 && b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33)
+		return ".mp3";
+	if (b.length >= 2 && b[0] === 0xff && ((b[1] ?? 0) & 0xe0) === 0xe0)
+		return ".mp3";
+	return ".mp3";
+}
+
 /** A collision-resistant filename keeping a safe extension. */
 function uniqueName(ext: string): string {
 	const e = SAFE_EXT.test(ext) ? ext : "";
