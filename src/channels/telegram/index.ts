@@ -6,9 +6,10 @@
  * reply split into human-sized messages (split.ts). The engine stays
  * channel-agnostic. See docs/channels.md.
  */
-import { Bot, type Context } from "grammy";
+import { Bot, type Context, InputFile } from "grammy";
 
 import { sttConfigured, transcribe } from "#/channels/stt.ts";
+import { synthesize, ttsConfigured } from "#/channels/tts.ts";
 import { respond, type Turn } from "#/companion-core/engine.ts";
 import { saveUpload } from "#/companion-core/media.ts";
 import { config } from "#/config/index.ts";
@@ -72,14 +73,49 @@ export function startTelegram(): void {
 
 	const bot = new Bot(config.telegram.botToken);
 
-	/** Keep a "typing…" action alive until the returned stop() is called. */
-	function startTyping(chatId: number): () => void {
+	/**
+	 * Keep a chat action alive (refreshed under Telegram's ~5s expiry) until the
+	 * returned stop() is called. "typing" covers generation; "record_voice"
+	 * covers synthesis, so the gap between a voice note in and a voice note out
+	 * never goes quiet — the closest a Bot API integration gets to call-like
+	 * feedback.
+	 */
+	function startAction(
+		chatId: number,
+		action: "typing" | "record_voice",
+	): () => void {
 		const tick = () => {
-			bot.api.sendChatAction(chatId, "typing").catch(() => {});
+			bot.api.sendChatAction(chatId, action).catch(() => {});
 		};
 		tick();
 		const timer = setInterval(tick, TYPING_REFRESH_MS);
 		return () => clearInterval(timer);
+	}
+
+	/**
+	 * Try to speak the reply as a Telegram voice note. Returns whether it sent —
+	 * false (rather than throwing) on any synthesis/send failure, so the caller
+	 * falls back to the ordinary text path exactly like a missing TTS backend.
+	 */
+	async function trySendVoice(chatId: number, reply: string): Promise<boolean> {
+		const stopRecording = startAction(chatId, "record_voice");
+		try {
+			const audio = await synthesize(reply);
+			// Telegram voice notes are normally OGG/Opus; the synthesized bytes go
+			// out as-is regardless of provider, same graceful-degradation posture
+			// as the rest of TTS — worst case the waveform/duration UI is off, not
+			// a broken reply.
+			await bot.api.sendVoice(chatId, new InputFile(audio, "reply.ogg"));
+			return true;
+		} catch (err) {
+			console.error(
+				"[telegram] voice send failed, falling back to text:",
+				(err as Error).message,
+			);
+			return false;
+		} finally {
+			stopRecording();
+		}
 	}
 
 	async function handleBatch(
@@ -95,9 +131,14 @@ export function startTelegram(): void {
 		if (items.length > 1)
 			console.log(`[telegram] batched ${items.length} messages into one turn`);
 
-		const stopTyping = startTyping(chatId);
+		const stopTyping = startAction(chatId, "typing");
 		try {
-			const { reply } = await respond(turn);
+			const { reply, spoken } = await respond(turn);
+			stopTyping();
+
+			if (spoken && ttsConfigured() && (await trySendVoice(chatId, reply)))
+				return;
+
 			const parts = splitReply(reply, {
 				paragraphs: config.telegram.replySplit,
 			});
