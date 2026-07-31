@@ -73,6 +73,16 @@ export interface SetupValues {
 	sttModel: string;
 	sttLocalModel: string;
 	sttLanguage: string;
+	// text-to-speech
+	ttsProvider: string;
+	ttsApiUrl: string;
+	ttsConfigured: boolean;
+	ttsModel: string;
+	ttsVoice: string;
+	ttsLocalModel: string;
+	speakMirror: boolean;
+	speakOnRequest: boolean;
+	speakSometimes: boolean;
 	// weather
 	weatherLat: string;
 	weatherLon: string;
@@ -150,6 +160,15 @@ export function currentSetupValues(): SetupValues {
 		sttModel: config.stt.model,
 		sttLocalModel: config.stt.localModel,
 		sttLanguage: config.stt.language,
+		ttsProvider: config.tts.provider,
+		ttsApiUrl: config.tts.apiUrl,
+		ttsConfigured: !!config.tts.apiKey,
+		ttsModel: config.tts.model,
+		ttsVoice: config.tts.voice,
+		ttsLocalModel: config.tts.localModel,
+		speakMirror: config.tts.speakMirror,
+		speakOnRequest: config.tts.speakOnRequest,
+		speakSometimes: config.tts.speakSometimes,
 		weatherLat: config.weather.lat == null ? "" : String(config.weather.lat),
 		weatherLon: config.weather.lon == null ? "" : String(config.weather.lon),
 		weatherLocationName: config.weather.locationName,
