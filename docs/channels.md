@@ -28,6 +28,15 @@ needed, so it runs from anywhere, including behind NAT.
   - *Outgoing reply-split* — a long reply is sent as paragraph-sized messages with a typing
     indicator and short pauses, like a person texting. Toggle with `TELEGRAM_REPLY_SPLIT`.
   - Replies are also hard-wrapped under Telegram's 4096-character message limit.
+- **Voice replies:** when the reply should be spoken (the mirror or sometimes trigger — see
+  [configuration.md](./configuration.md#speaking-text-to-speech)) and TTS is configured, the
+  whole reply is synthesized and sent as a voice note via grammY's `sendVoice`, with a
+  `record_voice` chat action shown while synthesis is in flight so the round-trip still feels
+  continuous. Falls back to the normal split-text reply on any synthesis/send failure, or
+  whenever the gate says no. `speakOnRequest` has no natural trigger in plain Telegram text
+  chat yet, so it stays unreachable there for now. A real "call" experience (live voice
+  back-and-forth) was investigated and explicitly not built — see
+  [decisions/local-tts-and-speaking-modes.md](./decisions/local-tts-and-speaking-modes.md).
 
 ## Built-in web chat
 
@@ -61,6 +70,16 @@ The web chat deliberately mirrors the Telegram channel:
   such as `https`/`localhost`) or attach an audio file. It POSTs to `POST /api/transcribe`,
   which runs the same STT backend every channel uses, and drops the transcript into the
   composer to review before sending.
+- **Voice playback** — when a reply is being spoken, `respondStream` synthesizes audio
+  per paragraph (behind `ttsConfigured()` and the same three-trigger gate as Telegram) and
+  streams it back as an `audioUrl` alongside each NDJSON paragraph, saved under
+  `DATA_DIR/uploads`. The client (`web/src/lib/voice.ts`) is a small sequential audio-queue
+  player — one reused `<audio>` element, unlocked on the send gesture, clips enqueued and
+  played back-to-back as they arrive — so speech starts after the first paragraph instead of
+  waiting for the whole reply. A composer toggle requests a spoken reply (`Turn.wantsVoice`,
+  the `speakOnRequest` trigger); a "speaking" indicator shows while audio plays. Once the
+  stream completes, the message is persisted as `kind:"voice"` so it replays correctly after
+  a reload.
 
 The chat is one screen of a small web interface that also includes:
 

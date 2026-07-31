@@ -3,7 +3,40 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
-## 2026-07-26 (latest)
+## 2026-07-31 (latest)
+
+**The companion can talk back, and Settings grew a Capabilities rail.** Phases 6 and 7:
+
+- **Capabilities settings rail** — `web/src/screens/Settings.tsx` gained one top-level
+  **Capabilities** item with a horizontal sub-tab bar (`SubTabs` in
+  `web/src/screens/settings/ui.tsx`): memory · listening · speaking · internet · location ·
+  actions. Listening/Internet/Location wrap the existing Voice/Web/Weather sections under
+  the capability vocabulary; Persona/Mind/Channels/Atmosphere/Realm stay separate top-level
+  items.
+- **New `src/channels/tts.ts`** — a TTS backend mirroring `stt.ts`: `off` / `openai` /
+  `http` / `local` providers, `ttsConfigured()` gate, `synthesize(text) → bytes`. `local`
+  (Piper) is the default provider — latency over voice quality, matching the STT default.
+  See [configuration.md](./configuration.md#speaking-text-to-speech) and
+  [decisions/local-tts-and-speaking-modes.md](./decisions/local-tts-and-speaking-modes.md).
+- **New `src/companion-core/speak.ts`** — a `<speak>…</speak>` sidecar tag (mirrors
+  `<search>`/`<fetch>`) plus `shouldSpeak()`, gating audio on three independent, OR'd
+  triggers: `speakMirror` (voice in → voice out, default on), `speakOnRequest` (default on),
+  `speakSometimes` (model decides via the tag, default off).
+- **`respondStream`** now synthesizes audio per paragraph behind the gate, so speech starts
+  after the first paragraph instead of the whole reply; `EngineReply` gained `spoken` and
+  `messageId`, `Turn` gained `wantsVoice?`.
+- **Web chat** streams an `audioUrl` per NDJSON paragraph; `web/src/lib/voice.ts` is a
+  sequential audio-queue player that plays clips back-to-back as they arrive. The composer
+  has a voice-request toggle and a "speaking" indicator; completed voice replies persist as
+  `kind:"voice"` (`setMessageMedia`) so they replay after a reload.
+- **Telegram** sends spoken replies via grammY's `sendVoice`, with a `record_voice` chat
+  action while synthesizing, falling back to the text path on any failure. `speakOnRequest`
+  has no trigger in plain Telegram chat yet.
+- A Telegram "call" experience was investigated and explicitly not built — no Bot API
+  primitive for it, and a separate MTProto integration was judged out of scope for a
+  single-user deployment; see the new decision record above.
+
+## 2026-07-26
 
 **The companion stops circling, and has interests of its own.** It clung to recent topics —
 re-raising something the owner had quietly dropped, asking about it again from another

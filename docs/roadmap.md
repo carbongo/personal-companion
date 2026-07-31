@@ -70,35 +70,39 @@ a **generic Job Engine** (F1) and a **Proactive Delivery** primitive (F2) — bu
 Phase 8 and reused in Phase 9. Today the companion is purely reactive: it only speaks in
 reply to an inbound message, and the scheduler runs memory roll-ups only._
 
-## Phase 6 — Capabilities settings ⏳ (easy · frontend-only)
+## Phase 6 — Capabilities settings ✅ (easy · frontend-only)
 
 Regroup the capability-related settings under one **Capabilities** rail entry in
 `web/src/screens/Settings.tsx`, driven by a nested `CATEGORIES` config with a horizontal
 sub-tab bar (memory · listening · speaking · internet · location · actions).
 
-- ⏳ Nest the existing sections under Capabilities and rename to the capability vocabulary:
+- ✅ Nest the existing sections under Capabilities and rename to the capability vocabulary:
   Listening ← `settings/Voice.tsx` (STT), Internet ← `settings/Web.tsx` ("The Sight"),
   Location ← `settings/Weather.tsx` ("The Sky"); Memory unchanged.
-- ⏳ Keep Persona · The Mind · Channels · Atmosphere · The Realm as top-level rail items.
-- ⏳ Ship **Speaking** and **Actions** as "coming soon" stubs so the information architecture
+- ✅ Keep Persona · The Mind · Channels · Atmosphere · The Realm as top-level rail items.
+- ✅ Ship **Speaking** and **Actions** as "coming soon" stubs so the information architecture
   lands before Phases 7–9 fill them. Reuse the `settings/ui.tsx` primitives.
 
-## Phase 7 — Speaking (TTS) ⏳ (medium · symmetric to STT)
+## Phase 7 — Speaking (TTS) ✅ (medium · symmetric to STT)
 
 Give the companion a voice, mirroring the existing STT layer in `src/channels/stt.ts`.
 
-- ⏳ New `src/channels/tts.ts` (`off` / `openai-compatible` / `local` [Piper/Kokoro]),
+- ✅ New `src/channels/tts.ts` (`off` / `openai` / `http` / `local` [Piper]),
   `synthesize(text) → bytes`; a `TtsConfig` in `src/config/index.ts` + `.env` keys mapped in
   `src/server/web/api.ts` the same way as the STT keys.
-- ⏳ Persist audio to `/uploads` and play it back in assistant bubbles in `web/src/screens/Chat.tsx`
+- ✅ Persist audio to `/uploads` and play it back in assistant bubbles in `web/src/screens/Chat.tsx`
   (the schema already carries `kind:"voice"` + `mediaUrl`); synthesize per-paragraph off the
   existing `ParagraphSink` stream to hide latency.
-- ⏳ `<speak>…</speak>` sidecar tag (parsed in `actions.ts`/`engine.ts`), gated by a
+- ✅ `<speak>…</speak>` sidecar tag (`src/companion-core/speak.ts`), gated by a
   **speaking mode** the engine enforces — three independent triggers: _mirror voice_ (reply
   in voice when the user sent voice), _on request_, and _sometimes_ (model decides via the tag).
-- ⏳ Fill the **Speaking** sub-tab (provider + mode toggles), using `Voice.tsx` as a template.
-- **Decision to lock:** local (Piper/Kokoro, matches the local-first ethos) vs hosted TTS;
-  the three-toggle mode vs a single mode enum.
+- ✅ Fill the **Speaking** sub-tab (provider + mode toggles), using `Voice.tsx` as a template.
+- ✅ Telegram sends spoken replies as voice notes (`bot.api.sendVoice`) when the gate fires
+  and TTS is configured, falling back to text on any failure.
+- **Decided:** Piper-only local engine, `local` as the default provider (latency over
+  quality), and three independent toggles instead of one mode enum — see
+  [decisions/local-tts-and-speaking-modes.md](./decisions/local-tts-and-speaking-modes.md),
+  which also covers why a Telegram "call" experience was investigated and rejected.
 
 ## Phase 8 — Planning (self-scheduled tasks) ⏳ (harder · builds the shared foundations)
 

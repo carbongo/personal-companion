@@ -18,6 +18,7 @@ companion-core/    the engine — channel- and provider-agnostic
    ├─ actions      memory-tag parser, reused by the roll-up; strips stray tags
    ├─ media        save/serve chat attachments under DATA_DIR/uploads
    ├─ web          bounded <search>/<fetch> egress
+   ├─ speak        <speak> tag + the three-trigger speaking-mode gate
    └─ engine       respond(turn) -> { reply }   ← the seam
    │
    ▼
@@ -67,7 +68,11 @@ and [decisions/llm-provider-abstraction.md](./decisions/llm-provider-abstraction
 5. Any stray memory tag is **stripped** from the user-facing text (the companion no longer
    edits memory mid-conversation — that happens in the nightly roll-up; see
    [memory.md](./memory.md)).
-6. The channel sends the reply (Telegram splits it into paragraph-sized messages).
+6. The channel sends the reply (Telegram splits it into paragraph-sized messages). If the
+   turn should be spoken (see [configuration.md](./configuration.md)'s three speaking
+   triggers), a `<speak>` passage's audio was already synthesized per paragraph as the
+   reply streamed — a channel that only gets the reply whole (Telegram) synthesizes the
+   final text itself instead, using the same `spoken` flag the engine returns.
 
 Two robustness guards keep a single hiccup from stalling a whole day (both from the 2026-07-01
 [CHANGELOG](./CHANGELOG.md) entry). A **wholly empty draw** (small quantized models occasionally

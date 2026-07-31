@@ -21,7 +21,7 @@ The current day is the live working memory; past days live on only as their summ
 | role       | text      | `user` \| `assistant` |
 | kind       | text      | `text` \| `voice` \| `photo` |
 | content    | text      | what gets persisted and shown back as context |
-| media_url  | text null | one or more `/uploads/…` attachment paths (newline-separated) saved for the turn — web chat images and Telegram photos; served back by the auth-gated `/uploads/` route and redisplayed in the chat history |
+| media_url  | text null | one or more `/uploads/…` attachment paths (newline-separated) saved for the turn — web chat images, Telegram photos, and synthesized voice replies (`kind:"voice"`, written on the assistant row once a spoken reply finishes streaming); served back by the auth-gated `/uploads/` route and redisplayed in the chat history |
 | created_at | integer   | timestamp, indexed |
 
 ### `core` — the living "Core" document

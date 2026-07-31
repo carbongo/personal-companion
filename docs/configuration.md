@@ -197,6 +197,37 @@ and in the web chat (attach button / paste). Attached images are saved under
 `DATA_DIR/uploads`, served back through the auth-gated `/uploads/` route, and redisplayed
 in the chat history.
 
+### Speaking (text-to-speech)
+
+Replies can be spoken back — pick a backend with `TTS_PROVIDER`:
+
+- `off` — no audio is synthesized, only text goes out.
+- `openai` — the hosted OpenAI speech API; set `TTS_API_KEY` (and optionally `TTS_MODEL`,
+  default `tts-1`, and `TTS_VOICE`).
+- `http` — any OpenAI-compatible `/audio/speech`-style endpoint (e.g. a local speaches
+  server); set `TTS_API_URL` (and `TTS_API_KEY`/`TTS_MODEL`/`TTS_VOICE` if it needs them).
+- `local` (**default**) — [Piper](https://github.com/rhasspy/piper) run on this machine.
+  No daemon and no network — nothing leaves the box, and Piper's small ONNX voice models
+  synthesize a short paragraph well under the latency a round-trip would cost. Set
+  `TTS_LOCAL_MODEL` to a Piper `.onnx` voice file; the `piper` CLI must be on `PATH`
+  (override with `TTS_LOCAL_BIN`). Piper is the only local engine — chosen over
+  higher-fidelity options like Kokoro for latency, matching this project's local-first
+  default. See
+  [decisions/local-tts-and-speaking-modes.md](./decisions/local-tts-and-speaking-modes.md).
+
+Whether a given reply is actually spoken is controlled separately, by **three independent
+triggers** — any one being true is enough (they're OR'd, not a single mode):
+
+| Var                     | Default | Speaks when… |
+| ----------------------- | ------- | ------------ |
+| `TTS_SPEAK_MIRROR`      | `true`  | the owner's turn was itself a voice note — audio answers audio. |
+| `TTS_SPEAK_ON_REQUEST`  | `true`  | the channel flagged this turn as wanting a spoken reply (the web chat's composer toggle; not yet reachable from Telegram). |
+| `TTS_SPEAK_SOMETIMES`   | `false` | the companion itself decides, wrapping the worth-saying part of its reply in a `<speak>` tag. Off by default so the model can't produce unsolicited audio. |
+
+The same gate and backend serve every channel: the web chat plays synthesized audio back
+per streamed paragraph, and Telegram sends a voice note for the whole reply. See
+[channels.md](./channels.md).
+
 ## The persona
 
 The persona defines identity, relationship, tone, interests, language, and hard style
