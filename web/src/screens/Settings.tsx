@@ -8,6 +8,7 @@ import { sfx } from "../lib/sound.ts";
 import { AppearanceSection } from "./settings/Appearance.tsx";
 import { ChannelsSection } from "./settings/Channels.tsx";
 import { ActionsSection } from "./settings/Actions.tsx";
+import { CallingSection } from "./settings/Calling.tsx";
 import { MemorySection } from "./settings/Memory.tsx";
 import { MindSection } from "./settings/Mind.tsx";
 import { PersonaSection } from "./settings/Persona.tsx";
@@ -38,6 +39,7 @@ const CAPABILITY_TABS: CapabilityTab[] = [
   { id: "memory", label: "Memory", render: (p) => <MemorySection {...p} /> },
   { id: "listening", label: "Listening", render: (p) => <VoiceSection {...p} /> },
   { id: "speaking", label: "Speaking", render: (p) => <SpeakingSection {...p} /> },
+  { id: "calling", label: "Calling", render: (p) => <CallingSection {...p} /> },
   { id: "internet", label: "Internet", render: (p) => <WebSection {...p} /> },
   { id: "location", label: "Location", render: (p) => <WeatherSection {...p} /> },
   { id: "actions", label: "Actions", render: (p) => <ActionsSection {...p} /> },

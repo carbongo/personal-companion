@@ -29,6 +29,21 @@ export interface Form {
   telegramToken: string;
   telegramAllowedIds: string;
   telegramReplySplit: boolean;
+  // Channels (Discord — voice only)
+  discordBotToken: string;
+  discordGuildId: string;
+  discordVoiceChannelId: string;
+  discordOwnerUserId: string;
+  // Calling (live voice, Phase 8)
+  callEnabled: boolean;
+  callVadProvider: string;
+  callVadThreshold: number;
+  callSilenceMs: number;
+  callMaxUtteranceMs: number;
+  callMinSpeechMs: number;
+  callBargeIn: boolean;
+  callModel: string;
+  callProvider: string;
   // Voice (STT)
   sttProvider: string;
   sttApiUrl: string;
@@ -108,6 +123,19 @@ export function formFromValues(v: SetupValues): Form {
     telegramToken: "",
     telegramAllowedIds: v.telegramAllowedIds,
     telegramReplySplit: v.telegramReplySplit,
+    discordBotToken: "",
+    discordGuildId: v.discordGuildId ?? "",
+    discordVoiceChannelId: v.discordVoiceChannelId ?? "",
+    discordOwnerUserId: v.discordOwnerUserId ?? "",
+    callEnabled: v.callEnabled ?? false,
+    callVadProvider: v.callVadProvider || "auto",
+    callVadThreshold: v.callVadThreshold ?? 0.5,
+    callSilenceMs: v.callSilenceMs ?? 700,
+    callMaxUtteranceMs: v.callMaxUtteranceMs ?? 30000,
+    callMinSpeechMs: v.callMinSpeechMs ?? 200,
+    callBargeIn: v.callBargeIn ?? true,
+    callModel: v.callModel ?? "",
+    callProvider: v.callProvider ?? "",
     sttProvider: v.sttProvider,
     sttApiUrl: v.sttApiUrl,
     sttApiKey: "",
@@ -180,6 +208,19 @@ export function bodyFromForm(f: Form): Record<string, string> {
     telegramToken: f.telegramToken,
     telegramAllowedIds: f.telegramAllowedIds,
     telegramReplySplit: b(f.telegramReplySplit),
+    discordBotToken: f.discordBotToken,
+    discordGuildId: f.discordGuildId,
+    discordVoiceChannelId: f.discordVoiceChannelId,
+    discordOwnerUserId: f.discordOwnerUserId,
+    callEnabled: b(f.callEnabled),
+    callVadProvider: f.callVadProvider,
+    callVadThreshold: s(f.callVadThreshold),
+    callSilenceMs: s(f.callSilenceMs),
+    callMaxUtteranceMs: s(f.callMaxUtteranceMs),
+    callMinSpeechMs: s(f.callMinSpeechMs),
+    callBargeIn: b(f.callBargeIn),
+    callModel: f.callModel,
+    callProvider: f.callProvider,
     sttProvider: f.sttProvider,
     sttApiUrl: f.sttApiUrl,
     sttApiKey: f.sttApiKey,

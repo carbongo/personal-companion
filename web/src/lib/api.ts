@@ -79,6 +79,23 @@ export interface SetupValues {
   telegramConfigured: boolean;
   telegramAllowedIds: string;
   telegramReplySplit: boolean;
+  // Discord (voice only) + live calling (Phase 8). Optional: the server's
+  // /api/setup read side lands these alongside the write side that already
+  // accepts them (src/server/web/api.ts SetupBody) — until then they read as
+  // unset, which the form's own defaults already handle gracefully.
+  discordConfigured?: boolean;
+  discordGuildId?: string;
+  discordVoiceChannelId?: string;
+  discordOwnerUserId?: string;
+  callEnabled?: boolean;
+  callVadProvider?: string;
+  callVadThreshold?: number;
+  callSilenceMs?: number;
+  callMaxUtteranceMs?: number;
+  callMinSpeechMs?: number;
+  callBargeIn?: boolean;
+  callModel?: string;
+  callProvider?: string;
   memoryContextDays: number;
   memoryLimit: number;
   memorySummaryCron: string;
