@@ -1,6 +1,11 @@
 import { describe, expect, it } from "bun:test";
 
-import { loadConfig } from "./index.ts";
+import {
+	config,
+	discordConfigured,
+	loadConfig,
+	resolveCallModel,
+} from "./index.ts";
 
 describe("loadConfig", () => {
 	it("provides safe defaults with an empty environment", () => {
@@ -90,5 +95,120 @@ describe("loadConfig", () => {
 		expect(chat.batchMaxMs).toBe(20000);
 
 		process.env = prev;
+	});
+});
+
+describe("discord + call config", () => {
+	it("defaults everything off/empty with sane call knobs", () => {
+		const prev = { ...process.env };
+		for (const k of [
+			"DISCORD_BOT_TOKEN",
+			"DISCORD_GUILD_ID",
+			"DISCORD_VOICE_CHANNEL_ID",
+			"DISCORD_OWNER_USER_ID",
+			"CALL_ENABLED",
+			"CALL_PROVIDER",
+			"CALL_MODEL",
+			"CALL_VAD_PROVIDER",
+			"CALL_VAD_THRESHOLD",
+			"CALL_SILENCE_MS",
+			"CALL_MAX_UTTERANCE_MS",
+			"CALL_BARGE_IN",
+			"CALL_MIN_SPEECH_MS",
+		])
+			delete process.env[k];
+
+		const { discord, call } = loadConfig();
+		expect(discord.botToken).toBe("");
+		expect(discord.guildId).toBe("");
+		expect(discord.voiceChannelId).toBe("");
+		expect(discord.ownerUserId).toBe("");
+		expect(call.enabled).toBe(false);
+		expect(call.vadProvider).toBe("auto");
+		expect(call.vadThreshold).toBe(0.5);
+		expect(call.silenceMs).toBe(700);
+		expect(call.maxUtteranceMs).toBe(30000);
+		expect(call.bargeIn).toBe(true);
+		expect(call.minSpeechMs).toBe(200);
+		expect(call.model).toBe("");
+		expect(call.provider).toBe("");
+
+		process.env = prev;
+	});
+
+	it("parses the numeric and boolean call knobs from the environment", () => {
+		const prev = { ...process.env };
+		process.env.DISCORD_BOT_TOKEN = "test-token";
+		process.env.DISCORD_GUILD_ID = "111";
+		process.env.DISCORD_VOICE_CHANNEL_ID = "222";
+		process.env.CALL_ENABLED = "true";
+		process.env.CALL_VAD_PROVIDER = "energy";
+		process.env.CALL_VAD_THRESHOLD = "0.8";
+		process.env.CALL_SILENCE_MS = "500";
+		process.env.CALL_MAX_UTTERANCE_MS = "15000";
+		process.env.CALL_BARGE_IN = "false";
+		process.env.CALL_MIN_SPEECH_MS = "150";
+
+		const { discord, call } = loadConfig();
+		expect(discord.botToken).toBe("test-token");
+		expect(discord.guildId).toBe("111");
+		expect(discord.voiceChannelId).toBe("222");
+		expect(call.enabled).toBe(true);
+		expect(call.vadProvider).toBe("energy");
+		expect(call.vadThreshold).toBe(0.8);
+		expect(call.silenceMs).toBe(500);
+		expect(call.maxUtteranceMs).toBe(15000);
+		expect(call.bargeIn).toBe(false);
+		expect(call.minSpeechMs).toBe(150);
+
+		process.env = prev;
+	});
+});
+
+describe("discordConfigured", () => {
+	it("needs a bot token, guild, and voice channel all set", () => {
+		const original = { ...config.discord };
+
+		config.discord.botToken = "";
+		config.discord.guildId = "";
+		config.discord.voiceChannelId = "";
+		expect(discordConfigured()).toBe(false);
+
+		config.discord.botToken = "test-token";
+		expect(discordConfigured()).toBe(false); // still missing guild/channel
+
+		config.discord.guildId = "111";
+		config.discord.voiceChannelId = "222";
+		expect(discordConfigured()).toBe(true);
+
+		Object.assign(config.discord, original);
+	});
+});
+
+describe("resolveCallModel", () => {
+	it("falls back to the base llm config when no call override is set", () => {
+		const original = { ...config.call };
+
+		config.call.provider = "";
+		config.call.model = "";
+		expect(resolveCallModel()).toEqual({
+			provider: config.llm.provider,
+			model: config.llm.model,
+		});
+
+		Object.assign(config.call, original);
+	});
+
+	it("uses the dedicated call override when set", () => {
+		const original = { ...config.call };
+
+		config.call.provider = "openai-compatible";
+		config.call.model = "call-model";
+		expect(resolveCallModel()).toEqual({
+			provider: "openai-compatible",
+			model: "call-model",
+		});
+
+		Object.assign(config.call, original);
 	});
 });

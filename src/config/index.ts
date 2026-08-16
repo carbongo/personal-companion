@@ -167,6 +167,49 @@ export interface TtsConfig {
 	speakSometimes: boolean;
 }
 
+export interface DiscordConfig {
+	/** Bot token from the Discord developer portal; empty disables the channel. */
+	botToken: string;
+	/** Guild (server) the bot joins voice calls in. */
+	guildId: string;
+	/** Voice channel the bot listens/speaks in. */
+	voiceChannelId: string;
+	/** Discord user ID allowed to start/join a call; everyone else is ignored. */
+	ownerUserId: string;
+}
+
+export type CallVadProviderName = "silero" | "energy" | "auto";
+
+/**
+ * Live voice calls (Phase 8): how speech is detected and turned into turns.
+ * Mirrors the shape of SttConfig/TtsConfig — a provider knob plus its tuning —
+ * but for the always-on streaming path rather than one-shot transcription.
+ */
+export interface CallConfig {
+	/** Master switch; off means the call engine never starts even if Discord is set up. */
+	enabled: boolean;
+	/**
+	 * Voice-activity-detection backend: "silero" (ONNX model, more accurate),
+	 * "energy" (simple amplitude threshold, no model file needed), or "auto" to
+	 * prefer Silero when its model is available and fall back to energy.
+	 */
+	vadProvider: CallVadProviderName;
+	/** Speech-probability threshold above which audio counts as speech (0..1). */
+	vadThreshold: number;
+	/** Trailing silence (ms) that ends an utterance — the endpointing patience. */
+	silenceMs: number;
+	/** Hard cap (ms) on a single utterance, so a stuck-open mic can't run forever. */
+	maxUtteranceMs: number;
+	/** Whether the companion's own playback can be interrupted by new speech. */
+	bargeIn: boolean;
+	/** Utterances shorter than this (ms) are discarded as noise, not sent to STT. */
+	minSpeechMs: number;
+	/** Optional LLM override for call turns; empty = fall back to `llm.model`. */
+	model: string;
+	/** Optional LLM provider override for call turns; empty = fall back to `llm.provider`. */
+	provider: string;
+}
+
 export interface MemoryConfig {
 	contextDays: number;
 	memoryLimit: number;
@@ -218,6 +261,8 @@ export interface Config {
 	llm: LlmConfig;
 	chat: ChatConfig;
 	telegram: TelegramConfig;
+	discord: DiscordConfig;
+	call: CallConfig;
 	stt: SttConfig;
 	tts: TtsConfig;
 	memory: MemoryConfig;
@@ -270,6 +315,25 @@ export function loadConfig(): Config {
 			botToken: str("TELEGRAM_BOT_TOKEN", ""),
 			allowedUserIds: intList("TELEGRAM_ALLOWED_USER_IDS"),
 			replySplit: bool("TELEGRAM_REPLY_SPLIT", true),
+		},
+		discord: {
+			botToken: str("DISCORD_BOT_TOKEN", ""),
+			guildId: str("DISCORD_GUILD_ID", ""),
+			voiceChannelId: str("DISCORD_VOICE_CHANNEL_ID", ""),
+			ownerUserId: str("DISCORD_OWNER_USER_ID", ""),
+		},
+		// Off by default: a live call needs Discord wired up and a VAD/STT/TTS
+		// pipeline configured, so it stays opt-in even once the code exists.
+		call: {
+			enabled: bool("CALL_ENABLED", false),
+			vadProvider: str("CALL_VAD_PROVIDER", "auto") as CallVadProviderName,
+			vadThreshold: num("CALL_VAD_THRESHOLD", 0.5),
+			silenceMs: num("CALL_SILENCE_MS", 700),
+			maxUtteranceMs: num("CALL_MAX_UTTERANCE_MS", 30000),
+			bargeIn: bool("CALL_BARGE_IN", true),
+			minSpeechMs: num("CALL_MIN_SPEECH_MS", 200),
+			model: str("CALL_MODEL", ""),
+			provider: str("CALL_PROVIDER", ""),
 		},
 		stt: {
 			provider: str("STT_PROVIDER", "off") as SttProviderName,
@@ -333,3 +397,31 @@ export function loadConfig(): Config {
 }
 
 export const config: Config = loadConfig();
+
+/**
+ * Whether the Discord channel is set up enough to join a voice call: a bot
+ * token plus knowing which guild and channel to sit in. Mirrors how
+ * `telegramConfigured()` gates on `config.telegram.botToken` alone — Discord
+ * needs the extra IDs because "join a voice channel" isn't implicit the way
+ * "answer any DM" is for a bot token.
+ */
+export function discordConfigured(): boolean {
+	const { botToken, guildId, voiceChannelId } = config.discord;
+	return !!botToken && !!guildId && !!voiceChannelId;
+}
+
+/**
+ * Resolve the model/provider a call turn actually uses: a dedicated
+ * `CALL_MODEL`/`CALL_PROVIDER` override when set, otherwise the base `llm`
+ * config — the same "dedicated override, else the main model" fallback the
+ * vision model uses (see `visionPlan` in companion-core/engine.ts).
+ */
+export function resolveCallModel(): {
+	provider: LlmProviderName;
+	model: string;
+} {
+	return {
+		provider: (config.call.provider || config.llm.provider) as LlmProviderName,
+		model: config.call.model || config.llm.model,
+	};
+}

@@ -36,6 +36,7 @@ import {
 } from "#/companion-core/memory/store.ts";
 import {
 	config,
+	discordConfigured,
 	type LlmConfig,
 	type LlmProviderName,
 } from "#/config/index.ts";
@@ -80,6 +81,21 @@ interface SetupBody {
 	telegramToken?: string;
 	telegramAllowedIds?: string;
 	telegramReplySplit?: string;
+	// Discord (Phase 8 calling)
+	discordBotToken?: string;
+	discordGuildId?: string;
+	discordVoiceChannelId?: string;
+	discordOwnerUserId?: string;
+	// live call engine (Phase 8)
+	callEnabled?: string;
+	callProvider?: string;
+	callModel?: string;
+	callVadProvider?: string;
+	callVadThreshold?: string;
+	callSilenceMs?: string;
+	callMaxUtteranceMs?: string;
+	callBargeIn?: string;
+	callMinSpeechMs?: string;
 	// memory
 	memoryContextDays?: string;
 	memoryLimit?: string;
@@ -152,7 +168,7 @@ api.get("/state", (c) => {
 		},
 		brain,
 		companionConfigured: companionConfigured(),
-		channels: { telegram: telegramConfigured() },
+		channels: { telegram: telegramConfigured(), discord: discordConfigured() },
 		web: { enabled: config.web.enabled },
 		// Whether the interface is password-gated — the SPA shows a "seal" (logout).
 		auth: { enabled: webAuthEnabled() },
@@ -505,6 +521,18 @@ api.post("/setup", async (c) => {
 		LLM_HISTORY_LIMIT: opt(b.historyLimit),
 		TELEGRAM_ALLOWED_USER_IDS: opt(b.telegramAllowedIds),
 		TELEGRAM_REPLY_SPLIT: opt(b.telegramReplySplit),
+		DISCORD_GUILD_ID: opt(b.discordGuildId),
+		DISCORD_VOICE_CHANNEL_ID: opt(b.discordVoiceChannelId),
+		DISCORD_OWNER_USER_ID: opt(b.discordOwnerUserId),
+		CALL_ENABLED: opt(b.callEnabled),
+		CALL_PROVIDER: opt(b.callProvider),
+		CALL_MODEL: opt(b.callModel),
+		CALL_VAD_PROVIDER: opt(b.callVadProvider),
+		CALL_VAD_THRESHOLD: opt(b.callVadThreshold),
+		CALL_SILENCE_MS: opt(b.callSilenceMs),
+		CALL_MAX_UTTERANCE_MS: opt(b.callMaxUtteranceMs),
+		CALL_BARGE_IN: opt(b.callBargeIn),
+		CALL_MIN_SPEECH_MS: opt(b.callMinSpeechMs),
 		CHAT_BATCH_IDLE_MS: opt(b.chatBatchIdleMs),
 		CHAT_BATCH_STEP_MS: opt(b.chatBatchStepMs),
 		CHAT_BATCH_MAX_MS: opt(b.chatBatchMaxMs),
@@ -551,6 +579,8 @@ api.post("/setup", async (c) => {
 	// Secrets are only written when actually re-entered, so saving never wipes an
 	// existing one that the page (which never echoes secrets) couldn't show back.
 	if (b.telegramToken?.trim()) env.TELEGRAM_BOT_TOKEN = b.telegramToken.trim();
+	if (b.discordBotToken?.trim())
+		env.DISCORD_BOT_TOKEN = b.discordBotToken.trim();
 	if (b.webAuthPassword) env.WEB_AUTH_PASSWORD = b.webAuthPassword;
 	if (b.tavilyKey) env.TAVILY_API_KEY = b.tavilyKey;
 	if (b.sttApiKey) env.STT_API_KEY = b.sttApiKey;
