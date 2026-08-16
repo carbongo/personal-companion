@@ -7,10 +7,16 @@
  * web chat's live streaming. See docs/architecture.md.
  */
 import { synthesize, ttsConfigured } from "#/channels/tts.ts";
-import { config } from "#/config/index.ts";
-import { ProviderUnreachableError, provider } from "#/llm/index.ts";
+import { config, resolveCallModel } from "#/config/index.ts";
+import {
+	createProvider,
+	type LLMProvider,
+	ProviderUnreachableError,
+	provider,
+} from "#/llm/index.ts";
 import type { ChatMessage, GenerateOptions } from "#/llm/types.ts";
 import { parseActions } from "./actions.ts";
+import { takeClauses } from "./clauses.ts";
 import { buildKnowledge, buildVolatile } from "./context.ts";
 import { buildConversationNote } from "./conversation.ts";
 import { appendMessage, messagesForDay, todayKey } from "./memory/store.ts";
@@ -74,6 +80,35 @@ export interface ParagraphChunk {
 
 /** Called with each finished paragraph of a streamed reply. May be async. */
 export type ParagraphSink = (chunk: ParagraphChunk) => void | Promise<void>;
+
+/**
+ * Called with each finished clause of a streamed reply. Text only: a live call
+ * synthesizes and plays each clause itself, so the engine hands over the words
+ * and stays out of the audio path.
+ */
+export type ClauseSink = (text: string) => void | Promise<void>;
+
+/**
+ * How a streamed reply is cut up. Paragraphs are right for chat and voice notes;
+ * a call needs clauses, because waiting for a paragraph is half a second of
+ * silence the owner can hear. `flush` means the stream has ended — nothing more
+ * is coming to disambiguate the tail.
+ */
+type Splitter = (
+	buffer: string,
+	flush: boolean,
+) => { chunks: string[]; rest: string };
+
+const paragraphSplitter: Splitter = (buffer, flush) => {
+	if (flush) return { chunks: buffer ? [buffer] : [], rest: "" };
+	const { paragraphs, rest } = takeParagraphs(buffer);
+	return { chunks: paragraphs, rest };
+};
+
+const clauseSplitter: Splitter = (buffer, flush) => {
+	const { clauses, rest } = takeClauses(buffer, { flush });
+	return { chunks: clauses, rest };
+};
 
 /**
  * Internal: like `ParagraphSink`, but also handed the paragraph's raw text with
@@ -237,10 +272,11 @@ function isBlankReply(raw: string): boolean {
 async function chatNonEmpty(
 	messages: ChatMessage[],
 	opts: GenerateOptions,
+	llm: LLMProvider = provider,
 ): Promise<string> {
-	let raw = await provider.chat(messages, opts);
+	let raw = await llm.chat(messages, opts);
 	for (let i = 0; i < EMPTY_RETRIES && isBlankReply(raw); i++)
-		raw = await provider.chat(messages, opts);
+		raw = await llm.chat(messages, opts);
 	return raw;
 }
 
@@ -316,21 +352,23 @@ async function generateStream(
 	messages: ChatMessage[],
 	opts: GenerateOptions,
 	emit: DraftSink,
+	split: Splitter = paragraphSplitter,
+	llm: LLMProvider = provider,
 ): Promise<string> {
 	let buffer = "";
 	const onDelta = async (delta: string): Promise<void> => {
 		buffer += delta;
-		const { paragraphs, rest } = takeParagraphs(buffer);
+		const { chunks, rest } = split(buffer, false);
 		buffer = rest;
-		for (const p of paragraphs) {
+		for (const p of chunks) {
 			const cleaned = cleanForDisplay(p);
 			if (cleaned) await emit(cleaned, p);
 		}
 	};
 	const draw = (msgs: ChatMessage[]): Promise<string> =>
-		provider.chatStream
-			? provider.chatStream(msgs, onDelta, opts)
-			: provider.chat(msgs, opts).then(async (full) => {
+		llm.chatStream
+			? llm.chatStream(msgs, onDelta, opts)
+			: llm.chat(msgs, opts).then(async (full) => {
 					await onDelta(full);
 					return full;
 				});
@@ -359,9 +397,13 @@ async function generateStream(
 			raw = await runOnce(messages);
 		}
 	}
-	// Flush the final generation's trailing paragraph (no blank line after it).
-	const tail = cleanForDisplay(buffer);
-	if (tail) await emit(tail, buffer);
+	// Flush what the final generation left buffered (a trailing paragraph has no
+	// blank line after it; a trailing clause has no boundary after it).
+	const { chunks: tail } = split(buffer, true);
+	for (const p of tail) {
+		const cleaned = cleanForDisplay(p);
+		if (cleaned) await emit(cleaned, p);
+	}
 	return raw;
 }
 
@@ -472,4 +514,82 @@ export async function respondStream(
 	// hand the client the final text so a bubble always appears.
 	if (!emitted) await emit({ text: reply });
 	return { reply, spoken, messageId: row?.id };
+}
+
+/** Memo for a call-only backend, so a call doesn't rebuild its provider per turn. */
+let callLlm: { key: string; llm: LLMProvider } | null = null;
+
+/**
+ * The backend a call turn runs on. A call can point at a smaller, faster model
+ * (`CALL_MODEL` / `CALL_PROVIDER`) so the first words come back within a beat
+ * while chat keeps the larger one; with neither set this is the process-wide
+ * provider, unchanged.
+ */
+function callProvider(): { llm: LLMProvider; model: string } {
+	const { provider: name, model } = resolveCallModel();
+	if (name === config.llm.provider) return { llm: provider, model };
+	const key = `${name}:${model}`;
+	if (callLlm?.key !== key)
+		callLlm = {
+			key,
+			llm: createProvider({ ...config.llm, provider: name, model }),
+		};
+	return { llm: callLlm.llm, model };
+}
+
+/**
+ * Like `respondStream`, but cut at clause boundaries and without synthesizing
+ * anything: a live call speaks each clause as it lands, so audio starts long
+ * before the model has finished the reply. The paragraph path is untouched —
+ * the web chat and Telegram voice notes still call `respondStream`.
+ *
+ * The reply is logged as a `voice` message, so the roll-up reads a call the same
+ * way it reads a voice note. Barge-in truncation is the caller's job: only the
+ * session knows which clauses were actually heard (see call/session.ts).
+ */
+export async function respondClauses(
+	turn: Turn,
+	emit: ClauseSink,
+): Promise<EngineReply> {
+	const day = todayKey();
+	const { llm, model } = callProvider();
+
+	if (!(await llm.reachable())) {
+		persistUser(turn, day);
+		await emit(AWAY_MESSAGE);
+		return { reply: AWAY_MESSAGE, spoken: false };
+	}
+
+	const { messages, genOpts } = await buildTurn(turn, day);
+	if (model) genOpts.model = model;
+	// Persisted after the history was read for the prompt, before generation —
+	// the same order as the other two paths, for the same reasons.
+	persistUser(turn, day);
+
+	let emitted = 0;
+	const sink: DraftSink = async (text) => {
+		emitted++;
+		await emit(text);
+	};
+
+	let raw: string;
+	try {
+		raw = await generateStream(messages, genOpts, sink, clauseSplitter, llm);
+	} catch (err) {
+		if (err instanceof ProviderUnreachableError) {
+			if (!emitted) await emit(AWAY_MESSAGE);
+			return { reply: AWAY_MESSAGE, spoken: false };
+		}
+		throw err;
+	}
+
+	const cleaned = commitActions(stripWebTags(raw));
+	const row = cleaned
+		? appendMessage({ day, role: "assistant", kind: "voice", content: cleaned })
+		: undefined;
+	const reply = cleaned || "…";
+	if (!emitted) await emit(reply);
+	// A call is spoken by definition; what was *heard* is a separate question the
+	// session answers by truncating the stored reply after a barge-in.
+	return { reply, spoken: true, messageId: row?.id };
 }

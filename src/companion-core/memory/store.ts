@@ -72,6 +72,25 @@ export function setMessageMedia(
 	db.update(messages).set({ kind, mediaUrl }).where(eq(messages.id, id)).run();
 }
 
+/**
+ * Rewrite an already-logged message's text. A live call can be cut off
+ * mid-reply, and the log has to end up saying what the owner actually heard: if
+ * the companion believes it said something that was never spoken aloud, every
+ * later turn reasons from words that do not exist.
+ */
+export function setMessageContent(id: number, content: string): void {
+	db.update(messages).set({ content }).where(eq(messages.id, id)).run();
+}
+
+/**
+ * Drop a logged message. Used when a reply was interrupted before a single word
+ * of it was heard — for the same reason a blank draw is never stored, an
+ * assistant turn nobody received would only be mimicked on the next one.
+ */
+export function deleteMessage(id: number): void {
+	db.delete(messages).where(eq(messages.id, id)).run();
+}
+
 export function messagesForDay(day: string): Message[] {
 	return db
 		.select()
