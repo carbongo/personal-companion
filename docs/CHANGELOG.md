@@ -3,7 +3,41 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
-## 2026-07-31 (latest)
+## 2026-08-16 (latest)
+
+**Calling is now a planned phase, and the roadmap renumbered around it.** A new **Phase 8 —
+Calling (live voice over Discord)** lands before Planning and Seeking & Sharing, which
+become Phases 9 and 10; the "Later" list drops Discord as a generic channel idea, since
+Phase 8 claims it for voice only. No code changed — this is a planning and decision record.
+
+- **New ADR [decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md)** —
+  surveys the four ways to get a call onto a phone (installed PWA, SIP + a CallKit-
+  registering client, Twilio `<Connect><Stream>`, a native app) and picks **Discord, voice
+  only**: a bot in a voice channel gives a real mobile call UI for the price of a bot token,
+  with no Apple Developer account, no PBX, and no per-minute cost. The accepted cost is that
+  Discord cannot ring — the owner starts every call — which matters little while the
+  companion has no way to initiate contact at all before Phase 9's `deliver()`.
+- **The call engine is the actual deliverable, and it is transport-independent**
+  (`src/companion-core/call/`, not the Discord adapter): Silero VAD for speech framing,
+  semantic endpointing so a trailing "um…" extends the wait instead of committing the turn,
+  a filler/backchannel filter, a Whisper `no_speech_prob` hallucination gate, and barge-in
+  that truncates the assistant turn in history to what was actually spoken. Phase 7's
+  per-paragraph `ParagraphSink` becomes per-clause for calls; the budget is ≤800 ms from
+  last word to first audio.
+- **Bystanders are excluded by the transport, not by a model** — Discord delivers per-user
+  Opus streams, so the adapter subscribes to the owner's user ID alone. Acoustic speaker
+  verification (ECAPA-TDNN enrolment) is explicitly deferred as a result.
+- Calls get a **`CALL_MODEL` override**; call turns still run through `engine.respond` and
+  persist as `kind:"voice"` messages, so memory and the nightly roll-up need no special case.
+- **Recorded risks:** call audio transits Discord's servers — a deliberate, scoped exception
+  to the local-first posture; bot audio receive is undocumented by Discord and could break;
+  `@discordjs/voice` has known `sodium-native` friction under Bun.
+- **[decisions/local-tts-and-speaking-modes.md](./decisions/local-tts-and-speaking-modes.md)
+  corrected** — its "no live-call feature is planned" consequence was scoped to Telegram's
+  Bot API but read as a blanket statement; it now says so and points at the new ADR. The
+  decisions index also regained the missing `web-ui-premium-spa` entry.
+
+## 2026-07-31
 
 **Spoken replies stopped narrating their own markdown.** A voice reply built from the
 model's raw text was reading `**word**` as "asterisk asterisk word asterisk asterisk" and

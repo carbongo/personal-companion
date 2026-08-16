@@ -65,9 +65,9 @@ Bun + Hono server with `/health`.
 
 ---
 
-_Phases 6–9 are planned, sorted easy → hard. Phases 8–9 stand on two shared foundations —
+_Phases 6–10 are planned, sorted easy → hard. Phases 9–10 stand on two shared foundations —
 a **generic Job Engine** (F1) and a **Proactive Delivery** primitive (F2) — built once in
-Phase 8 and reused in Phase 9. Today the companion is purely reactive: it only speaks in
+Phase 9 and reused in Phase 10. Today the companion is purely reactive: it only speaks in
 reply to an inbound message, and the scheduler runs memory roll-ups only._
 
 ## Phase 6 — Capabilities settings ✅ (easy · frontend-only)
@@ -104,7 +104,53 @@ Give the companion a voice, mirroring the existing STT layer in `src/channels/st
   [decisions/local-tts-and-speaking-modes.md](./decisions/local-tts-and-speaking-modes.md),
   which also covers why a Telegram "call" experience was investigated and rejected.
 
-## Phase 8 — Planning (self-scheduled tasks) ⏳ (harder · builds the shared foundations)
+## Phase 8 — Calling (live voice over Discord) ⏳ (medium-hard · the call engine is the work)
+
+A real-time, full-duplex voice conversation: the owner joins a Discord voice channel and
+talks to the companion. **Discord is the transport only** — text chat stays on Telegram and
+the web UI. The deliverable is a transport-independent **call engine**; Discord is simply
+its first adapter, chosen because a bot in a voice channel gives a genuine mobile call UI
+for the price of a bot token, with no Apple Developer account, no PBX, and no per-minute
+cost. See [decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md) for why
+Discord beat a PWA, SIP, Twilio, and a native CallKit app.
+
+- ⏳ **Call engine (`src/companion-core/call/`)** — transport-independent, and the bulk of
+  the phase. Silero VAD (small ONNX, MIT) for speech/non-speech framing so keyboards, doors
+  and music never reach STT; **semantic endpointing** (a small end-of-utterance model) so a
+  trailing "um…" extends the wait instead of committing the turn; a filler/backchannel
+  filter that drops utterances which are only "mhm"/"uh"/"yeah"; and a Whisper
+  hallucination gate (`no_speech_prob` + a blocklist) so silence stops inventing text.
+- ⏳ **Barge-in** — owner speech during playback stops synthesis immediately **and truncates
+  the assistant turn in history to what was actually spoken**, so the model never believes
+  it said something the owner never heard.
+- ⏳ **Clause-level speech streaming** — tighten Phase 7's `ParagraphSink` from per-paragraph
+  to per-clause. Paragraph granularity is right for a voice note and far too coarse for a
+  conversation. Budget: ≤800 ms from last word to first audio.
+- ⏳ **Discord adapter (`src/channels/discord/`)** — discord.js + `@discordjs/voice`; the bot
+  joins with `selfDeaf: false` when the owner enters a designated voice channel (plus a
+  `/call` command to summon it). **Bystanders are excluded by construction**: Discord
+  delivers per-user Opus streams, and the adapter subscribes to the owner's user ID alone —
+  no other participant's audio is ever received.
+- ⏳ **Call model override** (`CALL_MODEL` / call provider, falling back to the configured
+  model when unset) — a call has nowhere to hide a slow turn, and the default runtime is a
+  small local model.
+- ⏳ Call turns run through `engine.respond` like any other and persist as `kind:"voice"`
+  messages, flowing into the nightly roll-up unchanged.
+- ⏳ **Settings** — Discord connection under **Channels** (next to Telegram); call behaviour
+  (VAD sensitivity, endpointing patience, barge-in, call model) under a new **Calling**
+  sub-tab in Capabilities.
+- **Deferred:** acoustic speaker verification (ECAPA-TDNN owner enrolment). Discord's
+  per-user streams already solve bystanders on the call; enrolment would only add rejecting
+  a second voice bleeding into the owner's *own* microphone.
+- **Not in scope:** the companion cannot *start* a call — Discord bots have no way to ring
+  anyone. The companion-initiates direction (a DM nudge, "I'm in the voice channel") needs
+  Phase 9's `deliver()` primitive and lands there.
+- **Risks, named up front:** bot audio receive is undocumented by Discord and could break;
+  `@discordjs/voice` has known friction with `sodium-native` under Bun, so prefer the pure
+  JS/wasm encryption and Opus fallbacks; and call audio transits Discord's servers — a
+  deliberate, documented exception to the local-first posture, scoped to this one channel.
+
+## Phase 9 — Planning (self-scheduled tasks) ⏳ (harder · builds the shared foundations)
 
 The model schedules future tasks; the user reviews them in settings. Introduces the two
 foundations reused by Phase 9.
@@ -125,7 +171,7 @@ foundations reused by Phase 9.
   next run, source), with approve / pause / delete. Validate cron expressions and cap the
   number of active tasks.
 
-## Phase 9 — Seeking & Sharing (autonomous proactivity) ⏳ (hardest · off by default)
+## Phase 10 — Seeking & Sharing (autonomous proactivity) ⏳ (hardest · off by default)
 
 The companion wakes on its own, keeps a pulse on things it knows the owner cares about, and
 shares a link with a "take a look — wdyt?" note. Reuses F1 + F2 + the internet capability.
@@ -141,12 +187,14 @@ shares a link with a "take a look — wdyt?" note. Reuses F1 + F2 + the internet
 - ⏳ **Actions → Seeking & Sharing** sub-panel: enable, frequency, idle threshold, quiet
   hours, and a log of what it has shared.
 
-_Dependencies: Phases 6 and 7 are independent and can ship in any order; Phase 9 is gated on
-Phase 8's Job Engine + Proactive Delivery._
+_Dependencies: Phases 6 and 7 are independent and can ship in any order; Phase 8 builds on
+Phase 7's TTS layer and Phase 1's STT; Phase 10 is gated on Phase 9's Job Engine +
+Proactive Delivery, which is also what lets the companion start a call rather than only
+answer one._
 
 ## Later (ideas, not committed)
 
-- More channels (Discord, CLI).
+- More channels (CLI; Discord *text*, since Phase 8 uses Discord for voice only).
 - Real tool-calling path for capable hosted models.
 - Optional multi-profile (more than one companion per deployment).
 - Additional context providers as plugins.

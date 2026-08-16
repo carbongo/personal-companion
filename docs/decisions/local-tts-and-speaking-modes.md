@@ -55,9 +55,12 @@ infrastructure and account-security cost of a user-bot.
 - `speakOnRequest` currently has no trigger in plain Telegram text chat (there's no
   composer to toggle) — left unreachable there for now rather than inventing a slash
   command or keyword to fake one.
-- No live-call feature exists or is planned under the current Bot API integration; anyone
-  wanting that would need a materially different (MTProto) integration, which is out of
-  scope for this project's single-user, self-hosted shape.
+- No live-call feature exists or is planned **on Telegram** under the current Bot API
+  integration; anyone wanting that would need a materially different (MTProto) integration,
+  which is out of scope for this project's single-user, self-hosted shape. Live calls as
+  such were revisited later on a different transport — see
+  [discord-voice-calls](./discord-voice-calls.md), which supersedes the broader reading of
+  this bullet.
 
 ## Alternatives considered
 

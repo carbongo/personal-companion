@@ -19,5 +19,9 @@ engineer. Keep them short: Context, Decision, Consequences, and Alternatives con
 - [web-ui-server-rendered-no-build](./web-ui-server-rendered-no-build.md) — Hono JSX, no SPA bundler
 - [sidecar-tags-not-tool-calling](./sidecar-tags-not-tool-calling.md) — how the model acts
 - [bounded-web-access](./bounded-web-access.md) — deliberate, guarded egress
+- [web-ui-premium-spa](./web-ui-premium-spa.md) — the built SPA in `web/`, and the
+  server-rendered fallback it keeps
 - [local-tts-and-speaking-modes](./local-tts-and-speaking-modes.md) — Piper as the local
   engine, three independent speaking triggers, no Telegram call feature
+- [discord-voice-calls](./discord-voice-calls.md) — Discord as the call transport, and the
+  transport-independent call engine behind it
