@@ -1,7 +1,8 @@
 /**
  * HTTP entry point. A single long-lived Bun process serves the web interface
- * (setup wizard + built-in chat + memory admin), runs the Telegram channel, and
- * drives the nightly memory roll-up, all in the same process.
+ * (setup wizard + built-in chat + memory admin), runs the Telegram channel and
+ * the Discord voice-call channel, and drives the nightly memory roll-up, all in
+ * the same process.
  *
  * Importing the db here applies migrations on boot. The engine is reachable from
  * a terminal (`bun run chat`), over Telegram, and through the web interface and
@@ -9,6 +10,7 @@
  */
 import { Hono } from "hono";
 
+import { discordConfigured, startDiscord } from "#/channels/discord/index.ts";
 import {
 	startTelegram,
 	telegramConfigured,
@@ -45,6 +47,19 @@ if (telegramConfigured()) {
 	startTelegram();
 } else {
 	console.log("[companion] Telegram channel: disabled (no TELEGRAM_BOT_TOKEN)");
+}
+
+// Discord is the voice-call transport, not a text channel. Like Telegram it
+// starts in the background and never takes the server with it: a bad token or an
+// unreachable gateway is logged inside the channel and the process carries on.
+if (discordConfigured() && config.call.enabled) {
+	console.log("[companion] Discord calling: enabled");
+	startDiscord();
+} else {
+	console.log(
+		"[companion] Discord calling: disabled" +
+			(discordConfigured() ? " (CALL_ENABLED=false)" : " (Discord not set up)"),
+	);
 }
 
 mountWeb(app);
