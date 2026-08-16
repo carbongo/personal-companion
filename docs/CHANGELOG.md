@@ -5,6 +5,57 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 
 ## 2026-08-16 (latest)
 
+**Phase 8 shipped: live voice calls over Discord.** The transport-independent call engine
+planned earlier the same day landed in full.
+
+- **New `src/companion-core/call/`** — `types.ts` defines the seam (`CallTransport`,
+  `PcmFrame`, `AudioFormat`, `PlaybackResult`, `VoiceActivityDetector`); `resample.ts`
+  low-pass filters 48 kHz stereo down to 16 kHz mono before decimation (so aliasing never
+  reaches the detector) and frames it into exact 512-sample chunks; `vad.ts` ships
+  `EnergyVad` (dependency-free, always available) and `SileroVad` (ONNX, loaded through a
+  guarded dynamic import — a missing native binding falls back to energy rather than
+  crashing, and the model is fetched to `<dataDir>/models/silero_vad.onnx` on first use,
+  never committed); `framing.ts`'s `UtteranceFramer` uses hysteresis so one dropped frame
+  can't chop a word in half; `endpointing.ts`'s heuristic `Endpointer` (see below);
+  `backchannel.ts`'s `isBackchannelOnly` drops solo "mhm"/"yeah" before they reach the
+  model; `hallucination-gate.ts`'s `isLikelyHallucination` combines `no_speech_prob`, an
+  implausible words-per-second rate, and a blocklist of known Whisper silence artefacts;
+  and `session.ts`'s `CallSession`/`startCallSession` drive the whole loop and own
+  barge-in. `index.ts` is the one public surface a channel adapter should import from.
+- **`src/companion-core/clauses.ts`** — `takeClauses`, a clause-level sibling of Phase 7's
+  `takeParagraphs`, used only by calls so speech starts sooner; voice notes and web chat
+  keep paragraph granularity unchanged.
+- **Barge-in truncates history, not just audio.** Owner speech during playback stops
+  synthesis and playback; `transport.play()` resolves "played" or "cut" precisely, and the
+  session rewrites the stored assistant turn down to the clauses that actually played.
+  Configurable (`CALL_BARGE_IN`) and can be switched off.
+- **`src/channels/discord/`** — voice only, wired into `src/server/index.ts` exactly like
+  Telegram (absent config is a no-op, a failed connection is logged rather than fatal). A
+  call opens on `voiceStateUpdate` when the owner enters the configured voice channel, or
+  on `/call`; both routes are gated on the owner's Discord user ID, and the receiver
+  subscribes to that ID alone — bystander exclusion by construction, not by a model.
+- **New config**: `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_VOICE_CHANNEL_ID`,
+  `DISCORD_OWNER_USER_ID`, `CALL_ENABLED`, `CALL_MODEL`, `CALL_PROVIDER`,
+  `CALL_VAD_PROVIDER`, `CALL_VAD_THRESHOLD`, `CALL_SILENCE_MS`, `CALL_MAX_UTTERANCE_MS`,
+  `CALL_BARGE_IN`, `CALL_MIN_SPEECH_MS`, all wired through `/api/setup`. `resolveCallModel()`
+  falls back to the configured model/provider when the call override is unset.
+- **Web UI** — a real **Calling** sub-tab under Capabilities, and a Discord card beside
+  Telegram in Channels.
+- **No database migration** — `messages` already carried `kind:"voice"` and `mediaUrl`.
+- **New dependencies**: `discord.js`, `@discordjs/voice`, `opusscript`, `@noble/ciphers`,
+  and `onnxruntime-node` (optional).
+- **Descoped from the roadmap text, deliberately**: "semantic endpointing (a small
+  end-of-utterance model)" shipped as a heuristic instead — see
+  [decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md) for why, and its
+  own postscript for what the two named risks (`sodium-native` friction, whether
+  `onnxruntime-node` runs under Bun) turned out to be once tested: the whole stack runs the
+  pure-JS Opus/encryption path, `sodium-native` was never needed, and Silero inference
+  works. Live end-to-end over a real guild is unverified — no bot token or guild exists
+  here — same status as Phase 2's Telegram row; everything else is unit and integration
+  tested. See [roadmap.md](./roadmap.md)'s Phase 8.
+
+## 2026-08-16
+
 **Calling is now a planned phase, and the roadmap renumbered around it.** A new **Phase 8 —
 Calling (live voice over Discord)** lands before Planning and Seeking & Sharing, which
 become Phases 9 and 10; the "Later" list drops Discord as a generic channel idea, since

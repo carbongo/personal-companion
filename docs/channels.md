@@ -5,8 +5,10 @@ neutral `turn` (`{ text, images?, kind?, mediaUrl? }`), calls `engine.respond`, 
 the `{ reply }` it returns. The engine is channel-agnostic, so channels are thin adapters.
 (See the seam in [architecture.md](./architecture.md).)
 
-> Status: all three channels are live — the terminal REPL (`bun run chat`), Telegram
-> (Phase 2), and the built-in web chat (Phase 3).
+> Status: the terminal REPL (`bun run chat`), Telegram (Phase 2), the built-in web chat
+> (Phase 3), and Discord voice calling (Phase 8) are all live in code. Discord's live
+> end-to-end (an actual call, placed against a real guild) is unverified here — see
+> [roadmap.md](./roadmap.md)'s Phase 8.
 
 ## Telegram (optional)
 
@@ -37,6 +39,56 @@ needed, so it runs from anywhere, including behind NAT.
   chat yet, so it stays unreachable there for now. A real "call" experience (live voice
   back-and-forth) was investigated and explicitly not built — see
   [decisions/local-tts-and-speaking-modes.md](./decisions/local-tts-and-speaking-modes.md).
+
+## Discord (optional, voice-only calling)
+
+Discord is not a text channel — it is the transport for **live voice calls** (Phase 8),
+the one place a conversation happens by talking instead of typing. Text chat stays on
+Telegram and the web UI; a third text surface would just duplicate them. See
+[decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md) for why Discord was
+picked over a PWA, SIP, Twilio, and a native CallKit app, and
+[architecture.md](./architecture.md#the-call-engine) for how the call engine itself works.
+
+- **Setup:** create a bot in the Discord developer portal, put its token in
+  `DISCORD_BOT_TOKEN`, and set `DISCORD_GUILD_ID` (the server), `DISCORD_VOICE_CHANNEL_ID`
+  (the voice channel it listens in), and `DISCORD_OWNER_USER_ID` (your Discord user ID).
+  `CALL_ENABLED=true` is the master switch — Discord being configured is not enough on its
+  own. Empty config = the channel never starts, logged and non-fatal, exactly like Telegram
+  with no token.
+- **Starting a call:** the bot joins automatically when the owner enters the configured
+  voice channel (`voiceStateUpdate`), or on demand with a `/call` command. Both routes check
+  the caller's Discord user ID against `DISCORD_OWNER_USER_ID` first — anyone else's join or
+  `/call` is ignored. **Discord bots have no way to ring anyone**, so the companion can only
+  ever join a call the owner starts; it cannot initiate one (that needs Phase 9's
+  `deliver()` primitive, and is out of scope even then until a "call me" delivery mode is
+  designed).
+- **Bystander exclusion is by construction, not by a model.** Discord hands the bot a
+  separate Opus audio stream per participant; the adapter subscribes to the owner's user ID
+  alone (`src/channels/discord/transport.ts`), so no other participant's audio is ever
+  decoded or seen. Nothing downstream has to reason about whose voice it's hearing. (See
+  [security.md](./security.md).)
+- **The call loop:** owner audio is resampled to 16 kHz mono, run through voice-activity
+  detection (Silero ONNX when its model is available, a dependency-free energy threshold
+  otherwise — `CALL_VAD_PROVIDER`), framed into an utterance, transcribed, checked against a
+  Whisper hallucination gate and a backchannel filter ("mhm"/"yeah" alone never reach the
+  model), and handed to `engine.respond` — the same seam every channel uses. The reply
+  streams out clause-by-clause (tighter than the paragraph streaming Phase 7 gave voice
+  notes and web chat, so speech starts sooner) through the same TTS backend configured for
+  Telegram and the web chat.
+- **Barge-in:** speaking over the companion's playback stops synthesis and audio
+  immediately, and truncates the stored assistant turn to only the clauses that actually
+  played — the model never believes it said something the owner never heard. On by default
+  (`CALL_BARGE_IN`), and can be turned off.
+- **Call turns persist as `kind:"voice"` messages** through the normal `messages` table, so
+  they flow into the nightly roll-up like any other conversation — no special case.
+- **A deliberate exception to local-first:** call audio transits Discord's own voice
+  servers to reach it, unlike every other default in this project. Enabling the channel is
+  an explicit opt-in to that; see [security.md](./security.md) and
+  [decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md).
+- **Settings:** connection fields live under **Channels**, next to Telegram; call behaviour
+  (VAD provider/sensitivity, silence timing, barge-in, the call model override) lives under
+  a **Calling** sub-tab in Capabilities. See
+  [configuration.md](./configuration.md#calling-over-discord-optional).
 
 ## Built-in web chat
 

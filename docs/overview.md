@@ -3,8 +3,9 @@
 ## What it is
 
 `personal-companion` is a self-hostable AI companion: a configurable persona with
-persistent memory that you talk to over Telegram and a built-in web chat. It is the
-*engine*. Loaded with your private configuration, it becomes *your* companion.
+persistent memory that you talk to over Telegram, a built-in web chat, and — for a real
+live conversation — a voice call over Discord. It is the *engine*. Loaded with your
+private configuration, it becomes *your* companion.
 
 One deployment serves **one person** (single-user, single-tenant). Run your own; your
 data stays yours.
@@ -40,8 +41,10 @@ Three ideas hold the project together:
   It reads like a person texting — batching your quick messages, replying in paragraphs.
 - **Built-in web chat**: a browser chat served by the app itself, so you can use it with
   no Telegram setup at all.
+- **Discord voice calls** (optional): join a voice channel and have a real, live
+  back-and-forth conversation instead of typing — the one channel that isn't text.
 
-Both go through the same engine. See [channels.md](./channels.md).
+All three go through the same engine. See [channels.md](./channels.md).
 
 ## What it is not
 

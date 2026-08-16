@@ -7,7 +7,7 @@ independent of *how* you talk to it and *which* model is behind it.
 ## Layers
 
 ```
-channels/          how you talk to it (Telegram, built-in web chat)
+channels/          how you talk to it (Telegram, built-in web chat, Discord voice calls)
    │  turns in, replies out
    ▼
 companion-core/    the engine — channel- and provider-agnostic
@@ -89,6 +89,61 @@ round is wasteful. Instead, context is **injected** and the model **acts via tin
 tags** that the engine parses. Hosted providers may use real tool-calling later as an
 opt-in, but the sidecar path is the portable default. (See
 [decisions/sidecar-tags-not-tool-calling.md](./decisions/sidecar-tags-not-tool-calling.md).)
+
+## The call engine
+
+Live voice calls (Phase 8) get their own seam, `CallTransport`, for the same reason the
+channel/provider seams exist: audio framing, voice-activity detection, endpointing, and
+barge-in are not Discord's business, and keeping them out of the adapter is what lets a
+later SIP or browser transport be an adapter rather than a rewrite.
+
+```
+companion-core/call/   the call engine — transport-independent
+   ├─ types.ts          the seam: CallTransport, PcmFrame, AudioFormat, PlaybackResult
+   ├─ resample.ts        48 kHz stereo → 16 kHz mono, low-passed before decimation
+   ├─ vad.ts              EnergyVad (always available) / SileroVad (optional ONNX)
+   ├─ framing.ts          UtteranceFramer — hysteresis so one dropped frame can't chop a word
+   ├─ endpointing.ts       heuristic Endpointer — see below
+   ├─ backchannel.ts        isBackchannelOnly — solo "mhm"/"yeah" never reach the model
+   ├─ hallucination-gate.ts  isLikelyHallucination — Whisper silence artefacts
+   └─ session.ts              CallSession / startCallSession — drives the loop, owns barge-in
+
+channels/discord/       the first CallTransport adapter — everything Discord-specific
+```
+
+`CallSession` knows nothing about Discord; `channels/discord/transport.ts` knows nothing
+about VAD, endpointing, or barge-in. The loop it drives:
+
+```
+owner audio → resample/reframe → VAD → utterance framing → STT
+  → hallucination gate → backchannel filter → endpointer
+  → engine.respondClauses → TTS per clause → transport.play
+```
+
+Call turns go through `engine.respond` (its clause-streaming form) exactly like any other
+turn, and persist as `kind:"voice"` messages through the same `messages` table Telegram and
+the web chat use — memory and the nightly roll-up need no special case for a call.
+
+**Endpointing is a heuristic, not a model.** `createHeuristicEndpointer` reads only the
+transcript text and the silence duration — a trailing hesitation, dangling conjunction, or
+unclosed quote extends the wait; a terminal `?`/`!` commits faster; a hard maximum always
+wins. It sits behind an `Endpointer` interface (`decide`/`reset`) precisely so a future ONNX
+turn-detection model can replace it without any caller changing. See
+[decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md) for why a second ML
+model was deliberately not shipped this phase.
+
+**Barge-in rewrites history, not just audio.** `transport.play()` resolves `"played"` or
+`"cut"` for each clause; when the owner talks over playback, the session stops synthesis and
+truncates the stored assistant turn down to the clauses that actually played, so the model
+is never told it said something the owner never heard.
+
+**Bystander exclusion is the transport's job.** Discord delivers a separate Opus stream per
+participant, so `channels/discord/transport.ts` subscribes to the owner's user ID alone —
+no model ever has to judge whose voice it's hearing. See [security.md](./security.md).
+
+See [channels.md](./channels.md#discord-optional-voice-only-calling) for how a call is
+started and [configuration.md](./configuration.md#calling-over-discord-optional) for the
+`DISCORD_*`/`CALL_*` variables.
 
 ## The web layer
 

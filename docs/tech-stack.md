@@ -17,6 +17,8 @@ That favors a small dependency surface, zero-config storage, and a single proces
 | LLM (hosted)   | OpenAI-compatible / Anthropic   | Bring your own key for a hosted model. |
 | LLM (no key)   | Claude CLI (`claude -p`)        | Spawns the signed-in CLI already on the host — the practical brain for an always-on box. |
 | Web search     | DuckDuckGo (keyless) / Tavily   | Works out of the box; sharper with a Tavily key. |
+| Voice calls    | [discord.js](https://discord.js.org) + [`@discordjs/voice`](https://github.com/discordjs/discord.js) (`opusscript` + `@noble/ciphers`, pure JS) | The call transport (Phase 8), voice only; the pure-JS Opus/encryption path runs cleanly under Bun, no native `sodium-native` module needed. |
+| VAD            | [Silero VAD](https://github.com/snakers4/silero-vad) via `onnxruntime-node` (optional) | Small ONNX speech-detection model for calls; a dependency-free energy-threshold detector is the always-available fallback. |
 | Container      | `oven/bun` image + Compose      | One image runs bot + web; optional bundled Ollama service. |
 
 ## Notes

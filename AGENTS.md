@@ -105,6 +105,13 @@ docs/
   `companion-core/engine.respond` — keep channel- and provider-specific code out of the
   core (see [`docs/architecture.md`](./docs/architecture.md)). The built-in web chat is a
   channel like any other: it calls `respond` too.
+- **The call engine is transport-independent, the same way.** `src/companion-core/call/`
+  knows nothing about Discord (or any transport) — it drives the loop against the
+  `CallTransport` interface, and an adapter (`src/channels/discord/`) implements that
+  interface with whatever a given transport actually needs. Do not put transport-specific
+  code in `companion-core/call/`, and do not put VAD/endpointing/barge-in logic in an
+  adapter (see [`docs/architecture.md`](./docs/architecture.md) and
+  [`docs/decisions/discord-voice-calls.md`](./docs/decisions/discord-voice-calls.md)).
 - **The web UI is a built SPA.** The premium client lives in `web/` (Vite + React +
   Tailwind v4 + Motion, the Nocturne design system) and builds with `bun run web:build` to
   `web/dist`, which the server serves (`src/server/web/index.tsx`). It talks only to the

@@ -89,8 +89,42 @@ it is not one to take incidentally while adding a channel.
 - The prior statement in [local-tts-and-speaking-modes](./local-tts-and-speaking-modes.md)
   that no live-call feature is planned is superseded by this record; its reasoning about
   *Telegram* specifically still stands.
-- Phase 7's per-paragraph `ParagraphSink` becomes per-clause for calls. The paragraph
-  granularity remains correct for voice notes.
+- Phase 7's per-paragraph `ParagraphSink` becomes per-clause for calls (`clauses.ts`'s
+  `takeClauses`). The paragraph granularity remains correct for voice notes and web chat,
+  and both keep using it unchanged.
+- **Semantic endpointing was descoped to a heuristic, deliberately.** The original plan
+  called for a small end-of-utterance model. What shipped instead is
+  `createHeuristicEndpointer` (`src/companion-core/call/endpointing.ts`): it reads only the
+  transcript text and the silence duration — a trailing hesitation marker, a dangling
+  conjunction or preposition, an unclosed quote or bracket, or a mid-word cut all extend the
+  wait, a terminal `?`/`!` commits faster, and a hard maximum always wins regardless. This
+  avoids a second ML model and its download for this phase, at the cost of being a cruder
+  read of "are they done talking" than prosody would give. It sits behind the `Endpointer`
+  interface (`decide`/`reset`) specifically so an ONNX turn-detection model can replace it
+  later without any caller changing — the same seam-first move as the transport itself.
+
+### Postscript, 2026-08-16
+
+Both risks named above were resolved once the code actually ran:
+
+- **The `sodium-native` friction never materialized.** The shipped stack runs the pure-JS
+  path throughout: `opusscript` for Opus encode/decode and `@noble/ciphers` for the voice
+  encryption, both installable and working under Bun. `sodium-native` is neither a
+  dependency nor needed. The CPU cost mentioned above is real but modest at one call at a
+  time, single-user.
+- **`onnxruntime-node` was an open question and it works.** Silero VAD runs real ONNX
+  inference under Bun via a guarded dynamic import (`src/companion-core/call/vad.ts`); the
+  model is fetched to `<dataDir>/models/silero_vad.onnx` on first use rather than committed.
+  If the native binding is ever missing on a given host, the import failure is caught and
+  the session falls back to `EnergyVad` — RMS energy and zero-crossing rate against an
+  adaptive noise floor, no model file — rather than crashing, so `CALL_VAD_PROVIDER=auto` is
+  safe to leave as the default. The fallback is weaker than Silero at the thing Silero is
+  for, telling a keyboard from a voice; it is not weak enough to be useless.
+
+The `Endpointer` interface and the pure-JS transport path both did their job: neither
+finding required touching a caller. Live end-to-end over a real guild is still unverified —
+see the Phase 8 entry in [roadmap.md](../roadmap.md) — everything above was confirmed by the
+unit and integration tests, not a live call.
 
 ## Alternatives considered
 

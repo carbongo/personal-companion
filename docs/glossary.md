@@ -9,8 +9,27 @@
 arrive as text once the channel transcribes them). Channels build a turn; the engine
 consumes it.
 
-**Channel** — how you talk to the companion (Telegram, built-in web chat). A thin adapter
-over the engine.
+**Channel** — how you talk to the companion (Telegram, built-in web chat, Discord voice
+calls). A thin adapter over the engine.
+
+**Call engine** — the transport-independent core of live voice calling
+(`companion-core/call/`): resampling, voice-activity detection, utterance framing,
+endpointing, the backchannel and hallucination filters, and barge-in. Discord is its first
+`CallTransport` adapter, not the engine itself.
+
+**VAD (voice activity detection)** — deciding, frame by frame, whether incoming call audio
+is speech. `EnergyVad` is a dependency-free amplitude threshold; `SileroVad` is a small
+optional ONNX model, used when available.
+
+**Endpointing** — deciding when a caller has actually finished an utterance rather than
+merely paused. The shipped `Endpointer` is a heuristic reading transcript text and silence
+duration (trailing hesitations and dangling clauses extend the wait; a hard maximum always
+commits) — not the semantic end-of-utterance model originally sketched for Phase 8. See
+[decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md).
+
+**Barge-in** — the owner talking over the companion's playback during a call. It stops
+synthesis and audio immediately and truncates the stored assistant turn to only the clauses
+that actually played, so history never records something the owner never heard.
 
 **Provider** — an LLM backend behind a common `chat()` interface (Ollama,
 OpenAI-compatible, Claude CLI, Anthropic).

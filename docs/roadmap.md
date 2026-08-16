@@ -104,7 +104,7 @@ Give the companion a voice, mirroring the existing STT layer in `src/channels/st
   [decisions/local-tts-and-speaking-modes.md](./decisions/local-tts-and-speaking-modes.md),
   which also covers why a Telegram "call" experience was investigated and rejected.
 
-## Phase 8 — Calling (live voice over Discord) ⏳ (medium-hard · the call engine is the work)
+## Phase 8 — Calling (live voice over Discord) ✅ (medium-hard · the call engine is the work)
 
 A real-time, full-duplex voice conversation: the owner joins a Discord voice channel and
 talks to the companion. **Discord is the transport only** — text chat stays on Telegram and
@@ -114,41 +114,61 @@ for the price of a bot token, with no Apple Developer account, no PBX, and no pe
 cost. See [decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md) for why
 Discord beat a PWA, SIP, Twilio, and a native CallKit app.
 
-- ⏳ **Call engine (`src/companion-core/call/`)** — transport-independent, and the bulk of
-  the phase. Silero VAD (small ONNX, MIT) for speech/non-speech framing so keyboards, doors
-  and music never reach STT; **semantic endpointing** (a small end-of-utterance model) so a
-  trailing "um…" extends the wait instead of committing the turn; a filler/backchannel
-  filter that drops utterances which are only "mhm"/"uh"/"yeah"; and a Whisper
-  hallucination gate (`no_speech_prob` + a blocklist) so silence stops inventing text.
-- ⏳ **Barge-in** — owner speech during playback stops synthesis immediately **and truncates
-  the assistant turn in history to what was actually spoken**, so the model never believes
-  it said something the owner never heard.
-- ⏳ **Clause-level speech streaming** — tighten Phase 7's `ParagraphSink` from per-paragraph
-  to per-clause. Paragraph granularity is right for a voice note and far too coarse for a
-  conversation. Budget: ≤800 ms from last word to first audio.
-- ⏳ **Discord adapter (`src/channels/discord/`)** — discord.js + `@discordjs/voice`; the bot
-  joins with `selfDeaf: false` when the owner enters a designated voice channel (plus a
-  `/call` command to summon it). **Bystanders are excluded by construction**: Discord
-  delivers per-user Opus streams, and the adapter subscribes to the owner's user ID alone —
-  no other participant's audio is ever received.
-- ⏳ **Call model override** (`CALL_MODEL` / call provider, falling back to the configured
-  model when unset) — a call has nowhere to hide a slow turn, and the default runtime is a
-  small local model.
-- ⏳ Call turns run through `engine.respond` like any other and persist as `kind:"voice"`
-  messages, flowing into the nightly roll-up unchanged.
-- ⏳ **Settings** — Discord connection under **Channels** (next to Telegram); call behaviour
-  (VAD sensitivity, endpointing patience, barge-in, call model) under a new **Calling**
-  sub-tab in Capabilities.
+- ✅ **Call engine (`src/companion-core/call/`)** — transport-independent, and the bulk of
+  the phase. Silero VAD (small ONNX, MIT, an optional dependency behind a guarded dynamic
+  import) for speech/non-speech framing so keyboards, doors and music never reach STT, with
+  a dependency-free energy-threshold detector as the always-available fallback
+  (`CALL_VAD_PROVIDER=auto` by default); a **heuristic endpointer** so a trailing
+  hesitation, dangling conjunction, or unclosed quote extends the wait while a terminal `?`
+  or `!` commits faster and a hard maximum always wins; a filler/backchannel filter that
+  drops utterances which are only "mhm"/"uh"/"yeah"; and a Whisper hallucination gate
+  (`no_speech_prob` + an implausible words-per-second rate + a blocklist) so silence stops
+  inventing text.
+- ✅ **Barge-in** — owner speech during playback stops synthesis and playback immediately
+  **and truncates the assistant turn in history to what was actually spoken**
+  (`transport.play()` resolves "played" or "cut" precisely), so the model never believes it
+  said something the owner never heard. Configurable (`CALL_BARGE_IN`) and can be switched
+  off.
+- ✅ **Clause-level speech streaming** — `takeClauses` (`src/companion-core/clauses.ts`), a
+  clause-level sibling of Phase 7's `takeParagraphs`, so calls start speaking sooner than
+  paragraph granularity would allow. Voice notes and web chat keep using `takeParagraphs`
+  unchanged — clause splitting is call-only.
+- ✅ **Discord adapter (`src/channels/discord/`)** — discord.js + `@discordjs/voice`, voice
+  only. The bot joins on `voiceStateUpdate` when the owner enters the configured voice
+  channel, or on a `/call` command; both routes are gated on the owner's Discord user ID.
+  **Bystanders are excluded by construction**: Discord delivers per-user Opus streams, and
+  the adapter subscribes to the owner's user ID alone — no other participant's audio is
+  ever received. Registered in `src/server/index.ts` exactly like Telegram: absent config
+  is a no-op, a failed connection is logged rather than fatal.
+- ✅ **Call model override** (`CALL_MODEL` / `CALL_PROVIDER`, via `resolveCallModel()`,
+  falling back to the configured model/provider when unset) — a call has nowhere to hide a
+  slow turn, and the default runtime is a small local model.
+- ✅ Call turns run through `engine.respond` like any other and persist as `kind:"voice"`
+  messages (no schema change — the column already existed), flowing into the nightly
+  roll-up unchanged.
+- ✅ **Settings** — a Discord card under **Channels** (next to Telegram); call behaviour
+  (VAD provider/sensitivity, silence and max-utterance timing, barge-in, call model) under
+  a new **Calling** sub-tab in Capabilities.
 - **Deferred:** acoustic speaker verification (ECAPA-TDNN owner enrolment). Discord's
   per-user streams already solve bystanders on the call; enrolment would only add rejecting
   a second voice bleeding into the owner's *own* microphone.
 - **Not in scope:** the companion cannot *start* a call — Discord bots have no way to ring
   anyone. The companion-initiates direction (a DM nudge, "I'm in the voice channel") needs
   Phase 9's `deliver()` primitive and lands there.
-- **Risks, named up front:** bot audio receive is undocumented by Discord and could break;
-  `@discordjs/voice` has known friction with `sodium-native` under Bun, so prefer the pure
-  JS/wasm encryption and Opus fallbacks; and call audio transits Discord's servers — a
-  deliberate, documented exception to the local-first posture, scoped to this one channel.
+- ⏳ **Live end-to-end** — same status as Phase 2's Telegram row: there is no bot token, no
+  guild, and no way to speak into a voice channel from here, so a real call has not been
+  placed. Everything short of that is unit and integration tested, including the owner-only
+  subscription property and barge-in's history truncation; boot and graceful-failure paths
+  (missing config, a dropped connection) are verified. Needs an owner-supplied bot token and
+  guild to close out.
+- **Decided:** the roadmap's original "semantic endpointing (a small end-of-utterance
+  model)" was descoped to a heuristic behind an `Endpointer` interface, to avoid a second ML
+  model and its download this phase; and the two risks named for the prior draft of this
+  phase — `sodium-native` friction under Bun and whether `onnxruntime-node` would run under
+  Bun at all — were both tested and resolved (pure-JS Opus/encryption throughout, real
+  Silero inference works). See
+  [decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md), including its
+  2026-08-16 postscript.
 
 ## Phase 9 — Planning (self-scheduled tasks) ⏳ (harder · builds the shared foundations)
 

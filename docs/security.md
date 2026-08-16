@@ -14,6 +14,12 @@ stays on your infrastructure, and the few ways in are locked down.**
   purposes. The spawned CLI is stripped of every capability it doesn't need (`--tools ""`,
   `--strict-mcp-config`, `--setting-sources ""`, `--no-session-persistence`), so it cannot
   read files, run commands, load the host's hooks or MCP servers, or leave sessions on disk.
+- **Discord voice calls are a deliberate, scoped exception.** Enabling the Discord channel
+  means call audio transits Discord's own voice servers to reach the bot — the one place in
+  this project that isn't local-first by default. It is opt-in (`CALL_ENABLED` plus a bot
+  token), scoped to audio only, and the call engine stays transport-independent so a
+  self-hosted alternative (e.g. SIP) remains open later without a rewrite. See
+  [decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md).
 - **Your data is yours.** All state is one local SQLite file under `DATA_DIR`. No
   telemetry, no phone-home.
 - **No personal data in the repo.** The project ships zero real-person data; your
@@ -31,6 +37,13 @@ stays on your infrastructure, and the few ways in are locked down.**
   static assets stay open so health checks and the login page work.
 - **Telegram** — an **allowlist** (`TELEGRAM_ALLOWED_USER_IDS`); messages from anyone not
   listed are silently ignored. The bot token is the one required secret for that channel.
+- **Discord voice calls** — gated on `DISCORD_OWNER_USER_ID` at two points: joining a call
+  (on the owner entering the voice channel, or `/call`) and, separately, **which audio the
+  bot ever decodes**. Discord delivers a per-user Opus stream per participant, and
+  `channels/discord/transport.ts` subscribes to the owner's user ID alone — a bystander in
+  the same voice channel is never heard, by construction, not by a model judging whose
+  voice it is. See [channels.md](./channels.md#discord-optional-voice-only-calling) and
+  [decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md).
 - **Web access egress** — off-by-config-able, bounded, and behind an **SSRF guard** that
   blocks localhost, private/loopback/link-local ranges, and internal hostnames so a shared
   link can't reach internal services. (See [web-access.md](./web-access.md).)

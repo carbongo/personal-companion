@@ -144,6 +144,43 @@ web chat, not Telegram-specific.
 
 See [channels.md](./channels.md) for how the adapter maps onto the engine seam.
 
+## Calling over Discord (optional)
+
+Live voice calls (Phase 8) use Discord as the transport — voice only, not a text channel.
+To enable it:
+
+1. Create a bot in the Discord developer portal, invite it to your server, and put its
+   token in `DISCORD_BOT_TOKEN`.
+2. Set `DISCORD_GUILD_ID` (the server) and `DISCORD_VOICE_CHANNEL_ID` (the voice channel it
+   joins). Put your own Discord user ID in `DISCORD_OWNER_USER_ID` — the bot only ever
+   joins a call the owner started and only ever listens to the owner's audio stream.
+3. Set `CALL_ENABLED=true`. Discord being configured is not enough on its own — this is the
+   separate master switch for the call engine.
+
+| Var                        | Default | What it does |
+| --------------------------- | ------- | ------------ |
+| `DISCORD_BOT_TOKEN`         | (empty) | Enables the Discord channel; empty = disabled. |
+| `DISCORD_GUILD_ID`          | (empty) | The server the bot joins voice calls in. |
+| `DISCORD_VOICE_CHANNEL_ID`  | (empty) | The voice channel it listens/speaks in. |
+| `DISCORD_OWNER_USER_ID`     | (empty) | The only Discord user ID allowed to start/join a call. |
+| `CALL_ENABLED`              | `false` | Master switch for the call engine; off means it never starts even if Discord is fully configured. |
+| `CALL_VAD_PROVIDER`         | `auto`  | `silero` \| `energy` \| `auto`. Silero is a small ONNX voice-activity model, more accurate; energy is a dependency-free amplitude threshold. `auto` prefers Silero when its model is available and falls back to energy otherwise — never a hard failure. |
+| `CALL_VAD_THRESHOLD`        | `0.5`   | Speech-probability threshold (0–1) above which audio counts as speech. |
+| `CALL_SILENCE_MS`           | `700`   | Trailing silence that ends an utterance — the endpointer's base patience. |
+| `CALL_MAX_UTTERANCE_MS`     | `30000` | Hard cap on one utterance, so a stuck-open mic can't run forever. |
+| `CALL_MIN_SPEECH_MS`        | `200`   | Utterances shorter than this are discarded as noise, never sent to STT. |
+| `CALL_BARGE_IN`             | `true`  | Whether owner speech during playback interrupts the companion and truncates the stored reply to what actually played. |
+| `CALL_MODEL` / `CALL_PROVIDER` | (empty) | Optional overrides for the model/provider a call turn uses. Empty = falls back to `LLM_MODEL`/`LLM_PROVIDER` (`resolveCallModel()`), the same "dedicated override, else the main model" pattern `LLM_VISION_MODEL` uses. |
+
+Voice activity detection, the heuristic endpointer, the backchannel filter, and the
+hallucination gate are described in
+[architecture.md](./architecture.md#the-call-engine); STT and TTS reuse the same
+`STT_PROVIDER`/`TTS_PROVIDER` backends configured above — a call has no separate speech
+config of its own. See [channels.md](./channels.md#discord-optional-voice-only-calling) for
+how a call starts and why Discord is voice-only, and
+[decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md) for the transport
+decision.
+
 ## Chat (batching)
 
 When you fire off several short messages in a row, the companion folds that burst into a
