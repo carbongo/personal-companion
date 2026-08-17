@@ -79,6 +79,39 @@ export function CallingSection({ form, set }: SectionProps) {
               />
             </Card>
 
+            <Card title="Patience">
+              <Slider
+                label="Base patience"
+                value={form.callPatienceMs}
+                min={200}
+                max={3000}
+                step={50}
+                suffix="ms"
+                onChange={(v) => set("callPatienceMs", v)}
+                help="How long she waits after you go quiet before deciding you've finished speaking, for an ordinary sentence."
+              />
+              <Slider
+                label="Extended patience"
+                value={form.callPatienceExtendedMs}
+                min={500}
+                max={5000}
+                step={50}
+                suffix="ms"
+                onChange={(v) => set("callPatienceExtendedMs", v)}
+                help="How much longer she'll wait when what you said sounds unfinished — trailing off on 'and', 'so', a hesitation like 'um' — rather than cutting in mid-thought."
+              />
+              <Slider
+                label="Maximum patience"
+                value={form.callPatienceMaxMs}
+                min={1000}
+                max={8000}
+                step={100}
+                suffix="ms"
+                onChange={(v) => set("callPatienceMaxMs", v)}
+                help="The absolute ceiling on how long she'll hold off replying, even for the most unfinished-sounding pause, so a long silence still gets a turn eventually."
+              />
+            </Card>
+
             <Card title="Interrupting">
               <ToggleRow
                 title="Allow barge-in"

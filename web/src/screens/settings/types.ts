@@ -44,6 +44,9 @@ export interface Form {
   callBargeIn: boolean;
   callModel: string;
   callProvider: string;
+  callPatienceMs: number;
+  callPatienceExtendedMs: number;
+  callPatienceMaxMs: number;
   // Voice (STT)
   sttProvider: string;
   sttApiUrl: string;
@@ -51,6 +54,12 @@ export interface Form {
   sttModel: string;
   sttLocalModel: string;
   sttLanguage: string;
+  sttDetectModel: string;
+  sttLanguages: string;
+  sttNoSpeechThreshold: number;
+  sttMinClipMs: number;
+  sttEntropyThreshold: number;
+  sttLogprobThreshold: number;
   // Speaking (TTS)
   ttsProvider: string;
   ttsApiUrl: string;
@@ -58,6 +67,7 @@ export interface Form {
   ttsModel: string;
   ttsVoice: string;
   ttsLocalModel: string;
+  ttsLocalModelMap: string;
   speakMirror: boolean;
   speakOnRequest: boolean;
   speakSometimes: boolean;
@@ -136,18 +146,28 @@ export function formFromValues(v: SetupValues): Form {
     callBargeIn: v.callBargeIn ?? true,
     callModel: v.callModel ?? "",
     callProvider: v.callProvider ?? "",
+    callPatienceMs: v.callPatienceMs ?? 900,
+    callPatienceExtendedMs: v.callPatienceExtendedMs ?? 2000,
+    callPatienceMaxMs: v.callPatienceMaxMs ?? 3500,
     sttProvider: v.sttProvider,
     sttApiUrl: v.sttApiUrl,
     sttApiKey: "",
     sttModel: v.sttModel,
     sttLocalModel: v.sttLocalModel,
     sttLanguage: v.sttLanguage,
+    sttDetectModel: v.sttDetectModel,
+    sttLanguages: v.sttLanguages,
+    sttNoSpeechThreshold: v.sttNoSpeechThreshold,
+    sttMinClipMs: v.sttMinClipMs,
+    sttEntropyThreshold: v.sttEntropyThreshold,
+    sttLogprobThreshold: v.sttLogprobThreshold,
     ttsProvider: v.ttsProvider,
     ttsApiUrl: v.ttsApiUrl,
     ttsApiKey: "",
     ttsModel: v.ttsModel,
     ttsVoice: v.ttsVoice,
     ttsLocalModel: v.ttsLocalModel,
+    ttsLocalModelMap: v.ttsLocalModelMap,
     speakMirror: v.speakMirror,
     speakOnRequest: v.speakOnRequest,
     speakSometimes: v.speakSometimes,
@@ -221,18 +241,28 @@ export function bodyFromForm(f: Form): Record<string, string> {
     callBargeIn: b(f.callBargeIn),
     callModel: f.callModel,
     callProvider: f.callProvider,
+    callPatienceMs: s(f.callPatienceMs),
+    callPatienceExtendedMs: s(f.callPatienceExtendedMs),
+    callPatienceMaxMs: s(f.callPatienceMaxMs),
     sttProvider: f.sttProvider,
     sttApiUrl: f.sttApiUrl,
     sttApiKey: f.sttApiKey,
     sttModel: f.sttModel,
     sttLocalModel: f.sttLocalModel,
     sttLanguage: f.sttLanguage,
+    sttDetectModel: f.sttDetectModel,
+    sttLanguages: f.sttLanguages,
+    sttNoSpeechThreshold: s(f.sttNoSpeechThreshold),
+    sttMinClipMs: s(f.sttMinClipMs),
+    sttEntropyThreshold: s(f.sttEntropyThreshold),
+    sttLogprobThreshold: s(f.sttLogprobThreshold),
     ttsProvider: f.ttsProvider,
     ttsApiUrl: f.ttsApiUrl,
     ttsApiKey: f.ttsApiKey,
     ttsModel: f.ttsModel,
     ttsVoice: f.ttsVoice,
     ttsLocalModel: f.ttsLocalModel,
+    ttsLocalModelMap: f.ttsLocalModelMap,
     speakMirror: b(f.speakMirror),
     speakOnRequest: b(f.speakOnRequest),
     speakSometimes: b(f.speakSometimes),

@@ -48,6 +48,14 @@ export function SpeakingSection({ form, set, values }: SectionProps) {
                 placeholder="en_US-lessac-medium.onnx"
                 mono
               />
+              <Field
+                label="Per-language voices"
+                value={form.ttsLocalModelMap}
+                onChange={(v) => set("ttsLocalModelMap", v)}
+                placeholder="en=/path/a.onnx,ru=/path/b.onnx"
+                mono
+                help="Route each clause to a different local voice by its detected language, so a reply that mixes languages doesn't get read in one accent throughout. A language with no entry here falls back to the local model above."
+              />
             </>
           )}
         </Card>

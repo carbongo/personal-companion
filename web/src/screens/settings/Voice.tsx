@@ -1,4 +1,4 @@
-import { Field, Secret, Select } from "../../components/Field.tsx";
+import { Field, Secret, Select, Slider } from "../../components/Field.tsx";
 import type { SectionProps } from "./types.ts";
 import { Card, Grid, SectionIntro } from "./ui.tsx";
 
@@ -57,6 +57,64 @@ export function VoiceSection({ form, set, values }: SectionProps) {
             </>
           )}
         </Card>
+
+        {!off && (
+          <Card title="Language detection">
+            <Field
+              label="Detect model"
+              value={form.sttDetectModel}
+              onChange={(v) => set("sttDetectModel", v)}
+              placeholder="blank = use the main model"
+              mono
+              help="A small, fast model run first just to guess the spoken language — the main model then transcribes with that language fixed instead of guessing it itself, which is both quicker and more accurate."
+            />
+            <Field
+              label="Spoken languages"
+              value={form.sttLanguages}
+              onChange={(v) => set("sttLanguages", v)}
+              placeholder="en, ru"
+              mono
+              help="The languages you actually speak, comma-separated. The detector's guess is clamped to this list, so a mumble never gets misheard as some unrelated language you don't use."
+            />
+            <Slider
+              label="No-speech threshold"
+              value={form.sttNoSpeechThreshold}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={(v) => set("sttNoSpeechThreshold", v)}
+              help="How confident the model must be that a clip contains no speech before its output is discarded as a hallucination — background noise sometimes gets 'transcribed' into fluent nonsense, and this catches it."
+            />
+            <Slider
+              label="Minimum clip length"
+              value={form.sttMinClipMs}
+              min={0}
+              max={2000}
+              step={50}
+              suffix="ms"
+              onChange={(v) => set("sttMinClipMs", v)}
+              help="Clips shorter than this are too brief to trust — very short audio is where the model is most likely to invent words rather than transcribe real speech."
+            />
+            <Slider
+              label="Entropy threshold"
+              value={form.sttEntropyThreshold}
+              min={0}
+              max={10}
+              step={0.1}
+              onChange={(v) => set("sttEntropyThreshold", v)}
+              help="Rejects a transcription when the model was unusually uncertain about which words to pick — a sign it guessed rather than heard."
+            />
+            <Slider
+              label="Logprob threshold"
+              value={form.sttLogprobThreshold}
+              min={-5}
+              max={0}
+              step={0.1}
+              onChange={(v) => set("sttLogprobThreshold", v)}
+              help="Rejects a transcription when the model's own confidence in its words falls below this floor — another guard against confidently-wrong text."
+            />
+          </Card>
+        )}
       </div>
     </div>
   );

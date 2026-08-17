@@ -73,6 +73,12 @@ export interface SetupValues {
 	sttModel: string;
 	sttLocalModel: string;
 	sttLanguage: string;
+	sttDetectModel: string;
+	sttLanguages: string;
+	sttNoSpeechThreshold: number;
+	sttMinClipMs: number;
+	sttEntropyThreshold: number;
+	sttLogprobThreshold: number;
 	// text-to-speech
 	ttsProvider: string;
 	ttsApiUrl: string;
@@ -80,6 +86,7 @@ export interface SetupValues {
 	ttsModel: string;
 	ttsVoice: string;
 	ttsLocalModel: string;
+	ttsLocalModelMap: string;
 	speakMirror: boolean;
 	speakOnRequest: boolean;
 	speakSometimes: boolean;
@@ -160,12 +167,21 @@ export function currentSetupValues(): SetupValues {
 		sttModel: config.stt.model,
 		sttLocalModel: config.stt.localModel,
 		sttLanguage: config.stt.language,
+		sttDetectModel: config.stt.detectModel,
+		sttLanguages: config.stt.languages.join(", "),
+		sttNoSpeechThreshold: config.stt.noSpeechThreshold,
+		sttMinClipMs: config.stt.minClipMs,
+		sttEntropyThreshold: config.stt.entropyThreshold,
+		sttLogprobThreshold: config.stt.logprobThreshold,
 		ttsProvider: config.tts.provider,
 		ttsApiUrl: config.tts.apiUrl,
 		ttsConfigured: !!config.tts.apiKey,
 		ttsModel: config.tts.model,
 		ttsVoice: config.tts.voice,
 		ttsLocalModel: config.tts.localModel,
+		ttsLocalModelMap: Object.entries(config.tts.localModelByLang)
+			.map(([lang, path]) => `${lang}=${path}`)
+			.join(","),
 		speakMirror: config.tts.speakMirror,
 		speakOnRequest: config.tts.speakOnRequest,
 		speakSometimes: config.tts.speakSometimes,
