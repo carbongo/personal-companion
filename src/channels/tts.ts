@@ -17,9 +17,35 @@ import { existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { config } from "#/config/index.ts";
+import { config, resolveLocalVoice } from "#/config/index.ts";
 
 const OPENAI_SPEECH = "https://api.openai.com/v1/audio/speech";
+
+/** Cyrillic and Latin letter ranges, used to guess a text's script. */
+const CYRILLIC_RE = /[Ѐ-ӿ]/;
+const LATIN_RE = /[a-zA-Z]/;
+
+/**
+ * Guess a language ("ru" | "en") from the text's script, or `undefined` when
+ * it genuinely can't tell — empty text, digits/punctuation only, or a
+ * near-even mix that shouldn't confidently flip the voice either way. Counts
+ * letters only (ignoring whitespace, digits, punctuation) and requires a
+ * clear majority so a single borrowed word doesn't swing the whole sentence.
+ */
+export function scriptLanguage(text: string): "ru" | "en" | undefined {
+	let cyrillic = 0;
+	let latin = 0;
+	for (const ch of text) {
+		if (CYRILLIC_RE.test(ch)) cyrillic++;
+		else if (LATIN_RE.test(ch)) latin++;
+	}
+	const total = cyrillic + latin;
+	if (total === 0) return undefined;
+	const ratio = cyrillic / total;
+	if (ratio >= 0.7) return "ru";
+	if (ratio <= 0.3) return "en";
+	return undefined;
+}
 
 /** Whether speech synthesis is set up; if false the caller just sends text. */
 export function ttsConfigured(): boolean {
@@ -100,8 +126,10 @@ const defaultLocalDeps: LocalDeps = {
 export async function synthesizeLocal(
 	text: string,
 	deps: LocalDeps = defaultLocalDeps,
+	lang?: string,
 ): Promise<Uint8Array> {
-	const { localBin, localModel } = config.tts;
+	const { localBin } = config.tts;
+	const localModel = lang ? resolveLocalVoice(lang) : config.tts.localModel;
 	if (!localModel || !existsSync(localModel))
 		throw new Error(`piper voice model not found: ${localModel || "(unset)"}`);
 
@@ -126,7 +154,10 @@ export async function synthesizeLocal(
 
 // --- HTTP (openai / http) -----------------------------------------------------
 
-async function synthesizeHttp(text: string): Promise<Uint8Array> {
+async function synthesizeHttp(
+	text: string,
+	lang?: string,
+): Promise<Uint8Array> {
 	const headers: Record<string, string> = {
 		"content-type": "application/json",
 	};
@@ -136,7 +167,12 @@ async function synthesizeHttp(text: string): Promise<Uint8Array> {
 		model: config.tts.model,
 		input: text,
 	};
-	if (config.tts.voice) body.voice = config.tts.voice;
+	// TTS_LOCAL_MODEL_MAP is documented as Piper-only, so only use it here
+	// when it actually names a voice for this language; otherwise a bare
+	// local .onnx path (the fallback resolveLocalVoice() would give us) has
+	// no meaning to an HTTP endpoint, so keep the configured default voice.
+	const voice = (lang && config.tts.localModelByLang[lang]) || config.tts.voice;
+	if (voice) body.voice = voice;
 
 	const res = await fetch(endpoint(), {
 		method: "POST",
@@ -153,9 +189,20 @@ async function synthesizeHttp(text: string): Promise<Uint8Array> {
 /**
  * Synthesize text to audio bytes. Throws on a transport, process, or API
  * error so the caller can fall back to sending plain text instead.
+ *
+ * `opts.lang` picks the voice explicitly; otherwise the language is guessed
+ * from the text's own script. Because that inference runs per call, a reply
+ * that's already been split into clauses (see channels/reply.ts) gets voiced
+ * clause by clause — a mixed English/Russian reply switches voices mid-reply
+ * instead of committing to whichever language happened to open the reply.
  */
-export async function synthesize(text: string): Promise<Uint8Array> {
+export async function synthesize(
+	text: string,
+	opts?: { lang?: string },
+): Promise<Uint8Array> {
 	if (!ttsConfigured()) throw new Error("TTS is not configured");
-	if (config.tts.provider === "local") return synthesizeLocal(text);
-	return synthesizeHttp(text);
+	const lang = opts?.lang ?? scriptLanguage(text);
+	if (config.tts.provider === "local")
+		return synthesizeLocal(text, undefined, lang);
+	return synthesizeHttp(text, lang);
 }

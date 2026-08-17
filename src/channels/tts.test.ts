@@ -7,6 +7,7 @@ import { config } from "#/config/index.ts";
 import {
 	type LocalDeps,
 	piperArgs,
+	scriptLanguage,
 	synthesizeLocal,
 	ttsConfigured,
 } from "./tts.ts";
@@ -21,6 +22,37 @@ describe("piper arg builder", () => {
 		const a = piperArgs("voice.onnx", "out.wav");
 		expect(a[a.indexOf("--model") + 1]).toBe("voice.onnx");
 		expect(a[a.indexOf("--output_file") + 1]).toBe("out.wav");
+	});
+});
+
+describe("scriptLanguage", () => {
+	it("detects pure Cyrillic as Russian", () => {
+		expect(scriptLanguage("Привет, как дела?")).toBe("ru");
+	});
+
+	it("detects pure Latin as English", () => {
+		expect(scriptLanguage("Hello, how are you?")).toBe("en");
+	});
+
+	it("stays with the majority script when a minority of the other is present", () => {
+		expect(scriptLanguage("I'll take the борщ, please, thanks a lot")).toBe(
+			"en",
+		);
+		expect(scriptLanguage("Возьму borscht, пожалуйста, спасибо большое")).toBe(
+			"ru",
+		);
+	});
+
+	it("returns undefined for a near-even mix", () => {
+		expect(scriptLanguage("hello привет")).toBeUndefined();
+	});
+
+	it("returns undefined for digits and punctuation only", () => {
+		expect(scriptLanguage("123 - 456, ... !!")).toBeUndefined();
+	});
+
+	it("returns undefined for empty text", () => {
+		expect(scriptLanguage("")).toBeUndefined();
 	});
 });
 
@@ -102,6 +134,50 @@ describe("synthesizeLocal", () => {
 			tmpBase: () => join(dir, "base"),
 		};
 		await expect(synthesizeLocal("hi", deps)).rejects.toThrow(/piper failed/);
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("picks the per-language voice when the map has an entry", async () => {
+		const { dir } = withModel();
+		const ruModel = join(dir, "ru.onnx");
+		writeFileSync(ruModel, "x");
+		config.tts.localModelByLang = { ru: ruModel };
+
+		const calls: { cmd: string[] }[] = [];
+		const deps: LocalDeps = {
+			run: async (cmd) => {
+				calls.push({ cmd });
+				return { code: 0, stderr: "" };
+			},
+			readBytes: async () => new Uint8Array(),
+			cleanup: () => {},
+			tmpBase: () => join(dir, "base"),
+		};
+
+		await synthesizeLocal("Привет", deps, "ru");
+		expect(calls[0]?.cmd).toContain(ruModel);
+
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("falls back to the default model when the language has no map entry", async () => {
+		const { dir, model } = withModel();
+		config.tts.localModelByLang = { ru: join(dir, "ru.onnx") };
+
+		const calls: { cmd: string[] }[] = [];
+		const deps: LocalDeps = {
+			run: async (cmd) => {
+				calls.push({ cmd });
+				return { code: 0, stderr: "" };
+			},
+			readBytes: async () => new Uint8Array(),
+			cleanup: () => {},
+			tmpBase: () => join(dir, "base"),
+		};
+
+		await synthesizeLocal("hello", deps, "en");
+		expect(calls[0]?.cmd).toContain(model);
+
 		rmSync(dir, { recursive: true, force: true });
 	});
 });
