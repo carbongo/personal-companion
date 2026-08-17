@@ -24,12 +24,24 @@ const OPENAI_TRANSCRIPTIONS = "https://api.openai.com/v1/audio/transcriptions";
 
 /**
  * A transcription plus whatever the decoder told us about its own confidence.
- * Both extras are optional: a provider that cannot report them leaves them
- * unset rather than guessing, because a caller gating on a fabricated
- * probability would be worse off than one gating on nothing.
+ * Every extra is optional: a provider that cannot report one leaves it unset
+ * rather than guessing, because a caller gating on a fabricated probability
+ * would be worse off than one gating on nothing.
  */
 export interface TranscriptionResult {
 	text: string;
+	/**
+	 * Mean per-token probability, 0..1 — how sure the decoder was of the words
+	 * it chose. Low means invention, which is what the hallucination gate wants
+	 * to know. Only whisper.cpp reports it (from `-ojf`); the HTTP providers
+	 * return no per-token data, so for them it stays unset.
+	 */
+	confidence?: number;
+	/**
+	 * The decoder's probability that the clip was silence. whisper-cli never
+	 * emits this in any output mode — see `parseWhisperJson` — so it only ever
+	 * arrives from a provider whose API reports it.
+	 */
 	noSpeechProb?: number;
 	language?: string;
 }
@@ -217,6 +229,10 @@ export interface DecodeThresholds {
  * whisper.cpp args: transcribe `wav`, write JSON to `<outBase>.json`. JSON
  * rather than plain text because it also carries the language the run settled
  * on, and one file is easier to clean up than two.
+ *
+ * `-ojf` (full JSON, which implies `-oj`) rather than plain `-oj`: the full
+ * writer is the only mode that emits the per-token probabilities, and that mean
+ * is the one confidence signal whisper-cli actually gives us.
  */
 export function whisperArgs(
 	model: string,
@@ -240,7 +256,7 @@ export function whisperArgs(
 		String(thresholds.logprob),
 		"-nt", // no timestamps
 		"-np", // no progress / system prints
-		"-oj",
+		"-ojf", // full JSON: segments *and* per-token probabilities
 		"-of",
 		outBase,
 	];
@@ -256,17 +272,52 @@ export function cleanWhisperText(raw: string): string {
 		.trim();
 }
 
+// Special tokens whisper writes into the full JSON alongside real words —
+// `[_BEG_]`, `[_TT_88]`, `[_EOT_]`. Their probabilities describe the decoder's
+// bookkeeping, not the words the owner said, so they are left out of the mean.
+const SPECIAL_TOKEN = /^\[_[^\]]*\]$/;
+
 /**
- * Read back what `-oj` wrote. Anything unexpected — unparseable JSON, a missing
+ * Average the per-token probabilities `-ojf` writes, across every segment.
+ * Flattening first makes this a count-weighted mean: a ten-token segment
+ * carries ten times the weight of a one-token one, which is the honest reading
+ * when the question is "how sure was the decoder of these words".
+ *
+ * A run that yields no usable token returns undefined rather than a default —
+ * the gate must act on a measurement or on nothing at all.
+ */
+function meanTokenProbability(segments: unknown[]): number | undefined {
+	let sum = 0;
+	let count = 0;
+	for (const segment of segments) {
+		if (!segment || typeof segment !== "object") continue;
+		const tokens = (segment as { tokens?: unknown }).tokens;
+		if (!Array.isArray(tokens)) continue;
+		for (const token of tokens) {
+			if (!token || typeof token !== "object") continue;
+			const { p, text } = token as { p?: unknown; text?: unknown };
+			if (typeof p !== "number" || !Number.isFinite(p)) continue;
+			if (typeof text === "string" && SPECIAL_TOKEN.test(text.trim())) continue;
+			sum += p;
+			count++;
+		}
+	}
+	return count > 0 ? sum / count : undefined;
+}
+
+/**
+ * Read back what `-ojf` wrote. Anything unexpected — unparseable JSON, a missing
  * transcription array — yields an empty transcript rather than a partial guess,
  * on the principle that silence is recoverable and invented words are not.
  *
  * Note there is no `noSpeechProb` here: whisper-cli's JSON writer emits neither
  * `no_speech_prob` nor any equivalent, under `-oj` or `-ojf`. The threshold is
- * still applied inside the decoder via `-nth`; we just cannot observe it.
+ * still applied inside the decoder via `-nth`; we just cannot observe it. The
+ * per-token `p` values are what we can observe, hence `confidence`.
  */
 export function parseWhisperJson(raw: string): {
 	text: string;
+	confidence?: number;
 	language?: string;
 } {
 	let data: unknown;
@@ -294,9 +345,11 @@ export function parseWhisperJson(raw: string): {
 			.join("\n"),
 	);
 
+	const confidence = meanTokenProbability(segments);
 	const language = doc.result?.language;
 	return {
 		text,
+		...(confidence === undefined ? {} : { confidence }),
 		...(typeof language === "string" && language ? { language } : {}),
 	};
 }
@@ -415,7 +468,15 @@ export async function transcribeLocal(
 			);
 
 		const parsed = parseWhisperJson(await deps.readOutput(outBase));
-		return { text: parsed.text, language: parsed.language ?? language };
+		return {
+			text: parsed.text,
+			// Spread rather than assign: an undefined confidence must stay absent,
+			// so a caller cannot mistake "not measured" for "measured as zero".
+			...(parsed.confidence === undefined
+				? {}
+				: { confidence: parsed.confidence }),
+			language: parsed.language ?? language,
+		};
 	} finally {
 		deps.cleanup(made);
 	}

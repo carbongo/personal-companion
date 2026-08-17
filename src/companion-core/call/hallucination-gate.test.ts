@@ -33,6 +33,47 @@ describe("isLikelyHallucination", () => {
 		expect(result).toBe(true);
 	});
 
+	it("rejects a transcript the decoder was unsure of, and keeps the sure one", () => {
+		// Same words, same clip length: the confidence is the only difference, and
+		// it is the only thing allowed to decide between them.
+		const words = "we should probably leave before it gets dark";
+		expect(
+			isLikelyHallucination({
+				text: words,
+				confidence: 0.21,
+				speechDurationMs: 2500,
+			}),
+		).toBe(true);
+		expect(
+			isLikelyHallucination({
+				text: words,
+				confidence: 0.88,
+				speechDurationMs: 2500,
+			}),
+		).toBe(false);
+	});
+
+	it("treats an unmeasured confidence as no opinion, not as a low one", () => {
+		expect(
+			isLikelyHallucination({
+				text: "we should probably leave before it gets dark",
+				speechDurationMs: 2500,
+			}),
+		).toBe(false);
+	});
+
+	it("respects a custom minConfidence", () => {
+		const input = {
+			text: "we should probably leave before it gets dark",
+			confidence: 0.55,
+			speechDurationMs: 2500,
+		};
+		expect(isLikelyHallucination(input)).toBe(false); // default floor is 0.5
+		expect(
+			isLikelyHallucination({ ...input, opts: { minConfidence: 0.7 } }),
+		).toBe(true);
+	});
+
 	it("rejects a duration too short to have plausibly produced that much text", () => {
 		// A twelve-word sentence out of a 200ms blip is physically implausible.
 		const result = isLikelyHallucination({

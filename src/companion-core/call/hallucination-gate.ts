@@ -2,8 +2,15 @@
 // or near-silence — famously emitting subtitle boilerplate like "thanks for watching" when
 // fed a room-tone clip. A live call has far more dead air than a chat voice note, so this
 // gate runs on every transcript before it reaches the endpointer/LLM and rejects the
-// well-known failure shapes: a high no-speech probability, a duration too short to have
-// plausibly produced that much text, or a match against known artefact strings.
+// well-known failure shapes: a decoder that was unsure of its own words, a duration too
+// short to have plausibly produced that much text, or a match against known artefact
+// strings.
+//
+// Invention is confident-sounding but not confident: when whisper fills silence it does so
+// with low per-token probabilities, which is why `confidence` is the signal that carries
+// the weight here. `noSpeechProb` is the signal one would reach for first, and it is kept
+// for providers whose API reports it — but whisper-cli, the local path, emits it in no
+// output mode at all, so locally nothing ever fills it in.
 
 /** Known Whisper silence/artefact outputs, worth rejecting outright regardless of duration. */
 export const HALLUCINATION_BLOCKLIST: readonly string[] = [
@@ -20,6 +27,10 @@ export const HALLUCINATION_BLOCKLIST: readonly string[] = [
 
 const DEFAULT_NO_SPEECH_THRESHOLD = 0.6;
 const DEFAULT_MIN_DURATION_MS = 200;
+// Mirrors STT_MIN_CONFIDENCE's default. Real speech decodes well above this even when
+// mumbled; silence-fill sits below it, because the model is guessing between many equally
+// unlikely continuations.
+const DEFAULT_MIN_CONFIDENCE = 0.5;
 
 // A generous ceiling on human speech rate, used only to catch the physically implausible
 // case (many words from a clip too short to have contained them). Deliberately loose —
@@ -55,13 +66,26 @@ function hasLongRepeatedTokenRun(text: string, minRun = 4): boolean {
 
 export function isLikelyHallucination(input: {
 	text: string;
+	/** Mean per-token probability, when the decoder reported one. */
+	confidence?: number;
 	noSpeechProb?: number;
 	speechDurationMs: number;
-	opts?: { noSpeechThreshold?: number; minDurationMs?: number };
+	opts?: {
+		noSpeechThreshold?: number;
+		minDurationMs?: number;
+		minConfidence?: number;
+	};
 }): boolean {
 	const noSpeechThreshold =
 		input.opts?.noSpeechThreshold ?? DEFAULT_NO_SPEECH_THRESHOLD;
 	const minDurationMs = input.opts?.minDurationMs ?? DEFAULT_MIN_DURATION_MS;
+	const minConfidence = input.opts?.minConfidence ?? DEFAULT_MIN_CONFIDENCE;
+
+	// An unmeasured confidence is not a low one: a provider that reports nothing
+	// leaves the rest of the checks to speak for themselves.
+	if (input.confidence !== undefined && input.confidence < minConfidence) {
+		return true;
+	}
 
 	if (
 		input.noSpeechProb !== undefined &&

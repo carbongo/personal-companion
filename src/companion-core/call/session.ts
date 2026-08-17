@@ -24,12 +24,16 @@
  * rewrite the stored reply down to the clauses the transport confirmed as
  * "played". A clause that came back "cut" was never heard, so it never happened.
  */
-import { transcribe as sttTranscribe } from "#/channels/stt.ts";
+import {
+	transcribeDetailed as sttTranscribe,
+	type TranscriptionResult,
+} from "#/channels/stt.ts";
 import { synthesize as ttsSynthesize } from "#/channels/tts.ts";
 import { isBackchannelOnly } from "#/companion-core/call/backchannel.ts";
 import {
 	createHeuristicEndpointer,
 	type Endpointer,
+	type HeuristicEndpointerOptions,
 } from "#/companion-core/call/endpointing.ts";
 import {
 	type FramingOptions,
@@ -79,7 +83,14 @@ type UtteranceEnd = Extract<UtteranceEvent, { type: "utterance-end" }>;
  * whose inputs are a microphone and an LLM.
  */
 export interface CallSessionDeps {
-	transcribe?: (bytes: Uint8Array, filename: string) => Promise<string>;
+	/**
+	 * Transcribe an utterance, keeping whatever the decoder said about its own
+	 * confidence — the gate downstream needs the signal, not just the words.
+	 */
+	transcribe?: (
+		bytes: Uint8Array,
+		filename: string,
+	) => Promise<TranscriptionResult>;
 	synthesize?: (text: string) => Promise<Uint8Array>;
 	respond?: (
 		turn: Turn,
@@ -97,6 +108,8 @@ export interface CallSessionOptions extends CallSessionDeps {
 	vad?: VoiceActivityDetector;
 	/** Endpointer deciding when the owner has finished a thought. */
 	endpointer?: Endpointer;
+	/** Endpointing patience overrides; the rest comes from `CALL_PATIENCE_*`. */
+	patience?: HeuristicEndpointerOptions;
 	/** Utterance framing overrides; the rest comes from `CALL_*`. */
 	framing?: FramingOptions;
 	/** Whether the owner can interrupt playback. Defaults to `CALL_BARGE_IN`. */
@@ -213,7 +226,17 @@ export class CallSession {
 		this.framer = new UtteranceFramer(framing);
 		this.trailingSilenceMs = (framing.silenceFrames ?? 1) * FRAME_MS;
 		this.vad = options.vad ?? new EnergyVad();
-		this.endpointer = options.endpointer ?? createHeuristicEndpointer();
+		// How long the companion is willing to wait mid-thought is the owner's
+		// setting, not a constant buried in the heuristic: how much someone pauses
+		// inside a sentence is a fact about them, not about the code.
+		this.endpointer =
+			options.endpointer ??
+			createHeuristicEndpointer({
+				basePatienceMs: call.patienceMs,
+				extendedPatienceMs: call.patienceExtendedMs,
+				maxWaitMs: call.patienceMaxMs,
+				...options.patience,
+			});
 
 		this.bargeInEnabled = options.bargeIn ?? call.bargeIn;
 		this.bargeInThreshold =
@@ -369,15 +392,35 @@ export class CallSession {
 	private async handleUtterance(event: UtteranceEnd): Promise<void> {
 		if (this.closed) return;
 
-		const text = (await this.transcribe(event)).trim();
+		const result = await this.transcribe(event);
+		const text = result.text.trim();
 		if (!text) return;
 
 		// The framer reports the whole buffered utterance, trailing silence
 		// included, so the gate's words-per-second sanity check runs a little
 		// generous — which is the right direction to be wrong in: dropping real
 		// speech reads as the companion ignoring the owner.
-		if (isLikelyHallucination({ text, speechDurationMs: event.durationMs })) {
-			this.deps.log(`dropped a likely STT hallucination: "${text}"`);
+		if (
+			isLikelyHallucination({
+				text,
+				speechDurationMs: event.durationMs,
+				// Undefined when the provider measured nothing, which the gate reads
+				// as "no opinion" rather than as a bad score.
+				confidence: result.confidence,
+				noSpeechProb: result.noSpeechProb,
+				opts: {
+					minConfidence: config.stt.minConfidence,
+					noSpeechThreshold: config.stt.noSpeechThreshold,
+				},
+			})
+		) {
+			// The confidence goes in the line: without it, a transcript dropped for
+			// a low score looks identical in the log to one dropped as boilerplate.
+			const measured =
+				result.confidence === undefined
+					? ""
+					: ` (confidence ${result.confidence.toFixed(2)})`;
+			this.deps.log(`dropped a likely STT hallucination: "${text}"${measured}`);
 			return;
 		}
 		if (isBackchannelOnly(text)) {
@@ -488,7 +531,7 @@ export class CallSession {
 
 	// --- boundaries ----------------------------------------------------------
 
-	private async transcribe(event: UtteranceEnd): Promise<string> {
+	private async transcribe(event: UtteranceEnd): Promise<TranscriptionResult> {
 		try {
 			return await this.deps.transcribe(
 				encodeWav(event.samples, event.sampleRate),
@@ -497,7 +540,7 @@ export class CallSession {
 		} catch (err) {
 			// A transcription that fails costs the owner one turn, not the call.
 			this.warn("stt", err);
-			return "";
+			return { text: "" };
 		}
 	}
 

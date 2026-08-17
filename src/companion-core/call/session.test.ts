@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import type { TranscriptionResult } from "#/channels/stt.ts";
 import {
 	ENGINE_SAMPLE_RATE,
 	VAD_FRAME_SIZE,
@@ -132,7 +133,8 @@ interface Harness {
 
 function harness(
 	options: CallSessionOptions & {
-		transcripts?: string[];
+		/** A plain string is a transcript nobody measured a confidence for. */
+		transcripts?: (string | TranscriptionResult)[];
 		clauses?: string[];
 		messageId?: number;
 		onEmitted?: (transport: FakeTransport) => void;
@@ -151,7 +153,16 @@ function harness(
 		// frames; the silence window stays as configured, since it is what the
 		// endpointer is told about.
 		framing: { speechFrames: 2, prerollFrames: 1, minSpeechMs: 60 },
-		transcribe: async () => transcripts.shift() ?? "",
+		// Patience is pinned rather than left to whichever CALL_PATIENCE_* the
+		// environment carries. Zero base patience means an utterance with no
+		// unfinished-speech signal commits the moment the framer closes it, so the
+		// tests that are not about patience never have to fire a timer; the ones
+		// that are about it exercise the extended wait, which stays real.
+		patience: { basePatienceMs: 0, extendedPatienceMs: 1600, maxWaitMs: 3000 },
+		transcribe: async () => {
+			const next = transcripts.shift() ?? "";
+			return typeof next === "string" ? { text: next } : next;
+		},
 		synthesize: async (text) => new TextEncoder().encode(text),
 		respond: async (turn, emit) => {
 			turns.push(turn);
@@ -274,6 +285,42 @@ describe("what never reaches the engine", () => {
 		expect(h.turns).toEqual([]);
 	});
 
+	it("drops a transcript the decoder was not sure of", async () => {
+		const h = harness({
+			transcripts: [
+				{ text: "tell me about the plan for tomorrow", confidence: 0.2 },
+			],
+		});
+		utterance(h.transport);
+		await h.session.settle();
+		expect(h.turns).toEqual([]);
+	});
+
+	it("keeps the same words when the decoder was sure of them", async () => {
+		// Identical text, identical audio — only the measured confidence differs,
+		// which is the whole of what the new signal is allowed to decide.
+		const h = harness({
+			transcripts: [
+				{ text: "tell me about the plan for tomorrow", confidence: 0.93 },
+			],
+		});
+		utterance(h.transport);
+		await h.session.settle();
+		expect(h.turns).toHaveLength(1);
+		expect(h.turns[0]?.text).toBe("tell me about the plan for tomorrow");
+	});
+
+	it("keeps a transcript whose confidence nobody measured", async () => {
+		// An absent confidence is not a low one: a provider that reports nothing
+		// must not silently mute the owner.
+		const h = harness({
+			transcripts: [{ text: "tell me about the plan for tomorrow" }],
+		});
+		utterance(h.transport);
+		await h.session.settle();
+		expect(h.turns).toHaveLength(1);
+	});
+
 	it("survives a transcription failure without ending the call", async () => {
 		const h = harness({
 			transcribe: async () => {
@@ -315,6 +362,66 @@ describe("endpointing", () => {
 		expect(h.turns[0]?.text).toBe("so what i mean is um let's go tomorrow");
 		// The pending timer was cancelled when the rest of the sentence arrived.
 		expect(h.timers).toHaveLength(0);
+	});
+
+	it("holds a short declarative whisper tidied up with a full stop", async () => {
+		// The owner said half a thought and drew breath. Whisper ends it with a
+		// full stop regardless, and answering that is exactly the interruption she
+		// complained about — so nothing may reach the engine yet.
+		const h = harness({ transcripts: ["I went to the store."] });
+
+		utterance(h.transport);
+		await h.session.settle();
+
+		expect(h.turns).toEqual([]);
+		expect(h.transport.plays).toEqual([]);
+		expect(h.timers).toHaveLength(1);
+	});
+
+	it("joins the held half-thought to the rest of the sentence", async () => {
+		const h = harness({
+			transcripts: ["I went to the store.", "and got bread"],
+		});
+
+		utterance(h.transport);
+		await h.session.settle();
+		expect(h.turns).toEqual([]);
+
+		utterance(h.transport);
+		await h.session.settle();
+
+		// One turn, carrying the whole thought — not two halves answered apart.
+		expect(h.turns).toHaveLength(1);
+		expect(h.turns[0]?.text).toBe("I went to the store. and got bread");
+		expect(h.timers).toHaveLength(0);
+	});
+
+	it("still answers a finished sentence without a wait", async () => {
+		// The patience must not become a delay on everything: a whole thought,
+		// long enough to be one, commits as soon as the utterance closes.
+		const h = harness({
+			transcripts: ["I finished the report and sent it already."],
+		});
+
+		utterance(h.transport);
+		await h.session.settle();
+
+		expect(h.turns).toHaveLength(1);
+		expect(h.timers).toEqual([]);
+	});
+
+	it("holds a Russian fragment ending on a conjunction", async () => {
+		const h = harness({ transcripts: ["я пошла в магазин и", "купила хлеба"] });
+
+		utterance(h.transport);
+		await h.session.settle();
+		expect(h.turns).toEqual([]);
+
+		utterance(h.transport);
+		await h.session.settle();
+
+		expect(h.turns).toHaveLength(1);
+		expect(h.turns[0]?.text).toBe("я пошла в магазин и купила хлеба");
 	});
 
 	it("commits the held text once the owner simply stops", async () => {

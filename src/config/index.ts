@@ -186,8 +186,18 @@ export interface SttConfig {
 	/**
 	 * Anti-hallucination thresholds (provider "local"), forwarded to
 	 * `isLikelyHallucination` — see companion-core/call/hallucination-gate.ts.
+	 *
+	 * `noSpeechThreshold` is passed to the whisper.cpp decoder as `-nth`, but
+	 * whisper-cli never reports the resulting probability back in any output
+	 * mode, so nothing downstream can gate on it locally.
 	 */
 	noSpeechThreshold: number;
+	/**
+	 * Mean per-token probability below which a local transcript is treated as
+	 * invention rather than speech. This is the confidence signal whisper-cli
+	 * does report (per-token `p` under `-ojf`).
+	 */
+	minConfidence: number;
 	/** Clips shorter than this (ms) are not transcribed at all. */
 	minClipMs: number;
 	/** Whisper decoder entropy threshold above which a segment is suspect. */
@@ -420,6 +430,7 @@ export function loadConfig(): Config {
 			detectModel: str("STT_DETECT_MODEL", ""),
 			languages: strList("STT_LANGUAGES"),
 			noSpeechThreshold: num("STT_NO_SPEECH_THRESHOLD", 0.6),
+			minConfidence: num("STT_MIN_CONFIDENCE", 0.5),
 			minClipMs: num("STT_MIN_CLIP_MS", 400),
 			entropyThreshold: num("STT_ENTROPY_THRESHOLD", 2.4),
 			logprobThreshold: num("STT_LOGPROB_THRESHOLD", -1.0),

@@ -28,7 +28,13 @@ export interface HeuristicEndpointerOptions {
 	maxWaitMs?: number;
 }
 
-const HESITATION_MARKERS = [
+// The owner speaks English and Russian, and switches between them mid-call, so every
+// list below is the union of both. They are grouped by language rather than merged and
+// sorted: each group is picked for the words that genuinely leave a thought hanging in
+// that language, not translated across from the other one.
+
+// English fillers and conjunctions — a turn that ends on one is still mid-sentence.
+const HESITATION_MARKERS_EN = [
 	"um",
 	"uh",
 	"er",
@@ -41,11 +47,38 @@ const HESITATION_MARKERS = [
 	"well",
 ];
 
+// Russian: the hesitation sounds ("э", "ну", "типа", "это"), the conjunctions that
+// always take a second clause ("и", "а", "но", "или", "чтобы"), and the tails of the
+// multi-word ones — only the last word is ever inspected, so "потому что" and "как бы"
+// are caught by "что" and "бы".
+const HESITATION_MARKERS_RU = [
+	"э",
+	"ээ",
+	"эм",
+	"мм",
+	"ну",
+	"типа",
+	"это",
+	"короче",
+	"значит",
+	"и",
+	"а",
+	"но",
+	"или",
+	"что",
+	"чтобы",
+	"потому",
+	"бы",
+];
+
+const HESITATION_MARKERS = [...HESITATION_MARKERS_EN, ...HESITATION_MARKERS_RU];
+
+// Russian has no articles, so this list stays English-only.
 const ARTICLES = ["a", "an", "the"];
 
 // Prepositions worth flagging as "more is coming" when they trail an utterance — not
 // exhaustive, just the common ones that leave a clause visibly hanging.
-const TRAILING_PREPOSITIONS = [
+const TRAILING_PREPOSITIONS_EN = [
 	"to",
 	"of",
 	"in",
@@ -59,6 +92,43 @@ const TRAILING_PREPOSITIONS = [
 	"over",
 	"as",
 ];
+
+// Russian prepositions are proclitic: a sentence simply cannot end on one, which makes
+// them the most reliable "she is not done" signal in the language.
+const TRAILING_PREPOSITIONS_RU = [
+	"в",
+	"во",
+	"на",
+	"с",
+	"со",
+	"к",
+	"ко",
+	"о",
+	"об",
+	"для",
+	"про",
+	"из",
+	"у",
+	"за",
+	"по",
+	"от",
+	"до",
+	"при",
+	"без",
+];
+
+const TRAILING_PREPOSITIONS = [
+	...TRAILING_PREPOSITIONS_EN,
+	...TRAILING_PREPOSITIONS_RU,
+];
+
+// Whisper punctuates generously: it will end "I went to the store" with a full stop
+// while the owner is only drawing breath, and does the same in Russian. So terminal
+// punctuation says very little about whether the thought is finished — length says
+// more. Below this many words a tidy-looking declarative is treated as a fragment and
+// given the extended wait, which is exactly the mid-thought pause that used to be
+// answered as if it were a whole turn.
+const SHORT_UTTERANCE_WORDS = 8;
 
 // Straight and curly double quotes only — a bare `'` is ambiguous with a contraction
 // apostrophe ("that's", "don't") far more often than it opens a real quotation, so we
@@ -118,15 +188,24 @@ function endsWithDanglingComma(transcript: string): boolean {
 	return /,\s*$/.test(transcript);
 }
 
-function endsWithStrongTerminator(transcript: string): boolean {
-	return /[?!]\s*$/.test(transcript.trimEnd());
+/** Ends on a sentence-final mark — a full stop, exclamation or question mark. */
+function endsWithTerminator(transcript: string): boolean {
+	return /[.!?]\s*$/.test(transcript.trimEnd());
+}
+
+/** Trailing "..." / "…": the one punctuation whisper uses to mean "trailed off". */
+function endsWithEllipsis(transcript: string): boolean {
+	return /(\.\.\.|…)\s*$/.test(transcript.trimEnd());
+}
+
+function wordCount(transcript: string): number {
+	return transcript.trim().split(/\s+/).filter(Boolean).length;
 }
 
 function isShortCompleteQuestion(transcript: string): boolean {
 	const trimmed = transcript.trim();
 	if (!/\?\s*$/.test(trimmed)) return false;
-	const wordCount = trimmed.split(/\s+/).length;
-	return wordCount <= 12;
+	return wordCount(trimmed) <= 12;
 }
 
 export function createHeuristicEndpointer(
@@ -147,9 +226,9 @@ export function createHeuristicEndpointer(
 			const trimmed = transcript.trim();
 			const last = stripPunctuation(lastWord(trimmed));
 
-			// Check the more specific "short question" case first so a crisp question gets
-			// its own debuggable reason rather than being folded into the generic
-			// strong-terminator path (both commit on the same fast schedule either way).
+			// A question mark is the one punctuation that carries turn-taking meaning:
+			// asking hands the floor over explicitly. Everything else — full stops,
+			// exclamations — is decided further down, by length rather than by mark.
 			if (isShortCompleteQuestion(trimmed)) {
 				const fastMs = Math.min(basePatienceMs, basePatienceMs * 0.5);
 				if (silenceMs >= fastMs) {
@@ -166,15 +245,18 @@ export function createHeuristicEndpointer(
 				};
 			}
 
-			if (endsWithStrongTerminator(trimmed)) {
-				const fastMs = Math.min(basePatienceMs, basePatienceMs * 0.5);
-				if (silenceMs >= fastMs) {
-					return { commit: true, waitMs: fastMs, reason: "strong-terminator" };
+			if (endsWithEllipsis(trimmed)) {
+				if (silenceMs >= extendedPatienceMs) {
+					return {
+						commit: true,
+						waitMs: extendedPatienceMs,
+						reason: "trailing-ellipsis-timeout",
+					};
 				}
 				return {
 					commit: false,
-					waitMs: fastMs,
-					reason: "strong-terminator-pending",
+					waitMs: extendedPatienceMs,
+					reason: "trailing-ellipsis",
 				};
 			}
 
@@ -265,6 +347,41 @@ export function createHeuristicEndpointer(
 					commit: false,
 					waitMs: extendedPatienceMs,
 					reason: "mid-word-cut",
+				};
+			}
+
+			// Terminal punctuation, and nothing above it read as unfinished. A whole
+			// thought commits fast; a short one waits, because the full stop after
+			// "I went to the store" is whisper's habit, not the owner yielding the
+			// floor. Waiting costs her nothing — barge-in lets her cut straight back
+			// in — while answering half a sentence is the thing she complained about.
+			if (endsWithTerminator(trimmed)) {
+				if (wordCount(trimmed) >= SHORT_UTTERANCE_WORDS) {
+					const fastMs = Math.min(basePatienceMs, basePatienceMs * 0.5);
+					if (silenceMs >= fastMs) {
+						return {
+							commit: true,
+							waitMs: fastMs,
+							reason: "complete-utterance",
+						};
+					}
+					return {
+						commit: false,
+						waitMs: fastMs,
+						reason: "complete-utterance-pending",
+					};
+				}
+				if (silenceMs >= extendedPatienceMs) {
+					return {
+						commit: true,
+						waitMs: extendedPatienceMs,
+						reason: "short-declarative-timeout",
+					};
+				}
+				return {
+					commit: false,
+					waitMs: extendedPatienceMs,
+					reason: "short-declarative",
 				};
 			}
 

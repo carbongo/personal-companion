@@ -61,7 +61,9 @@ describe("whisper arg builders", () => {
 		expect(a[a.indexOf("-m") + 1]).toBe("m.bin");
 		expect(a[a.indexOf("-l") + 1]).toBe("en");
 		expect(a).toContain("-nt");
-		expect(a).toContain("-oj");
+		// Full JSON, not plain -oj: only the full writer emits per-token
+		// probabilities, which is the confidence signal the gate runs on.
+		expect(a).toContain("-ojf");
 		expect(a[a.indexOf("-of") + 1]).toBe("x.out");
 	});
 
@@ -181,6 +183,57 @@ describe("parseWhisperJson", () => {
 		).toEqual({ text: "hi" });
 	});
 
+	it("averages the per-token probabilities into a confidence", () => {
+		const raw = JSON.stringify({
+			transcription: [
+				{ text: " hello", tokens: [{ text: " hello", p: 0.9 }] },
+				{
+					text: " there friend",
+					tokens: [
+						{ text: " there", p: 0.6 },
+						{ text: " friend", p: 0.6 },
+					],
+				},
+			],
+		});
+		// Weighted by token count, not by segment: (0.9 + 0.6 + 0.6) / 3 = 0.7.
+		// A per-segment mean would have said 0.75 and let one stray word carry
+		// as much weight as a whole clause.
+		expect(parseWhisperJson(raw).confidence).toBeCloseTo(0.7, 10);
+	});
+
+	it("leaves whisper's own special tokens out of the mean", () => {
+		const raw = JSON.stringify({
+			transcription: [
+				{
+					text: " hello",
+					tokens: [
+						{ text: "[_BEG_]", p: 0.01 },
+						{ text: " hello", p: 0.8 },
+						{ text: "[_TT_88]", p: 0.02 },
+					],
+				},
+			],
+		});
+		// Only the word counts; the bookkeeping tokens describe the decoder's
+		// state, not how sure it was of what the owner said.
+		expect(parseWhisperJson(raw).confidence).toBeCloseTo(0.8, 10);
+	});
+
+	it("reports no confidence at all when there are no tokens to average", () => {
+		// Rather than a default: the gate must act on a measurement or on nothing.
+		const parsed = parseWhisperJson(
+			JSON.stringify({ transcription: [{ text: "hi" }] }),
+		);
+		expect("confidence" in parsed).toBe(false);
+		const noUsable = parseWhisperJson(
+			JSON.stringify({
+				transcription: [{ text: "hi", tokens: [{ text: "hi", p: "nope" }] }],
+			}),
+		);
+		expect("confidence" in noUsable).toBe(false);
+	});
+
 	it("never reports a no-speech probability", () => {
 		// whisper-cli emits none under -oj or -ojf; inventing one would make the
 		// hallucination gate act on a number nobody measured.
@@ -245,6 +298,45 @@ describe("transcribeLocal", () => {
 		expect(calls[1]?.[0]).toBe("whisper-cli");
 		expect(calls[1]).toContain(config.stt.localModel);
 
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("carries the decoder's confidence out to the caller", async () => {
+		const { dir } = withModel();
+		const deps: LocalDeps = {
+			run: async () => ({ code: 0, stderr: "" }),
+			readOutput: async () =>
+				JSON.stringify({
+					result: { language: "en" },
+					transcription: [
+						{
+							text: " the transcript",
+							tokens: [
+								{ text: " the", p: 0.5 },
+								{ text: " transcript", p: 0.7 },
+							],
+						},
+					],
+				}),
+			cleanup: () => {},
+			tmpBase: () => join(dir, "base"),
+		};
+		const result = await transcribeLocal(wav(32000), "voice.ogg", deps);
+		expect(result.text).toBe("the transcript");
+		expect(result.confidence).toBeCloseTo(0.6, 10);
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("leaves confidence unset when whisper reported no tokens", async () => {
+		const { dir } = withModel();
+		const deps: LocalDeps = {
+			run: async () => ({ code: 0, stderr: "" }),
+			readOutput: async () => okJson, // segments only, no tokens
+			cleanup: () => {},
+			tmpBase: () => join(dir, "base"),
+		};
+		const result = await transcribeLocal(wav(32000), "voice.ogg", deps);
+		expect("confidence" in result).toBe(false);
 		rmSync(dir, { recursive: true, force: true });
 	});
 
