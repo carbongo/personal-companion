@@ -3,7 +3,27 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
-## 2026-08-16 (latest)
+## 2026-08-17 (latest)
+
+**Fixed: Silero VAD was deaf, so calls never heard anything.** The first live call
+connected, joined, and sat silent. `SileroVad.process` fed the model a bare 512-sample
+chunk; Silero v5 expects the previous chunk's last **64 samples prepended**, for 576 in
+total. The exported ONNX graph declares a dynamic input length, so the short input raised
+no error and returned a plausible probability — a near-constant ~0.001 on the clearest
+speech. No utterance ever closed, so no transcription, model call, or synthesis was ever
+attempted, and nothing appeared in the log to say so.
+
+- `src/companion-core/call/vad.ts` now carries a 64-sample context between frames and
+  clears it on `reset()`. Measured on a live capture: max probability rose from 0.004 to
+  1.000, and 355 of 543 frames crossed the 0.5 threshold.
+- `src/companion-core/call/vad.test.ts` pins the input contract with a fake ONNX session —
+  576-sample input, zeroed context on the first frame, the previous tail on the next, and
+  a clean slate after `reset()`. The existing real-model test could not have caught this:
+  it asserted the probability was finite and within [0,1], which the deaf version
+  satisfied on every frame.
+- Documented in [decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md).
+
+## 2026-08-16
 
 **Phase 8 shipped: live voice calls over Discord.** The transport-independent call engine
 planned earlier the same day landed in full.

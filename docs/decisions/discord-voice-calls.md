@@ -122,9 +122,30 @@ Both risks named above were resolved once the code actually ran:
   for, telling a keyboard from a voice; it is not weak enough to be useless.
 
 The `Endpointer` interface and the pure-JS transport path both did their job: neither
-finding required touching a caller. Live end-to-end over a real guild is still unverified —
-see the Phase 8 entry in [roadmap.md](../roadmap.md) — everything above was confirmed by the
-unit and integration tests, not a live call.
+finding required touching a caller.
+
+### Postscript, 2026-08-17 — the first live call, and what it caught
+
+The first real call joined the channel and then said nothing at all. The cause was in
+`SileroVad`, and it is worth recording because of the *shape* of the failure rather than
+the size of the fix.
+
+Silero v5 expects each 512-sample chunk to arrive with the previous chunk's last **64
+samples prepended** — 576 per call. We passed a bare 512. The exported graph declares a
+dynamic input length, so this raised no error: it returned a perfectly well-formed
+probability of roughly 0.001 on every frame of clear speech. The detector was not broken
+in any way a caller could observe. It was confidently, silently deaf.
+
+Everything downstream then behaved correctly, which is what made it hard to see. No
+utterance ever closed, so transcription, the model, and synthesis were never reached — and
+since the session only logs failures, a call that heard nothing produced exactly as much
+log output as a call that worked. The lesson taken into the tests: for a component whose
+output is a plausible number in a valid range, asserting the range proves nothing. The
+regression test pins the *input contract* against a fake ONNX session instead, and runs
+without the model so CI actually executes it.
+
+Measured on a live capture, before and after: max speech probability 0.004 → 1.000, and
+355 of 543 frames crossing the threshold instead of none.
 
 ## Alternatives considered
 

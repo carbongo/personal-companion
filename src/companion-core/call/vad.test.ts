@@ -9,6 +9,7 @@ import {
 	createVad,
 	EnergyVad,
 	rms,
+	SileroVad,
 	sileroModelPath,
 	zeroCrossingRate,
 } from "#/companion-core/call/vad.ts";
@@ -110,6 +111,79 @@ describe("createVad", () => {
 			dataDir: "/dev/null/not-a-directory",
 		});
 		expect(vad.name).toBe("energy");
+	});
+});
+
+/**
+ * The shape of the call into the model, checked without the model.
+ *
+ * These matter more than they look. Silero v5 wants 64 samples of the previous
+ * chunk in front of the current one, and the exported graph accepts a dynamic
+ * length — so getting this wrong throws nothing, returns a plausible number in
+ * [0,1], and reports near-certain silence over the clearest speech. Every
+ * assertion a real-model test can cheaply make (finite, in range, state
+ * carried) passes while the detector is completely deaf, which is exactly what
+ * shipped. So the contract is pinned here instead.
+ */
+describe("SileroVad input contract", () => {
+	/** A stand-in session that records the input it was handed. */
+	function fakeSession() {
+		const inputs: Float32Array[] = [];
+		const session = {
+			run(feeds: Record<string, unknown>) {
+				const input = feeds.input as { data: Float32Array; dims: number[] };
+				inputs.push(Float32Array.from(input.data));
+				return Promise.resolve({
+					output: { data: [0.42] },
+					stateN: { data: new Float32Array(2 * 1 * 128) },
+				});
+			},
+		};
+		const dims: number[][] = [];
+		const makeTensor = (
+			_type: "float32" | "int64",
+			data: Float32Array | BigInt64Array,
+			d: number[],
+		) => {
+			if (data instanceof Float32Array && d.length === 2) dims.push(d);
+			return { data, dims: d };
+		};
+		return { session, makeTensor, inputs, dims };
+	}
+
+	it("prepends 64 samples of context, for 576 in total", async () => {
+		const { session, makeTensor, inputs, dims } = fakeSession();
+		const vad = new SileroVad(session, makeTensor);
+
+		await vad.process(noise(1));
+		expect(inputs[0]?.length).toBe(576);
+		expect(dims[0]).toEqual([1, 576]);
+	});
+
+	it("starts from silent context and then carries the previous tail", async () => {
+		const { session, makeTensor, inputs } = fakeSession();
+		const vad = new SileroVad(session, makeTensor);
+
+		const first = noise(1);
+		await vad.process(first);
+		// Nothing has been heard yet, so the model is told so explicitly.
+		expect([...(inputs[0]?.slice(0, 64) ?? [])]).toEqual(new Array(64).fill(0));
+
+		await vad.process(noise(2));
+		// The second call opens with the last 64 samples of the first chunk.
+		const tail = [...first.samples.slice(512 - 64)].map((v) => v / 32768);
+		expect([...(inputs[1]?.slice(0, 64) ?? [])]).toEqual(tail);
+	});
+
+	it("forgets the context on reset, like the state", async () => {
+		const { session, makeTensor, inputs } = fakeSession();
+		const vad = new SileroVad(session, makeTensor);
+
+		await vad.process(noise(1));
+		vad.reset();
+		await vad.process(noise(2));
+		// A reset session is a new stretch of speech: no tail leaks across it.
+		expect([...(inputs[1]?.slice(0, 64) ?? [])]).toEqual(new Array(64).fill(0));
 	});
 });
 
