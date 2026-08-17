@@ -5,6 +5,7 @@ import {
 	discordConfigured,
 	loadConfig,
 	resolveCallModel,
+	resolveLocalVoice,
 } from "./index.ts";
 
 describe("loadConfig", () => {
@@ -162,6 +163,129 @@ describe("discord + call config", () => {
 		expect(call.minSpeechMs).toBe(150);
 
 		process.env = prev;
+	});
+});
+
+describe("STT/TTS/call quality config", () => {
+	it("defaults the new STT knobs", () => {
+		const prev = { ...process.env };
+		for (const k of [
+			"STT_DETECT_MODEL",
+			"STT_LANGUAGES",
+			"STT_NO_SPEECH_THRESHOLD",
+			"STT_MIN_CLIP_MS",
+			"STT_ENTROPY_THRESHOLD",
+			"STT_LOGPROB_THRESHOLD",
+		])
+			delete process.env[k];
+
+		const { stt } = loadConfig();
+		expect(stt.detectModel).toBe("");
+		expect(stt.languages).toEqual([]);
+		expect(stt.noSpeechThreshold).toBe(0.6);
+		expect(stt.minClipMs).toBe(400);
+		expect(stt.entropyThreshold).toBe(2.4);
+		expect(stt.logprobThreshold).toBe(-1.0);
+
+		process.env = prev;
+	});
+
+	it("parses STT_LANGUAGES into a trimmed string list, ignoring junk entries", () => {
+		const prev = { ...process.env };
+		process.env.STT_LANGUAGES = "en, ru  ,, ,de";
+
+		const { stt } = loadConfig();
+		expect(stt.languages).toEqual(["en", "ru", "de"]);
+
+		process.env = prev;
+	});
+
+	it("reads the new STT thresholds and detect model from the environment", () => {
+		const prev = { ...process.env };
+		process.env.STT_DETECT_MODEL = "./data/models/detect.bin";
+		process.env.STT_NO_SPEECH_THRESHOLD = "0.8";
+		process.env.STT_MIN_CLIP_MS = "600";
+		process.env.STT_ENTROPY_THRESHOLD = "3.1";
+		process.env.STT_LOGPROB_THRESHOLD = "-0.5";
+
+		const { stt } = loadConfig();
+		expect(stt.detectModel).toBe("./data/models/detect.bin");
+		expect(stt.noSpeechThreshold).toBe(0.8);
+		expect(stt.minClipMs).toBe(600);
+		expect(stt.entropyThreshold).toBe(3.1);
+		expect(stt.logprobThreshold).toBe(-0.5);
+
+		process.env = prev;
+	});
+
+	it("defaults the TTS local voice map to empty, with resolveLocalVoice falling back", () => {
+		const prev = { ...process.env };
+		delete process.env.TTS_LOCAL_MODEL_MAP;
+		process.env.TTS_LOCAL_MODEL = "./data/models/en.onnx";
+
+		const { tts } = loadConfig();
+		expect(tts.localModelByLang).toEqual({});
+
+		process.env = prev;
+	});
+
+	it("parses TTS_LOCAL_MODEL_MAP into a per-language record, skipping malformed entries", () => {
+		const prev = { ...process.env };
+		process.env.TTS_LOCAL_MODEL_MAP =
+			"en=./data/models/en.onnx,ru=./data/models/ru.onnx,badentry,noval=,=novakey,  ,de = ./data/models/de.onnx ";
+
+		const { tts } = loadConfig();
+		expect(tts.localModelByLang).toEqual({
+			en: "./data/models/en.onnx",
+			ru: "./data/models/ru.onnx",
+			de: "./data/models/de.onnx",
+		});
+
+		process.env = prev;
+	});
+
+	it("defaults the call endpointing patience knobs", () => {
+		const prev = { ...process.env };
+		for (const k of [
+			"CALL_PATIENCE_MS",
+			"CALL_PATIENCE_EXTENDED_MS",
+			"CALL_PATIENCE_MAX_MS",
+		])
+			delete process.env[k];
+
+		const { call } = loadConfig();
+		expect(call.patienceMs).toBe(900);
+		expect(call.patienceExtendedMs).toBe(2000);
+		expect(call.patienceMaxMs).toBe(3500);
+
+		process.env = prev;
+	});
+
+	it("reads the call endpointing patience knobs from the environment", () => {
+		const prev = { ...process.env };
+		process.env.CALL_PATIENCE_MS = "1000";
+		process.env.CALL_PATIENCE_EXTENDED_MS = "2500";
+		process.env.CALL_PATIENCE_MAX_MS = "4000";
+
+		const { call } = loadConfig();
+		expect(call.patienceMs).toBe(1000);
+		expect(call.patienceExtendedMs).toBe(2500);
+		expect(call.patienceMaxMs).toBe(4000);
+
+		process.env = prev;
+	});
+});
+
+describe("resolveLocalVoice", () => {
+	it("uses the per-language map entry when present, else the global fallback", () => {
+		const original = { ...config.tts };
+
+		config.tts.localModel = "./data/models/fallback.onnx";
+		config.tts.localModelByLang = { en: "./data/models/en.onnx" };
+		expect(resolveLocalVoice("en")).toBe("./data/models/en.onnx");
+		expect(resolveLocalVoice("ru")).toBe("./data/models/fallback.onnx");
+
+		Object.assign(config.tts, original);
 	});
 });
 

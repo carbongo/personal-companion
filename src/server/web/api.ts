@@ -96,6 +96,9 @@ interface SetupBody {
 	callMaxUtteranceMs?: string;
 	callBargeIn?: string;
 	callMinSpeechMs?: string;
+	callPatienceMs?: string;
+	callPatienceExtendedMs?: string;
+	callPatienceMaxMs?: string;
 	// memory
 	memoryContextDays?: string;
 	memoryLimit?: string;
@@ -120,6 +123,12 @@ interface SetupBody {
 	sttModel?: string;
 	sttLocalModel?: string;
 	sttLanguage?: string;
+	sttDetectModel?: string;
+	sttLanguages?: string;
+	sttNoSpeechThreshold?: string;
+	sttMinClipMs?: string;
+	sttEntropyThreshold?: string;
+	sttLogprobThreshold?: string;
 	// text-to-speech
 	ttsProvider?: string;
 	ttsApiUrl?: string;
@@ -127,6 +136,7 @@ interface SetupBody {
 	ttsModel?: string;
 	ttsVoice?: string;
 	ttsLocalModel?: string;
+	ttsLocalModelMap?: string;
 	ttsSpeakMirror?: string;
 	ttsSpeakOnRequest?: string;
 	ttsSpeakSometimes?: string;
@@ -533,6 +543,9 @@ api.post("/setup", async (c) => {
 		CALL_MAX_UTTERANCE_MS: opt(b.callMaxUtteranceMs),
 		CALL_BARGE_IN: opt(b.callBargeIn),
 		CALL_MIN_SPEECH_MS: opt(b.callMinSpeechMs),
+		CALL_PATIENCE_MS: opt(b.callPatienceMs),
+		CALL_PATIENCE_EXTENDED_MS: opt(b.callPatienceExtendedMs),
+		CALL_PATIENCE_MAX_MS: opt(b.callPatienceMaxMs),
 		CHAT_BATCH_IDLE_MS: opt(b.chatBatchIdleMs),
 		CHAT_BATCH_STEP_MS: opt(b.chatBatchStepMs),
 		CHAT_BATCH_MAX_MS: opt(b.chatBatchMaxMs),
@@ -555,11 +568,18 @@ api.post("/setup", async (c) => {
 		STT_MODEL: opt(b.sttModel),
 		STT_LOCAL_MODEL: opt(b.sttLocalModel),
 		STT_LANGUAGE: opt(b.sttLanguage),
+		STT_DETECT_MODEL: opt(b.sttDetectModel),
+		STT_LANGUAGES: opt(b.sttLanguages),
+		STT_NO_SPEECH_THRESHOLD: opt(b.sttNoSpeechThreshold),
+		STT_MIN_CLIP_MS: opt(b.sttMinClipMs),
+		STT_ENTROPY_THRESHOLD: opt(b.sttEntropyThreshold),
+		STT_LOGPROB_THRESHOLD: opt(b.sttLogprobThreshold),
 		TTS_PROVIDER: opt(b.ttsProvider),
 		TTS_API_URL: opt(b.ttsApiUrl),
 		TTS_MODEL: opt(b.ttsModel),
 		TTS_VOICE: opt(b.ttsVoice),
 		TTS_LOCAL_MODEL: opt(b.ttsLocalModel),
+		TTS_LOCAL_MODEL_MAP: opt(b.ttsLocalModelMap),
 		TTS_SPEAK_MIRROR: opt(b.ttsSpeakMirror),
 		TTS_SPEAK_ON_REQUEST: opt(b.ttsSpeakOnRequest),
 		TTS_SPEAK_SOMETIMES: opt(b.ttsSpeakSometimes),

@@ -43,6 +43,35 @@ function intList(key: string): number[] {
 		.filter((n) => Number.isFinite(n));
 }
 
+/** Parse a comma/space-separated list of strings (e.g. an allowlist of languages). */
+function strList(key: string): string[] {
+	const v = process.env[key];
+	if (v == null || v === "") return [];
+	return v
+		.split(/[\s,]+/)
+		.map((s) => s.trim())
+		.filter(Boolean);
+}
+
+/**
+ * Parse a "key=value,key=value" map (e.g. a per-language voice/model path).
+ * Malformed entries (no "=", empty key, or empty value) are skipped rather
+ * than throwing — a typo in one entry shouldn't take the whole map down.
+ */
+function strMap(key: string): Record<string, string> {
+	const v = process.env[key];
+	if (v == null || v === "") return {};
+	const out: Record<string, string> = {};
+	for (const entry of v.split(",")) {
+		const eq = entry.indexOf("=");
+		if (eq <= 0) continue;
+		const k = entry.slice(0, eq).trim();
+		const val = entry.slice(eq + 1).trim();
+		if (k && val) out[k] = val;
+	}
+	return out;
+}
+
 export interface AppConfig {
 	/** Display name the companion goes by (feeds the persona). */
 	name: string;
@@ -141,6 +170,30 @@ export interface SttConfig {
 	ffmpegBin: string;
 	/** Spoken-language hint, or "auto" to detect (provider "local"). */
 	language: string;
+	/**
+	 * Path to a small model used only for a fast language-detection pass, run
+	 * before the real transcription so the main model can decode at a fixed
+	 * language instead of paying auto-detect cost itself. Empty means "don't
+	 * do a separate detect pass" (provider "local").
+	 */
+	detectModel: string;
+	/**
+	 * The languages the owner actually speaks (e.g. ["en", "ru"]). A detected
+	 * language outside this set is snapped to the closest member. Empty means
+	 * unrestricted — whatever whisper detects is used as-is.
+	 */
+	languages: string[];
+	/**
+	 * Anti-hallucination thresholds (provider "local"), forwarded to
+	 * `isLikelyHallucination` — see companion-core/call/hallucination-gate.ts.
+	 */
+	noSpeechThreshold: number;
+	/** Clips shorter than this (ms) are not transcribed at all. */
+	minClipMs: number;
+	/** Whisper decoder entropy threshold above which a segment is suspect. */
+	entropyThreshold: number;
+	/** Whisper decoder average-logprob threshold below which a segment is suspect. */
+	logprobThreshold: number;
 }
 
 export type TtsProviderName = "off" | "openai" | "http" | "local";
@@ -157,6 +210,13 @@ export interface TtsConfig {
 	localBin: string;
 	/** Path to a Piper .onnx voice model file (provider "local"). */
 	localModel: string;
+	/**
+	 * Per-language voice map (provider "local"), e.g. { en: "/path/en.onnx",
+	 * ru: "/path/ru.onnx" }, parsed from TTS_LOCAL_MODEL_MAP. A language with
+	 * no entry falls back to `localModel` — resolve with `resolveLocalVoice()`
+	 * rather than reading this map directly.
+	 */
+	localModelByLang: Record<string, string>;
 	/**
 	 * When a reply is spoken. Three independent triggers (see
 	 * companion-core/speak.ts): speak back when spoken to, speak when asked on
@@ -208,6 +268,16 @@ export interface CallConfig {
 	model: string;
 	/** Optional LLM provider override for call turns; empty = fall back to `llm.provider`. */
 	provider: string;
+	/**
+	 * Endpointing patience (ms), forwarded to `createHeuristicEndpointer`'s
+	 * `basePatienceMs`/`extendedPatienceMs`/`maxWaitMs` — see
+	 * companion-core/call/endpointing.ts. Base is the default wait after
+	 * trailing silence; extended is used when the utterance sounds unfinished
+	 * (hesitation marker, dangling article, etc.); max is the hard ceiling.
+	 */
+	patienceMs: number;
+	patienceExtendedMs: number;
+	patienceMaxMs: number;
 }
 
 export interface MemoryConfig {
@@ -334,6 +404,9 @@ export function loadConfig(): Config {
 			minSpeechMs: num("CALL_MIN_SPEECH_MS", 200),
 			model: str("CALL_MODEL", ""),
 			provider: str("CALL_PROVIDER", ""),
+			patienceMs: num("CALL_PATIENCE_MS", 900),
+			patienceExtendedMs: num("CALL_PATIENCE_EXTENDED_MS", 2000),
+			patienceMaxMs: num("CALL_PATIENCE_MAX_MS", 3500),
 		},
 		stt: {
 			provider: str("STT_PROVIDER", "off") as SttProviderName,
@@ -344,6 +417,12 @@ export function loadConfig(): Config {
 			localModel: str("STT_LOCAL_MODEL", ""),
 			ffmpegBin: str("STT_FFMPEG_BIN", "ffmpeg"),
 			language: str("STT_LANGUAGE", "auto"),
+			detectModel: str("STT_DETECT_MODEL", ""),
+			languages: strList("STT_LANGUAGES"),
+			noSpeechThreshold: num("STT_NO_SPEECH_THRESHOLD", 0.6),
+			minClipMs: num("STT_MIN_CLIP_MS", 400),
+			entropyThreshold: num("STT_ENTROPY_THRESHOLD", 2.4),
+			logprobThreshold: num("STT_LOGPROB_THRESHOLD", -1.0),
 		},
 		// Local (Piper) is the default: no network round-trip, matching the
 		// project's local-first ethos and a latency priority. It stays gracefully
@@ -356,6 +435,7 @@ export function loadConfig(): Config {
 			voice: str("TTS_VOICE", ""),
 			localBin: str("TTS_LOCAL_BIN", "piper"),
 			localModel: str("TTS_LOCAL_MODEL", ""),
+			localModelByLang: strMap("TTS_LOCAL_MODEL_MAP"),
 			// Mirroring and asking are the unsurprising triggers: audio only ever
 			// answers audio, or an explicit request. Letting the companion speak
 			// up on its own stays off until it's wanted.
@@ -416,6 +496,15 @@ export function discordConfigured(): boolean {
  * config — the same "dedicated override, else the main model" fallback the
  * vision model uses (see `visionPlan` in companion-core/engine.ts).
  */
+/**
+ * Resolve the Piper voice model path for a given language code: the
+ * per-language entry in `TTS_LOCAL_MODEL_MAP` when there is one, otherwise
+ * the global `TTS_LOCAL_MODEL` fallback.
+ */
+export function resolveLocalVoice(lang: string): string {
+	return config.tts.localModelByLang[lang] || config.tts.localModel;
+}
+
 export function resolveCallModel(): {
 	provider: LlmProviderName;
 	model: string;
