@@ -75,6 +75,32 @@ picked over a PWA, SIP, Twilio, and a native CallKit app, and
   streams out clause-by-clause (tighter than the paragraph streaming Phase 7 gave voice
   notes and web chat, so speech starts sooner) through the same TTS backend configured for
   Telegram and the web chat.
+- **Waiting for the whole thought, not the first full stop.** The endpointer
+  (`CALL_PATIENCE_MS`/`_EXTENDED_MS`/`_MAX_MS`) decides when to stop listening and hand the
+  utterance to the model. Only a question ("...?") commits fast — asking is the one thing
+  that reliably hands the floor over. A short declarative ending in a plain full stop is
+  held and joined with whatever the owner says next, because Whisper punctuates almost every
+  clause with a tidy period regardless of whether the thought is actually finished; a longer
+  declarative still commits promptly, since by then it plainly was the whole turn. The
+  practical effect: a rambling, multi-clause turn with pauses for breath no longer gets cut
+  into several separate replies at each comma-that-looks-like-a-period. See
+  [configuration.md](./configuration.md#turn-taking-only-a-question-commits-fast).
+- **Fast language detection.** Local transcription (`STT_PROVIDER=local`) runs a cheap
+  detect-and-exit pass before the real decode when `STT_DETECT_MODEL` is set, then decodes
+  at a fixed, clamped-to-`STT_LANGUAGES` language instead of letting the main model guess —
+  faster and, for a bilingual owner, more reliable than auto-detect. See
+  [configuration.md](./configuration.md#fast-language-detection-and-clamping-it-to-what-you-actually-speak).
+- **The hallucination gate actually catches silence-fill now.** It used to score on a signal
+  (`no_speech_prob`) the local whisper-cli binary never reports, so dead air occasionally
+  came back as an invented sentence with nothing to stop it. It now scores on the decoder's
+  own per-token confidence, which whisper-cli does report — see
+  [configuration.md](./configuration.md#the-hallucination-gate-and-what-it-actually-gates-on).
+- **Voices switch by script, mid-reply.** Replies are spoken clause by clause, and each
+  clause's voice is picked from `TTS_LOCAL_MODEL_MAP` by guessing the language from that
+  clause's own script (Cyrillic vs. Latin) — so a reply that mixes English and Russian is
+  heard in both voices instead of one voice reading the wrong language's words. Applies to
+  every channel that speaks replies, not just calls. See
+  [configuration.md](./configuration.md#picking-a-voice-per-clause-by-script).
 - **Barge-in:** speaking over the companion's playback stops synthesis and audio
   immediately, and truncates the stored assistant turn to only the clauses that actually
   played — the model never believes it said something the owner never heard. On by default

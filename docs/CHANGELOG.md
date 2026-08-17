@@ -3,7 +3,64 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
-## 2026-08-17 (latest)
+## 2026-08-18 (latest)
+
+**Call quality: detect-then-decode transcription, a hallucination gate that actually works,
+turn-taking that waits for the whole thought, and per-clause voice selection.** Four related
+fixes to how a live call listens and speaks, found by listening to real calls rather than by
+reading whisper.cpp's documentation.
+
+- **STT is now detect-then-decode.** `STT_DETECT_MODEL` runs a small model through
+  whisper.cpp's `-dl` language-detection pass (~0.2s on a 4-second clip) before the real
+  decode; the result is clamped to `STT_LANGUAGES` (same script family if the exact language
+  isn't listed, else the first configured language) and the main model decodes at that fixed
+  language via `-l` instead of paying for its own auto-detect, which measured at roughly
+  **double** the decode cost. Clips under `STT_MIN_CLIP_MS` are refused before either pass
+  runs. `whisperArgs` now always requests `-ojf` (full JSON, confidence included) and
+  forwards `-nth`/`-et`/`-lpt`. `transcribe()` is unchanged (still a plain string);
+  `transcribeDetailed()` is the new richer sibling the call session gates on.
+- **The hallucination gate actually rejects silence-fill now — it never did before.** It
+  scored on `no_speech_prob`, which is what most STT APIs report and what the gate was
+  originally written against. **whisper-cli, the local binary this project shells out to,
+  does not emit that field in any output mode** — confirmed by probing `-oj` and `-ojf`
+  directly, not by reading docs, which don't mention the gap. `STT_NO_SPEECH_THRESHOLD` was
+  still doing real work as the decoder's own `-nth` flag, but nothing downstream could ever
+  observe the result it produced, so the confidence branch of the gate had not rejected a
+  single local transcript since calling shipped. It now scores on **mean per-token decode
+  probability** (`STT_MIN_CONFIDENCE`), which whisper-cli's full JSON (`-ojf`) does report.
+  Readers following this changelog forward: every earlier entry mentioning
+  `no_speech_prob` as the gate's signal (2026-08-16 below) describes what was believed true
+  at the time it was written, not what the code actually did — see the 2026-08-18 postscript
+  in [decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md) for the full
+  account of both fixes.
+- **Turn-taking: only a question commits fast now.** The endpointer's old fast-commit rule
+  fired on any terminal punctuation, and Whisper punctuates almost every clause with a full
+  stop whether or not the speaker is actually finished. Now a short declarative ending in a
+  plain full stop is held at `CALL_PATIENCE_EXTENDED_MS` and joined to whatever comes next,
+  the same treatment as a dangling conjunction; a longer declarative, or anything ending in
+  `?`, still commits promptly. `CALL_PATIENCE_MS`/`_EXTENDED_MS`/`_MAX_MS` — present in
+  config since Phase 8 shipped — are now actually wired to the endpointer, which they had
+  not been. Endpointing's hesitation/preposition/article vocabulary gained Russian.
+- **Piper voice now switches per clause by script.** `TTS_LOCAL_MODEL_MAP` (a `lang=path`
+  map) plus `resolveLocalVoice()` pick the voice for each streamed clause from its own
+  script (Cyrillic → Russian voice, Latin → English), so a reply mixing both languages is
+  heard in both voices instead of committing to whichever opened the reply.
+- **Settings UI** for all of the above — the Calling sub-tab and Voice/Speaking sections
+  gained fields for detection, clamping, confidence, patience, and the per-language voice
+  map — and `currentSetupValues` was fixed to actually return the new fields; it previously
+  omitted them, which would have blanked them on the next save.
+- **New config:** `STT_DETECT_MODEL`, `STT_LANGUAGES`, `STT_MIN_CONFIDENCE`,
+  `STT_MIN_CLIP_MS`, `STT_ENTROPY_THRESHOLD`, `STT_LOGPROB_THRESHOLD`,
+  `TTS_LOCAL_MODEL_MAP`, `CALL_PATIENCE_MS`, `CALL_PATIENCE_EXTENDED_MS`,
+  `CALL_PATIENCE_MAX_MS`. See
+  [configuration.md](./configuration.md#voice-notes-speech-to-text).
+- Documented separately: building `whisper-cli` with Vulkan for local decode speed
+  (measured **11.5s → 2.7s**, roughly 4x, on a 4-second clip with `large-v3-turbo`, staying
+  close to flat as utterances get longer), and that a Linux host's service user must be in
+  the `render` group or Vulkan silently falls back to software rendering with no error — see
+  [configuration.md](./configuration.md#gpu-acceleration-build-whispercpp-with-vulkan).
+
+## 2026-08-17
 
 **Fixed: Silero VAD was deaf, so calls never heard anything.** The first live call
 connected, joined, and sat silent. `SileroVad.process` fed the model a bare 512-sample

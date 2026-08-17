@@ -147,6 +147,42 @@ without the model so CI actually executes it.
 Measured on a live capture, before and after: max speech probability 0.004 → 1.000, and
 355 of 543 frames crossing the threshold instead of none.
 
+### Postscript, 2026-08-18 — the fast-commit rule was wrong, and the hallucination gate had never fired
+
+Two more findings from listening to real calls, both in the same shape as the Silero one
+above: a component that looked like it was working because nothing downstream complained.
+
+**The endpointer's fast-commit rule over-fired.** It treated any transcript ending in
+terminal punctuation (`.`/`!`/`?`) as a candidate for a quick commit. Whisper punctuates
+almost every clause with a full stop whether or not the speaker is actually done — "I went
+to the store." reads as a complete sentence even mid-utterance, right before "...and then I
+realized I forgot my wallet." The fix narrows the fast path to genuine questions only —
+asking is the one punctuation mark that actually cedes the floor — and treats a short
+declarative ending in a full stop the same as a dangling conjunction: held at the extended
+patience and joined to whatever comes next. `CALL_PATIENCE_MS`/`_EXTENDED_MS`/`_MAX_MS`,
+present in config since the phase shipped, had not actually been reaching the endpointer
+until this pass wired them through; the heuristic's hesitation/preposition/article
+vocabulary also gained Russian, matching the bilingual case the rest of the endpointer was
+already built for.
+
+**The hallucination gate had never fired, for a reason that was hiding in plain sight.** It
+scored on `no_speech_prob`, following the field name most STT APIs use and the one this ADR
+itself describes above. Probing whisper-cli's actual output — both `-oj` and `-ojf`, not
+the docs — showed it emits no such field, in any output mode, for the local path this
+project runs. The threshold was still doing something: passed to the decoder as `-nth`, it
+shaped what whisper-cli chose to emit internally — but nothing downstream could ever read
+the result back out. So the branch meant to catch silence-fill invention had scored on a
+value that was always `undefined`, for as long as calling has existed, and had accordingly
+never rejected a single local transcript. The gate now scores on mean per-token
+probability (`-ojf`'s full JSON, not plain `-oj`) — the confidence signal whisper-cli
+*does* report — via `STT_MIN_CONFIDENCE`. `STT_NO_SPEECH_THRESHOLD` stays as a decoder-only
+tuning knob; `noSpeechProb`-based gating remains in `isLikelyHallucination` for any provider
+whose API genuinely reports it, which whisper-cli does not.
+
+Same lesson as the Silero postscript, restated: a signal that is silently absent behaves
+identically to a signal that is present and simply never triggers, and the only way to
+tell them apart is to look at what the tool actually emits.
+
 ## Alternatives considered
 
 - **PWA "call mode"** — rejected as the primary transport; it cannot ring and iOS suspends

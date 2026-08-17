@@ -122,8 +122,11 @@ Discord beat a PWA, SIP, Twilio, and a native CallKit app.
   hesitation, dangling conjunction, or unclosed quote extends the wait while a terminal `?`
   or `!` commits faster and a hard maximum always wins; a filler/backchannel filter that
   drops utterances which are only "mhm"/"uh"/"yeah"; and a Whisper hallucination gate
-  (`no_speech_prob` + an implausible words-per-second rate + a blocklist) so silence stops
-  inventing text.
+  (mean per-token decode confidence + an implausible words-per-second rate + a blocklist) so
+  silence stops inventing text. (The gate originally scored on `no_speech_prob`; whisper-cli
+  never reports that field in any output mode, so it had never actually fired — see the
+  2026-08-18 postscript in
+  [decisions/discord-voice-calls.md](./decisions/discord-voice-calls.md).)
 - ✅ **Barge-in** — owner speech during playback stops synthesis and playback immediately
   **and truncates the assistant turn in history to what was actually spoken**
   (`transport.play()` resolves "played" or "cut" precisely), so the model never believes it
