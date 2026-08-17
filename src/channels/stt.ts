@@ -10,7 +10,9 @@
  *                      reboot without a second service to bring back up.
  *
  * Channels call `transcribe()` to turn audio bytes into a text turn; the engine
- * never knows the input arrived as voice. See docs/configuration.md.
+ * never knows the input arrived as voice. `transcribeDetailed()` is the same work
+ * with the decoder's own signals kept, for callers that gate on them. See
+ * docs/configuration.md.
  */
 import { existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,6 +21,18 @@ import { join } from "node:path";
 import { config } from "#/config/index.ts";
 
 const OPENAI_TRANSCRIPTIONS = "https://api.openai.com/v1/audio/transcriptions";
+
+/**
+ * A transcription plus whatever the decoder told us about its own confidence.
+ * Both extras are optional: a provider that cannot report them leaves them
+ * unset rather than guessing, because a caller gating on a fabricated
+ * probability would be worse off than one gating on nothing.
+ */
+export interface TranscriptionResult {
+	text: string;
+	noSpeechProb?: number;
+	language?: string;
+}
 
 /** Whether voice transcription is set up; if false the channel asks for text. */
 export function sttConfigured(): boolean {
@@ -35,6 +49,137 @@ export function sttConfigured(): boolean {
 function endpoint(): string {
 	if (config.stt.provider === "openai") return OPENAI_TRANSCRIPTIONS;
 	return config.stt.apiUrl;
+}
+
+// --- clip duration -----------------------------------------------------------
+
+/**
+ * Duration of a RIFF/WAVE buffer in milliseconds, or undefined when the bytes
+ * aren't a wav we can read (a Telegram .ogg voice note, say). Read from the
+ * header rather than by decoding, so the check costs nothing and adds no
+ * dependency; an unreadable buffer is simply not clip-length-checked.
+ */
+export function wavDurationMs(bytes: Uint8Array): number | undefined {
+	if (bytes.length < 44) return undefined;
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+	const tag = (at: number) =>
+		String.fromCharCode(
+			bytes[at] ?? 0,
+			bytes[at + 1] ?? 0,
+			bytes[at + 2] ?? 0,
+			bytes[at + 3] ?? 0,
+		);
+	if (tag(0) !== "RIFF" || tag(8) !== "WAVE") return undefined;
+
+	let byteRate = 0;
+	let pos = 12;
+	while (pos + 8 <= bytes.length) {
+		const id = tag(pos);
+		const declared = view.getUint32(pos + 4, true);
+		const body = pos + 8;
+		// The fmt chunk carries the bytes-per-second directly, which is all we
+		// need — no need to reason about channels, width and rate separately.
+		if (id === "fmt " && declared >= 16)
+			byteRate = view.getUint32(body + 8, true);
+		if (id === "data") {
+			if (!byteRate) return undefined;
+			const available = bytes.length - body;
+			// Streamed wavs are often written with a placeholder size, so trust
+			// what actually arrived whenever the declared size doesn't fit.
+			const size = declared > 0 && declared <= available ? declared : available;
+			return Math.round((size / byteRate) * 1000);
+		}
+		pos = body + declared + (declared % 2); // chunks are word-aligned
+	}
+	return undefined;
+}
+
+// --- language detection and clamping -----------------------------------------
+
+// Script families, kept deliberately small: just enough to tell "this detection
+// and one of the configured languages are written the same way" apart from
+// "these have nothing in common". It is a heuristic, not a linguistic model —
+// whisper can return any of 99 languages, and a mumbled English phrase coming
+// back as Kazakh must not be decoded as Kazakh.
+const CYRILLIC_SCRIPT = new Set([
+	"ru",
+	"uk",
+	"be",
+	"bg",
+	"kk",
+	"mk",
+	"sr",
+	"mn",
+	"ky",
+	"tg",
+]);
+const LATIN_SCRIPT = new Set([
+	"en",
+	"de",
+	"fr",
+	"es",
+	"it",
+	"pt",
+	"nl",
+	"pl",
+	"cs",
+	"sk",
+	"sv",
+	"no",
+	"da",
+	"fi",
+	"tr",
+	"id",
+	"ro",
+	"hu",
+	"vi",
+	"ca",
+	"hr",
+	"sl",
+	"lt",
+	"lv",
+	"et",
+	"cy",
+]);
+
+/**
+ * Snap a detected language to the set the owner actually speaks. An empty set
+ * means "unrestricted" and the detection is returned untouched; otherwise we
+ * prefer a member written in the same script, and fall back to the first
+ * configured language when even that fails.
+ */
+export function clampLanguage(detected: string, allowed: string[]): string {
+	const first = allowed[0];
+	if (!first) return detected;
+	if (!detected) return first;
+	if (allowed.includes(detected)) return detected;
+
+	const family = CYRILLIC_SCRIPT.has(detected)
+		? CYRILLIC_SCRIPT
+		: LATIN_SCRIPT.has(detected)
+			? LATIN_SCRIPT
+			: null;
+	const sameScript = family && allowed.find((l) => family.has(l));
+	return sameScript || first;
+}
+
+/**
+ * whisper.cpp args for a detect-and-exit pass. Cheap enough (a fraction of a
+ * second with a tiny model) that paying it beats letting the main model
+ * auto-detect, which roughly doubles its decode cost. `-np` is deliberately
+ * absent: it would suppress the very line we parse.
+ */
+export function detectArgs(model: string, wav: string): string[] {
+	return ["-m", model, "-f", wav, "-dl"];
+}
+
+/**
+ * Pull the code out of whisper.cpp's detection line, e.g.
+ * `whisper_full_with_state: auto-detected language: en (p = 0.740969)`.
+ * Returns "" when the line isn't there, which the caller treats as "no opinion".
+ */
+export function parseDetectedLanguage(output: string): string {
+	return /auto-detected language:\s*([a-z]{2,3})\b/.exec(output)?.[1] ?? "";
 }
 
 // --- local (whisper.cpp) -----------------------------------------------------
@@ -61,12 +206,24 @@ export function ffmpegArgs(input: string, wav: string): string[] {
 	];
 }
 
-/** whisper.cpp args: transcribe `wav`, write plain text to `<outBase>.txt`. */
+/** The decoder-failure thresholds whisper.cpp accepts, passed straight through. */
+export interface DecodeThresholds {
+	noSpeech: number;
+	entropy: number;
+	logprob: number;
+}
+
+/**
+ * whisper.cpp args: transcribe `wav`, write JSON to `<outBase>.json`. JSON
+ * rather than plain text because it also carries the language the run settled
+ * on, and one file is easier to clean up than two.
+ */
 export function whisperArgs(
 	model: string,
 	wav: string,
 	outBase: string,
 	language: string,
+	thresholds: DecodeThresholds,
 ): string[] {
 	return [
 		"-m",
@@ -75,9 +232,15 @@ export function whisperArgs(
 		wav,
 		"-l",
 		language || "auto",
+		"-nth",
+		String(thresholds.noSpeech),
+		"-et",
+		String(thresholds.entropy),
+		"-lpt",
+		String(thresholds.logprob),
 		"-nt", // no timestamps
 		"-np", // no progress / system prints
-		"-otxt",
+		"-oj",
 		"-of",
 		outBase,
 	];
@@ -91,6 +254,51 @@ export function cleanWhisperText(raw: string): string {
 		.filter(Boolean)
 		.join(" ")
 		.trim();
+}
+
+/**
+ * Read back what `-oj` wrote. Anything unexpected — unparseable JSON, a missing
+ * transcription array — yields an empty transcript rather than a partial guess,
+ * on the principle that silence is recoverable and invented words are not.
+ *
+ * Note there is no `noSpeechProb` here: whisper-cli's JSON writer emits neither
+ * `no_speech_prob` nor any equivalent, under `-oj` or `-ojf`. The threshold is
+ * still applied inside the decoder via `-nth`; we just cannot observe it.
+ */
+export function parseWhisperJson(raw: string): {
+	text: string;
+	language?: string;
+} {
+	let data: unknown;
+	try {
+		data = JSON.parse(raw);
+	} catch {
+		return { text: "" };
+	}
+	if (!data || typeof data !== "object") return { text: "" };
+
+	const doc = data as {
+		result?: { language?: unknown };
+		transcription?: unknown;
+	};
+	const segments = Array.isArray(doc.transcription) ? doc.transcription : [];
+	const text = cleanWhisperText(
+		segments
+			.map((s) =>
+				s &&
+				typeof s === "object" &&
+				typeof (s as { text?: unknown }).text === "string"
+					? (s as { text: string }).text
+					: "",
+			)
+			.join("\n"),
+	);
+
+	const language = doc.result?.language;
+	return {
+		text,
+		...(typeof language === "string" && language ? { language } : {}),
+	};
 }
 
 /** A spawned-process result; injected in tests so no binary is needed. */
@@ -110,15 +318,15 @@ const bunRun: Runner = async (cmd) => {
 
 export interface LocalDeps {
 	run: Runner;
-	/** Read the transcript whisper.cpp wrote, given its output base path. */
-	readText: (outBase: string) => Promise<string>;
+	/** Read the JSON whisper.cpp wrote, given its output base path. */
+	readOutput: (outBase: string) => Promise<string>;
 	cleanup: (paths: string[]) => void;
 	tmpBase: () => string;
 }
 
 const defaultLocalDeps: LocalDeps = {
 	run: bunRun,
-	readText: (outBase) => Bun.file(`${outBase}.txt`).text(),
+	readOutput: (outBase) => Bun.file(`${outBase}.json`).text(),
 	cleanup: (paths) => {
 		for (const p of paths) {
 			try {
@@ -134,6 +342,28 @@ const defaultLocalDeps: LocalDeps = {
 };
 
 /**
+ * Decide which language the decode pass runs at.
+ *
+ * An explicit `STT_LANGUAGE` wins outright — the owner has told us, so there is
+ * nothing to detect. Otherwise, when a detect model is configured, a fast
+ * detect-and-exit pass gives an opinion that we clamp to the configured
+ * languages. With no detect model we keep the old behaviour untouched and let
+ * the main model sort it out.
+ */
+async function resolveLanguage(wav: string, deps: LocalDeps): Promise<string> {
+	const { language, detectModel, languages, localBin } = config.stt;
+	if (language && language !== "auto") return language;
+	if (!detectModel) return language;
+
+	const pass = await deps.run([localBin, ...detectArgs(detectModel, wav)]);
+	// A failed detect pass is not fatal: fall back to the owner's primary
+	// language rather than handing the big model an expensive "auto".
+	const detected = pass.code === 0 ? parseDetectedLanguage(pass.stderr) : "";
+	if (!detected) return languages[0] || language;
+	return clampLanguage(detected, languages);
+}
+
+/**
  * Transcribe locally: write the bytes, normalize with ffmpeg, run whisper.cpp.
  * Deps are injected so the orchestration is unit-testable without binaries.
  */
@@ -141,10 +371,15 @@ export async function transcribeLocal(
 	bytes: Uint8Array,
 	filename: string,
 	deps: LocalDeps = defaultLocalDeps,
-): Promise<string> {
-	const { localBin, localModel, ffmpegBin, language } = config.stt;
+): Promise<TranscriptionResult> {
+	const { localBin, localModel, ffmpegBin, minClipMs } = config.stt;
 	if (!localModel || !existsSync(localModel))
 		throw new Error(`whisper model not found: ${localModel || "(unset)"}`);
+
+	// Very short clips are where whisper invents whole sentences out of a cough,
+	// so they never reach the binary at all.
+	const durationMs = wavDurationMs(bytes);
+	if (durationMs !== undefined && durationMs < minClipMs) return { text: "" };
 
 	const base = deps.tmpBase();
 	const ext = filename.includes(".")
@@ -155,7 +390,7 @@ export async function transcribeLocal(
 	const input = `${base}.in${ext}`;
 	const wav = `${base}.wav`;
 	const outBase = `${base}.out`;
-	const made = [input, wav, `${outBase}.txt`];
+	const made = [input, wav, `${outBase}.json`];
 
 	try {
 		await Bun.write(input, bytes);
@@ -164,16 +399,23 @@ export async function transcribeLocal(
 		if (ff.code !== 0)
 			throw new Error(`ffmpeg failed (${ff.code}): ${ff.stderr.slice(0, 200)}`);
 
+		const language = await resolveLanguage(wav, deps);
+
 		const wc = await deps.run([
 			localBin,
-			...whisperArgs(localModel, wav, outBase, language),
+			...whisperArgs(localModel, wav, outBase, language, {
+				noSpeech: config.stt.noSpeechThreshold,
+				entropy: config.stt.entropyThreshold,
+				logprob: config.stt.logprobThreshold,
+			}),
 		]);
 		if (wc.code !== 0)
 			throw new Error(
 				`whisper-cli failed (${wc.code}): ${wc.stderr.slice(0, 200)}`,
 			);
 
-		return cleanWhisperText(await deps.readText(outBase));
+		const parsed = parseWhisperJson(await deps.readOutput(outBase));
+		return { text: parsed.text, language: parsed.language ?? language };
 	} finally {
 		deps.cleanup(made);
 	}
@@ -184,7 +426,7 @@ export async function transcribeLocal(
 async function transcribeHttp(
 	bytes: Uint8Array,
 	filename: string,
-): Promise<string> {
+): Promise<TranscriptionResult> {
 	const form = new FormData();
 	form.append("file", new Blob([bytes]), filename);
 	form.append("model", config.stt.model);
@@ -197,19 +439,31 @@ async function transcribeHttp(
 		const detail = await res.text().catch(() => "");
 		throw new Error(`STT ${res.status} ${res.statusText} ${detail}`.trim());
 	}
-	const data = (await res.json()) as { text?: string };
-	return (data.text ?? "").trim();
+	const data = (await res.json()) as { text?: string; language?: string };
+	return {
+		text: (data.text ?? "").trim(),
+		...(data.language ? { language: data.language } : {}),
+	};
 }
 
 /**
- * Transcribe audio bytes to text. Throws on a transport, process, or API error
- * so the caller can fall back to a friendly "I couldn't make that out" message.
+ * Transcribe audio bytes, keeping whatever the provider reports alongside the
+ * words. Throws on a transport, process, or API error so the caller can fall
+ * back to a friendly "I couldn't make that out" message.
  */
+export async function transcribeDetailed(
+	bytes: Uint8Array,
+	filename: string,
+): Promise<TranscriptionResult> {
+	if (!sttConfigured()) throw new Error("STT is not configured");
+	if (config.stt.provider === "local") return transcribeLocal(bytes, filename);
+	return transcribeHttp(bytes, filename);
+}
+
+/** Transcribe audio bytes to text, for callers that only want the words. */
 export async function transcribe(
 	bytes: Uint8Array,
 	filename: string,
 ): Promise<string> {
-	if (!sttConfigured()) throw new Error("STT is not configured");
-	if (config.stt.provider === "local") return transcribeLocal(bytes, filename);
-	return transcribeHttp(bytes, filename);
+	return (await transcribeDetailed(bytes, filename)).text;
 }
