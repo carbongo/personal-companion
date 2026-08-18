@@ -89,8 +89,8 @@ export function WeatherSection({ form, set }: SectionProps) {
           )}
 
           <Grid>
-            <Field label="Latitude" value={form.weatherLat} onChange={(v) => set("weatherLat", v)} placeholder="43.24" mono />
-            <Field label="Longitude" value={form.weatherLon} onChange={(v) => set("weatherLon", v)} placeholder="76.89" mono />
+            <Field label="Latitude" value={form.weatherLat} onChange={(v) => set("weatherLat", v)} placeholder="52.52" mono />
+            <Field label="Longitude" value={form.weatherLon} onChange={(v) => set("weatherLon", v)} placeholder="13.41" mono />
           </Grid>
         </Card>
       </div>

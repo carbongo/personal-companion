@@ -22,7 +22,7 @@ export function SystemSection({ form, set, values }: SectionProps) {
 
         <Card title="Host">
           <Grid>
-            <Field label="Time zone" value={form.timezone} onChange={(v) => set("timezone", v)} placeholder="Asia/Almaty" mono />
+            <Field label="Time zone" value={form.timezone} onChange={(v) => set("timezone", v)} placeholder="Europe/Berlin" mono />
             <Field
               label="Port"
               value={String(form.port)}

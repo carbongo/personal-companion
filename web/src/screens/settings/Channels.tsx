@@ -22,7 +22,7 @@ export function ChannelsSection({ form, set, values }: SectionProps) {
             label="Allowed user IDs"
             value={form.telegramAllowedIds}
             onChange={(v) => set("telegramAllowedIds", v)}
-            placeholder="570440507, 123456789"
+            placeholder="123456789, 987654321"
             mono
             help="Only these numeric Telegram IDs may talk to the companion."
           />

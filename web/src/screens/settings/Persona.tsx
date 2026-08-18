@@ -19,7 +19,7 @@ export function PersonaSection({ form, set }: SectionProps) {
       <div className="flex flex-col gap-5">
         <Card title="Identity">
           <Grid>
-            <Field label="Companion's name" value={form.name} onChange={(v) => set("name", v)} placeholder="Victoria" />
+            <Field label="Companion's name" value={form.name} onChange={(v) => set("name", v)} placeholder="Companion" />
             <Field label="Your name" value={form.owner} onChange={(v) => set("owner", v)} placeholder="Traveler" />
           </Grid>
           <Select

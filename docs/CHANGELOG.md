@@ -3,7 +3,19 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
-## 2026-08-18 (latest)
+## 2026-08-18 (later)
+
+**Privacy: scrubbed the owner's real data out of the SPA's form placeholders.** The premium
+web client shipped five placeholders carrying a real person's details rather than neutral
+examples — a real companion name, a real IANA timezone, a real latitude/longitude pair, and a
+real Telegram user ID. They were introduced with the Nocturne SPA and survived because `web/`
+is excluded from the root Biome/tsc pass, so nothing was reading it. All five now use the same
+neutral examples the server-rendered pages already used (`Companion`, `Europe/Berlin`,
+`52.52`/`13.41`, `123456789, 987654321`) — see the golden rule in [AGENTS.md](../AGENTS.md#1-the-golden-rule-this-project-is-generic).
+Placeholders are the one part of a settings form that ships literal example values, so they
+deserve the same §1 scrutiny as fixtures and presets.
+
+## 2026-08-18
 
 **Call quality: detect-then-decode transcription, a hallucination gate that actually works,
 turn-taking that waits for the whole thought, and per-clause voice selection.** Four related
