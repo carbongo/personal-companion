@@ -50,6 +50,14 @@ export interface DailySummary {
   createdAt?: string;
 }
 
+export interface Digest {
+  kind: "week" | "month";
+  start: string;
+  end: string;
+  summary: string;
+  createdAt?: string;
+}
+
 export interface SetupValues {
   name: string;
   owner: string;
@@ -105,6 +113,13 @@ export interface SetupValues {
   memoryRollupExtract: boolean;
   memoryWeekly: boolean;
   memoryWeeklyCron: string;
+  memoryDigests: boolean;
+  memoryContextWeeks: number;
+  memoryContextMonths: number;
+  memoryModel: string;
+  reachOut: boolean;
+  reachOutHours: string;
+  reachOutAfterHours: number;
   webEnabled: boolean;
   webSearchProvider: string;
   tavilyConfigured: boolean;
@@ -279,6 +294,11 @@ export const api = {
     req<{ ok: true }>(`/api/memories/${id}`, { method: "DELETE" }),
   summaries: () => req<{ summaries: DailySummary[] }>("/api/summaries"),
   rollup: () => req<{ summarized: number }>("/api/rollup", { method: "POST" }),
+  digests: () => req<{ digests: Digest[] }>("/api/digests"),
+  setDigest: (d: Digest, summary: string) =>
+    req<{ ok: true }>(`/api/digests/${d.kind}/${d.start}`, { method: "PUT", body: body({ summary }) }),
+  rewriteDigest: (d: Digest) =>
+    req<{ ok: true }>(`/api/digests/${d.kind}/${d.start}`, { method: "DELETE" }),
 
   getSetup: () => req<{ setupComplete: boolean; values: SetupValues }>("/api/setup"),
   testModel: (payload: Record<string, string>) =>

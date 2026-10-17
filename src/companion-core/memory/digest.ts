@@ -9,7 +9,8 @@
  */
 import { config } from "#/config/index.ts";
 import type { DailySummary, Digest } from "#/db/schema.ts";
-import { ProviderUnreachableError, provider } from "#/llm/index.ts";
+import { ProviderUnreachableError } from "#/llm/index.ts";
+import { memoryChat } from "./generate.ts";
 import {
 	getDigest,
 	listDailySummaries,
@@ -108,7 +109,7 @@ async function writeDigest(
 	const block = summaries
 		.map((s) => `### ${s.day}\n${s.summaryMd}`)
 		.join("\n\n");
-	return provider.chat(
+	return memoryChat(
 		[
 			{ role: "system", content: digestSystem(p.kind) },
 			{

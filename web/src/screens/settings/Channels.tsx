@@ -31,6 +31,32 @@ export function ChannelsSection({ form, set, values }: SectionProps) {
           </ToggleRow>
         </Card>
 
+        <Card title="Writing first">
+          <ToggleRow
+            title="Let the companion message you first"
+            desc="After you've been quiet a while, it sometimes considers writing — only with a real reason (something that should have happened by now, something it remembers, or simply missing you), never twice without an answer, and sometimes as a voice note. Over Telegram, to the first allowed ID."
+          >
+            <Toggle checked={form.reachOut} onChange={(v) => set("reachOut", v)} />
+          </ToggleRow>
+          <Grid>
+            <Field
+              label="Hours it may write in"
+              value={form.reachOutHours}
+              onChange={(v) => set("reachOutHours", v)}
+              placeholder="10-21"
+              mono
+              help="Local 24-hour window, end exclusive."
+            />
+            <Field
+              label="After this many quiet hours"
+              value={String(form.reachOutAfterHours)}
+              onChange={(v) => set("reachOutAfterHours", Number(v) || 0)}
+              inputMode="numeric"
+              mono
+            />
+          </Grid>
+        </Card>
+
         <Card title="Discord">
           <p className="text-[13px] text-ink-faint">
             Discord carries <span className="text-ink-dim">voice only</span> — joining a live call in one
