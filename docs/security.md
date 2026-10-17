@@ -54,6 +54,22 @@ Secrets (`TELEGRAM_BOT_TOKEN`, `LLM_API_KEY`, `TAVILY_API_KEY`, `WEB_AUTH_PASSWO
 from the environment only and never have real defaults. Keep `.env` out of git (it is
 gitignored).
 
+## Publishing safely
+
+This repo is public, and one maintainer runs a real companion on it, so every push is
+gated. `scripts/leakscan.sh` (the `pre-push` hook in `.githooks/`, enabled with
+`bun run hooks`) fails the push on any of:
+
+| Check | Over | Source of truth |
+| ----- | ---- | --------------- |
+| secrets | commits being pushed | gitleaks (required; refuses if missing) |
+| private terms | added lines + commit messages | `~/.config/personal-companion/leak-denylist` (or `LEAK_DENYLIST`), machine-local; refuses if missing |
+| private files | paths in those commits | `.env*` (not `.env.example`), `*.db*`, `persona/`, `data/`, `import/`, `*.local.md` |
+
+`LICENSE` is exempt from the term check (the copyright line). CI repeats the secret scan over
+the whole history; the term list never leaves the maintainer's machine, so only the local
+hook can enforce it. Never bypass with `--no-verify` — fix the commit instead.
+
 ## Reporting
 
 Found a vulnerability? Open a private security advisory on the GitHub repo rather than a

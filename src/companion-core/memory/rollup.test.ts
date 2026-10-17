@@ -130,6 +130,25 @@ describe("memory reconciliation", () => {
 		);
 	});
 
+	it("re-confirms a memory as of the day it came up, not as of the run", async () => {
+		addMemory("Owner usually runs in the morning");
+		const said = appendMessage({
+			day: PAST,
+			role: "user",
+			content: "still running every morning",
+		});
+		spyOn(provider, "chat").mockResolvedValue(
+			"<keep>Owner usually runs in the morning</keep>",
+		);
+
+		const { confirmed } = await reconcileMemories(PAST, [said]);
+		expect(confirmed).toEqual(["Owner usually runs in the morning"]);
+		const m = listMemories().find(
+			(x) => x.content === "Owner usually runs in the morning",
+		);
+		expect(m?.confirmedAt).toEqual(said.createdAt);
+	});
+
 	it("runDailyRollup reconciles the day when MEMORY_ROLLUP_EXTRACT is on", async () => {
 		const prev = config.memory.rollupExtract;
 		config.memory.rollupExtract = true;

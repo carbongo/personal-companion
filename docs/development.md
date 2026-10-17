@@ -57,9 +57,11 @@ page is always server-rendered).
 | `bun run format`    | Biome format, write. |
 | `bun run typecheck` | `tsc --noEmit`. |
 | `bun test`          | Run tests (in-memory DB via `bunfig.toml` preload). |
+| `bun run hooks`     | Enable the pre-push leak gate in this clone (once). |
+| `bun run leakscan`  | Run the leak gate on unpushed commits + uncommitted changes. |
 
-CI (`.github/workflows/ci.yml`) runs `check`, `typecheck`, `bun test`, and a Docker build
-on every push and PR.
+CI (`.github/workflows/ci.yml`) runs `check`, `typecheck`, `bun test`, a gitleaks secret
+scan of the full history, and a Docker build on every push and PR.
 
 ## Conventions
 

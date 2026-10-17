@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Runs the leak gate over every commit a push would publish. Enable once per
+# clone with `bun run hooks`. Never bypass it with --no-verify; fix the leak.
+set -euo pipefail
+
+zero=0000000000000000000000000000000000000000
+commits=()
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+	[ "$local_sha" = "$zero" ] && continue # deleting a branch publishes nothing
+	if [ "$remote_sha" = "$zero" ]; then
+		range=("$local_sha" --not --remotes)
+	else
+		range=("$remote_sha..$local_sha")
+	fi
+	while read -r c; do commits+=("$c"); done < <(git rev-list "${range[@]}")
+done
+
+[ ${#commits[@]} -eq 0 ] && exit 0
+exec "$(git rev-parse --show-toplevel)/scripts/leakscan.sh" "${commits[@]}"

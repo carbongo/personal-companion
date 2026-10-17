@@ -2,7 +2,7 @@
  * Memory sidecar tags. The companion no longer manages memory mid-conversation —
  * that proved unreliable on small local models and now lives entirely in the
  * nightly roll-up (see ./memory/rollup.ts). What remains here is the pure parser:
- * the roll-up reuses it to read the `<remember>` / `<forget>` tags it asks the
+ * the roll-up reuses it to read the `<remember>` / `<forget>` / `<keep>` tags it asks the
  * model for, and the engine reuses it to strip any stray tag a reply emits so it
  * never leaks to the user. Tolerant by design: malformed or absent tags leave the
  * reply untouched. See docs/decisions/sidecar-tags-not-tool-calling.md.
@@ -11,12 +11,15 @@
 const RE_REMEMBER = /<remember>([\s\S]*?)<\/remember>/gi;
 const RE_CORE = /<core>([\s\S]*?)<\/core>/gi;
 const RE_FORGET = /<forget>([\s\S]*?)<\/forget>/gi;
+const RE_KEEP = /<keep>([\s\S]*?)<\/keep>/gi;
 
 export interface ParsedActions {
 	remember: string[];
 	core: string[];
 	/** Memories to drop — matched by content in the store, not by id. */
 	forget: string[];
+	/** Memories re-confirmed as still true — matched by content, like forget. */
+	keep: string[];
 	/** The reply text with all action tags removed. */
 	cleaned: string;
 }
@@ -36,6 +39,7 @@ export function parseActions(raw: string): ParsedActions {
 		.replace(RE_REMEMBER, "")
 		.replace(RE_CORE, "")
 		.replace(RE_FORGET, "")
+		.replace(RE_KEEP, "")
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
 
@@ -43,6 +47,7 @@ export function parseActions(raw: string): ParsedActions {
 		remember: matches(raw, RE_REMEMBER),
 		core: matches(raw, RE_CORE),
 		forget: matches(raw, RE_FORGET),
+		keep: matches(raw, RE_KEEP),
 		cleaned,
 	};
 }

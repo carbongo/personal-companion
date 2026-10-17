@@ -3,6 +3,25 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
+## 2026-10-17
+
+**Time sense, week/month digests, and a pre-push leak gate.**
+
+- **Time sense** ([time-sense.md](./time-sense.md)): a `Time apart:` line in the per-turn
+  context when the conversation began after ≥ 3 h of silence, `[N hours later]` markers on
+  owner messages after a ≥ 1 h pause (live history and roll-up transcripts), and every saved
+  memory shown with the date it was last known true. New `## Time between you` operating
+  section: notice a long gap like a person, ask how past plans went, check old facts lightly.
+- **Re-verification:** roll-up `<keep>` tag sets the new `memories.confirmed_at`.
+- **Digests:** finished weeks and months are compacted into specifics-only digests (new
+  `digests` table, `digest.ts`); context walks back days → weeks → months. New env:
+  `MEMORY_DIGESTS`, `MEMORY_CONTEXT_WEEKS` (4), `MEMORY_CONTEXT_MONTHS` (6). Daily summary
+  prompt now favours specifics over mood.
+- **Leak gate** ([security.md](./security.md#publishing-safely)): `scripts/leakscan.sh` +
+  `.githooks/pre-push` (`bun run hooks`, `bun run leakscan`) and a gitleaks CI job; push rules
+  in AGENTS.md. A test fixture URL that pointed at a real site is now neutral.
+- `CLAUDE.md` is now just the `@AGENTS.md` pointer.
+
 ## 2026-08-18 (later)
 
 **Privacy: scrubbed the owner's real data out of the SPA's form placeholders.** The premium

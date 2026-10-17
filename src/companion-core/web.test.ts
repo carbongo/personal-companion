@@ -30,8 +30,7 @@ describe("web tags", () => {
 });
 
 describe("shared-link snapping", () => {
-	const owner =
-		"https://georgiiantipin.com/blog/valve-s-action-to-conquer-the-pc-world-has-begun";
+	const owner = "https://blog.example.com/posts/valve-s-handheld-pc-push";
 
 	it("pulls http(s) URLs out of a message, trimming trailing punctuation", () => {
 		expect(

@@ -19,7 +19,12 @@ import { parseActions } from "./actions.ts";
 import { takeClauses } from "./clauses.ts";
 import { buildKnowledge, buildVolatile } from "./context.ts";
 import { buildConversationNote } from "./conversation.ts";
-import { appendMessage, messagesForDay, todayKey } from "./memory/store.ts";
+import {
+	appendMessage,
+	lastMessageBefore,
+	messagesForDay,
+	todayKey,
+} from "./memory/store.ts";
 import { takeParagraphs } from "./paragraphs.ts";
 import { buildIdentity, buildInterests, buildOperating } from "./persona.ts";
 import {
@@ -29,6 +34,7 @@ import {
 	stripSpeakTags,
 	wantsSpeak,
 } from "./speak.ts";
+import { markGaps } from "./time.ts";
 import {
 	extractUrls,
 	extractWebRequests,
@@ -218,8 +224,18 @@ async function buildTurn(
 		.trim();
 
 	const messages: ChatMessage[] = [{ role: "system", content: system }];
-	for (const m of history.slice(-config.llm.historyLimit))
-		messages.push({ role: m.role, content: m.content });
+	// A message that came after a pause carries a "[3 hours later]" marker, so a
+	// pause inside the day reads as one. Derived from timestamps on every turn and
+	// never stored, so the history the model sees stays deterministic.
+	const shown = history.slice(-config.llm.historyLimit);
+	const first = shown[0];
+	const marked = markGaps(
+		shown,
+		first ? lastMessageBefore(first.createdAt) : null,
+	);
+	shown.forEach((m, i) => {
+		messages.push({ role: m.role, content: marked[i] ?? m.content });
+	});
 	// The first non-system message must be a user turn.
 	while (messages.length > 1 && messages[1]?.role === "assistant")
 		messages.splice(1, 1);

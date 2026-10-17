@@ -18,7 +18,8 @@ Pages cross-link each other and use flat, descriptive names (no number prefixes)
 - [configuration](./configuration.md) — env vars, persona files, presets, providers
 - [data-model](./data-model.md) — the SQLite tables and what they hold
 - [channels](./channels.md) — Telegram and the built-in web chat
-- [memory](./memory.md) — Core, saved memories, daily summaries, the nightly roll-up
+- [memory](./memory.md) — Core, saved memories, daily summaries, week/month digests, the roll-up
+- [time-sense](./time-sense.md) — how gaps between conversations are measured and shown
 - [conversation-dynamics](./conversation-dynamics.md) — how it lets a topic go, and its own interests
 - [web-access](./web-access.md) — the bounded `<search>`/`<fetch>` egress
 - [security](./security.md) — auth, allowlists, the SSRF guard, privacy posture

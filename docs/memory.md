@@ -38,9 +38,20 @@ of starting fresh each conversation. There are four moving parts, all in SQLite 
 
 ## How a new day opens
 
-A fresh day starts from: the **Core**, the **saved memories**, and the **recent daily
-summaries** (`MEMORY_CONTEXT_DAYS`). It does not replay full history — that would grow
-without limit. This is the same frugal model that lets a small local model keep up.
+A fresh day starts from: the **Core**, the **saved memories** (each dated, see
+[time-sense.md](./time-sense.md)), the **recent daily summaries** (`MEMORY_CONTEXT_DAYS`),
+and **week then month digests** for the time before them. It does not replay full history
+— that would grow without limit.
+
+## Week and month digests
+
+Each roll-up run ends by compacting every finished week (Mon–Sun) and month that has daily
+summaries but no digest (`digest.ts`, table `digests`). The prompt keeps only specifics —
+people, places, numbers, dates, decisions, outcomes, what was still unresolved — and drops
+mood and filler. In context, `selectDigests` walks back from the oldest daily summary: up to
+`MEMORY_CONTEXT_WEEKS` weeks (continuing to the next month boundary so a month never
+overlaps them by more than a few days), then up to `MEMORY_CONTEXT_MONTHS` months.
+`MEMORY_DIGESTS=false` turns it off. Not shown in the web UI yet.
 
 ## The nightly roll-up
 
@@ -54,7 +65,8 @@ is unreachable it pauses and catches up on the next run.
 memory against it (when `MEMORY_ROLLUP_EXTRACT` is on, the default). A second, focused
 generation is shown the day's transcript and the current memories, and asked — in the same
 `<remember>` / `<forget>` vocabulary used elsewhere — for genuinely new durable facts and for
-any saved memory the day made wrong. New facts are de-duplicated against what's already
+any saved memory the day made wrong, plus `<keep>` for one the day showed is still true (its
+`confirmed_at` moves to the day's last message). New facts are de-duplicated against what's already
 stored; drops go through the conservative content matcher (exact wording, else the closest
 substring, else strong word-overlap — so a `<forget>` that matches nothing is a no-op). Both
 directions are capped per run so one odd day can't flood or gut memory. It's best-effort:
