@@ -20,6 +20,7 @@ import { parseActions } from "./actions.ts";
 import { takeClauses } from "./clauses.ts";
 import { buildKnowledge, buildVolatile } from "./context.ts";
 import { buildConversationNote } from "./conversation.ts";
+import { keepPlan, type Plan, stripLaterTags } from "./later.ts";
 import {
 	appendMessage,
 	lastMessageBefore,
@@ -213,6 +214,7 @@ function buildSystem(): string {
 		buildOperating({
 			web: webConfigured(),
 			autoMemory: config.memory.rollupExtract,
+			followUp: config.reachOut.enabled,
 		}),
 		buildKnowledge(),
 	]
@@ -359,7 +361,7 @@ function cleanForDisplay(text: string): string {
  * text and stay, only the request to say them out loud is consumed.
  */
 function commitActions(raw: string): string {
-	return parseActions(stripSpeakTags(raw)).cleaned;
+	return parseActions(stripLaterTags(stripSpeakTags(raw))).cleaned;
 }
 
 /**
@@ -469,6 +471,7 @@ export async function respond(turn: Turn): Promise<EngineReply> {
 
 	// Only a real reply is logged. A blank draw is shown as "…" but never stored:
 	// a stored "…" turn gets mimicked, seeding a run of empty replies for the day.
+	keepPlan(raw);
 	const cleaned = commitActions(stripWebTags(raw));
 	const row = cleaned
 		? appendMessage({ day, role: "assistant", content: cleaned })
@@ -540,6 +543,7 @@ export async function respondStream(
 
 	// Only a real reply is logged; a blank "…" is shown but never stored (a stored
 	// "…" turn gets mimicked, seeding a run of empty replies for the day).
+	keepPlan(raw);
 	const cleaned = commitActions(stripWebTags(raw));
 	const row = cleaned
 		? appendMessage({ day, role: "assistant", content: cleaned })
@@ -618,6 +622,7 @@ export async function respondClauses(
 		throw err;
 	}
 
+	keepPlan(raw);
 	const cleaned = commitActions(stripWebTags(raw));
 	const row = cleaned
 		? appendMessage({ day, role: "assistant", kind: "voice", content: cleaned })
@@ -639,8 +644,15 @@ export interface ReachOutDraft {
 /** The reply that means "no real reason to write right now". */
 const PASS = /<pass\s*\/?>/i;
 
-function reachOutPrompt(silenceMs: number): string {
+function reachOutPrompt(silenceMs: number, plan?: Plan): string {
 	const owner = config.app.owner;
+	if (plan)
+		return `[a moment to yourself — nobody wrote to you; this is not ${owner}'s words]
+It's been ${spanLabel(silenceMs)} since you two last talked. Earlier you meant to get back to ${owner} around now${plan.why ? `: ${plan.why}` : ""}.
+
+If that still fits, write: one short message, the way you'd really text — a single thought, at most one question. If it's the kind of thing you'd rather say out loud, like a quick call, wrap it in <speak>…</speak> and it goes as a voice note.
+If it no longer makes sense, reply with exactly <pass/> and nothing else.
+[end]`;
 	return `[a moment to yourself — nobody wrote to you; this is not ${owner}'s words]
 It's been ${spanLabel(silenceMs)} since you two last talked. You're deciding whether to message ${owner} first, the way a close friend sometimes does.
 
@@ -655,17 +667,19 @@ If there's no real reason right now, reply with exactly <pass/> and nothing else
  * Ask the companion whether it has a real reason to write first and, if so,
  * what it would say. Nothing is stored here: the prompt is a private moment, not
  * a turn, and the message only enters the log once a channel has delivered it
- * (`logReachOut`). Returns null for a pass, or when the model is unreachable.
+ * (`logReachOut`). With a `plan`, it's the time it said it would get back to the
+ * owner (see ./later.ts). Returns null for a pass, or when the model is unreachable.
  */
 export async function draftReachOut(
 	silenceMs: number,
+	plan?: Plan,
 ): Promise<ReachOutDraft | null> {
 	if (!(await provider.reachable())) return null;
 	const messages = buildHistory(messagesForDay(todayKey()));
 	const volatile = await buildVolatile();
 	messages.push({
 		role: "user",
-		content: `[context for you, not ${config.app.owner}'s words]\n${volatile}\n[end context]\n\n${reachOutPrompt(silenceMs)}`,
+		content: `[context for you, not ${config.app.owner}'s words]\n${volatile}\n[end context]\n\n${reachOutPrompt(silenceMs, plan)}`,
 	});
 	let raw: string;
 	try {

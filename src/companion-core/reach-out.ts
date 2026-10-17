@@ -12,6 +12,7 @@
 import { config } from "#/config/index.ts";
 import type { Message } from "#/db/schema.ts";
 import type { ReachOutDraft } from "./engine.ts";
+import { clearPlan, loadPlan, type Plan, planState } from "./later.ts";
 import { zonedParts } from "./memory/scheduler.ts";
 import { getSetting, latestMessages, setSetting } from "./memory/store.ts";
 
@@ -19,6 +20,8 @@ const HOUR = 3_600_000;
 
 /** How often it considers writing. */
 export const TICK_MS = 30 * 60_000;
+/** How often it checks for a time it said it would get back (see ./later.ts). */
+export const PLAN_TICK_MS = 60_000;
 /** Chance that an eligible tick actually asks — spreads the moment out. */
 export const CONSIDER_CHANCE = 0.25;
 /** After deciding there's nothing to say, how long before it asks itself again. */
@@ -86,7 +89,7 @@ export function reachOutDue(s: ReachOutState): {
 }
 
 export interface ReachOutDeps {
-	draft: (silenceMs: number) => Promise<ReachOutDraft | null>;
+	draft: (silenceMs: number, plan?: Plan) => Promise<ReachOutDraft | null>;
 	/** Deliver it; resolves to how it went out, or null if it couldn't be sent. */
 	send: (draft: ReachOutDraft) => Promise<"text" | "voice" | null>;
 	/** Record a delivered message in the log. */
@@ -105,6 +108,7 @@ export class ReachOut {
 	private readonly info: (msg: string) => void;
 	private busy = false;
 	private timer: ReturnType<typeof setInterval> | null = null;
+	private planTimer: ReturnType<typeof setInterval> | null = null;
 
 	constructor(private readonly deps: ReachOutDeps) {
 		this.now = deps.now ?? (() => new Date());
@@ -151,13 +155,58 @@ export class ReachOut {
 		}
 	}
 
+	/**
+	 * A time it said it would get back to the owner. Outside the quiet, hours and
+	 * chance rules above — the owner named the time — but it may still pass.
+	 */
+	async tickPlan(): Promise<"skip" | "pass" | "sent" | "failed" | "dropped"> {
+		const plan = loadPlan();
+		if (!plan || this.busy) return "skip";
+		this.busy = true;
+		try {
+			const now = this.now();
+			const recent = latestMessages(200);
+			const lastFromOwner = recent.find((m) => m.role === "user") ?? null;
+			const state = planState(plan, now, lastFromOwner);
+			if (state === "wait") return "skip";
+			if (state === "drop") {
+				clearPlan();
+				return "dropped";
+			}
+			const last = recent[0];
+			const silenceMs = last ? now.getTime() - last.createdAt.getTime() : 0;
+			const draft = await this.deps.draft(silenceMs, plan);
+			if (!draft) {
+				clearPlan();
+				this.info("[reach-out] planned check-in; nothing to say after all");
+				return "pass";
+			}
+			// A failed send keeps the plan, so the next minute retries until it's stale.
+			const kind = await this.deps.send(draft);
+			if (!kind) return "failed";
+			clearPlan();
+			this.deps.log(draft, kind);
+			setSetting(LAST_SENT, String(this.now().getTime()));
+			this.info(`[reach-out] wrote at the planned time (${kind})`);
+			return "sent";
+		} catch (err) {
+			this.info(`[reach-out] error: ${(err as Error).message}`);
+			return "failed";
+		} finally {
+			this.busy = false;
+		}
+	}
+
 	start(): void {
 		if (this.timer) return;
 		this.timer = setInterval(() => void this.tick(), TICK_MS);
+		this.planTimer = setInterval(() => void this.tickPlan(), PLAN_TICK_MS);
 	}
 
 	stop(): void {
 		if (this.timer) clearInterval(this.timer);
+		if (this.planTimer) clearInterval(this.planTimer);
 		this.timer = null;
+		this.planTimer = null;
 	}
 }
