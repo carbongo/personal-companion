@@ -3,6 +3,20 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
+## 2026-10-17 (later)
+
+**Writing first, a model for memory upkeep, and digests in the web UI.**
+
+- **Writing first** ([reach-out.md](./reach-out.md)): opt-in `REACH_OUT`; after
+  `REACH_OUT_AFTER_HOURS` of quiet, inside `REACH_OUT_HOURS`, the companion may message over
+  Telegram — only with a real reason, never twice unanswered, optionally as a voice note.
+  A day it opens shows `[you messaged first]` in history instead of dropping its message.
+- **`MEMORY_MODEL`** ([memory.md](./memory.md#model-for-memory-upkeep)): all memory upkeep
+  through `memory/generate.ts`, on a cheaper model if set.
+- **Web UI:** Memory page lists week/month digests (edit, or rewrite from their days) via
+  `GET/PUT/DELETE /api/digests`; new settings for digests, weeks/months recalled, memory
+  model, and a "Writing first" card under Channels.
+
 ## 2026-10-17
 
 **Time sense, week/month digests, and a pre-push leak gate.**

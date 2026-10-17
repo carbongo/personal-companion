@@ -20,6 +20,7 @@ Pages cross-link each other and use flat, descriptive names (no number prefixes)
 - [channels](./channels.md) — Telegram and the built-in web chat
 - [memory](./memory.md) — Core, saved memories, daily summaries, week/month digests, the roll-up
 - [time-sense](./time-sense.md) — how gaps between conversations are measured and shown
+- [reach-out](./reach-out.md) — the companion messaging first: when, what, and how
 - [conversation-dynamics](./conversation-dynamics.md) — how it lets a topic go, and its own interests
 - [web-access](./web-access.md) — the bounded `<search>`/`<fetch>` egress
 - [security](./security.md) — auth, allowlists, the SSRF guard, privacy posture

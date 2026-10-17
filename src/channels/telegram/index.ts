@@ -10,7 +10,11 @@ import { Bot, type Context, InputFile } from "grammy";
 
 import { sttConfigured, transcribe } from "#/channels/stt.ts";
 import { synthesize, ttsConfigured } from "#/channels/tts.ts";
-import { respond, type Turn } from "#/companion-core/engine.ts";
+import {
+	type ReachOutDraft,
+	respond,
+	type Turn,
+} from "#/companion-core/engine.ts";
 import { saveUpload } from "#/companion-core/media.ts";
 import { sanitizeForSpeech } from "#/companion-core/speak.ts";
 import { config } from "#/config/index.ts";
@@ -23,6 +27,21 @@ const TYPING_REFRESH_MS = 4000;
 const SEND_GAP_MS = 600;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+type Outbound = (draft: ReachOutDraft) => Promise<"text" | "voice" | null>;
+/** Set once the bot is running; how a message the companion wrote first goes out. */
+let outbound: Outbound | null = null;
+
+/**
+ * Deliver a message the companion decided to send first (see
+ * companion-core/reach-out.ts) to the owner's private chat. Resolves to how it
+ * went out, or null when Telegram isn't running or the send failed.
+ */
+export function sendToOwner(
+	draft: ReachOutDraft,
+): Promise<"text" | "voice" | null> {
+	return outbound ? outbound(draft) : Promise.resolve(null);
+}
 
 /** Whether the Telegram channel is switched on (a bot token is present). */
 export function telegramConfigured(): boolean {
@@ -119,6 +138,37 @@ export function startTelegram(): void {
 		}
 	}
 
+	/** Send split text the way a reply goes out, with a typed feel between parts. */
+	async function sendText(chatId: number, text: string): Promise<void> {
+		const parts = splitReply(text, { paragraphs: config.telegram.replySplit });
+		for (const [i, part] of parts.entries()) {
+			await bot.api.sendMessage(chatId, part);
+			if (i < parts.length - 1) await sleep(SEND_GAP_MS);
+		}
+	}
+
+	// A private chat's id is the user's id, so the first allowlisted user is the
+	// owner's chat. Nothing is sent anywhere else, ever.
+	const ownerChat = config.telegram.allowedUserIds[0];
+	outbound = async (draft) => {
+		if (ownerChat == null) return null;
+		try {
+			if (draft.spoken && (await trySendVoice(ownerChat, draft.text)))
+				return "voice";
+			const stopTyping = startAction(ownerChat, "typing");
+			await sleep(1500);
+			stopTyping();
+			await sendText(ownerChat, draft.text);
+			return "text";
+		} catch (err) {
+			console.error(
+				"[telegram] reach-out send failed:",
+				(err as Error).message,
+			);
+			return null;
+		}
+	};
+
 	async function handleBatch(
 		chatId: number,
 		items: BatchItem[],
@@ -140,17 +190,13 @@ export function startTelegram(): void {
 			if (spoken && ttsConfigured() && (await trySendVoice(chatId, reply)))
 				return;
 
-			const parts = splitReply(reply, {
-				paragraphs: config.telegram.replySplit,
-			});
-			if (!parts.length) {
+			if (
+				!splitReply(reply, { paragraphs: config.telegram.replySplit }).length
+			) {
 				await bot.api.sendMessage(chatId, "…");
 				return;
 			}
-			for (const [i, part] of parts.entries()) {
-				await bot.api.sendMessage(chatId, part);
-				if (i < parts.length - 1) await sleep(SEND_GAP_MS);
-			}
+			await sendText(chatId, reply);
 		} catch (err) {
 			console.error("[telegram] respond failed:", (err as Error).message);
 			await bot.api

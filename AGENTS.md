@@ -84,6 +84,7 @@ docs/
   channels.md        Telegram + the built-in web chat
   memory.md          Core, memories, daily summaries, week/month digests, roll-up
   time-sense.md      gaps between conversations: markers, the "time apart" note
+  reach-out.md       the companion messaging first (opt-in, Telegram)
   conversation-dynamics.md
                      letting a topic go: the computed per-turn read, the movement
                      rules, and the companion's own interests

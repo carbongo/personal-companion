@@ -12,10 +12,15 @@ import { Hono } from "hono";
 
 import { discordConfigured, startDiscord } from "#/channels/discord/index.ts";
 import {
+	sendToOwner,
 	startTelegram,
 	telegramConfigured,
 } from "#/channels/telegram/index.ts";
-import { companionConfigured } from "#/companion-core/engine.ts";
+import {
+	companionConfigured,
+	draftReachOut,
+	logReachOut,
+} from "#/companion-core/engine.ts";
 import {
 	backfillPastDays,
 	backfillWeeklyConsolidation,
@@ -23,6 +28,7 @@ import {
 	runWeeklyConsolidation,
 } from "#/companion-core/memory/rollup.ts";
 import { RollupScheduler } from "#/companion-core/memory/scheduler.ts";
+import { ReachOut } from "#/companion-core/reach-out.ts";
 import { config } from "#/config/index.ts";
 import "#/db/index.ts"; // open + migrate the database on boot
 import { provider } from "#/llm/index.ts";
@@ -94,6 +100,22 @@ if (companionConfigured()) {
 	);
 } else {
 	console.log("[companion] roll-up scheduler: off (no model configured)");
+}
+
+// Writing first — opt-in, and only over a channel that can reach the owner on
+// its own (Telegram; the web chat has nobody to push to).
+if (config.reachOut.enabled && telegramConfigured() && companionConfigured()) {
+	new ReachOut({
+		draft: draftReachOut,
+		send: sendToOwner,
+		log: logReachOut,
+		info: (m) => console.log(m),
+	}).start();
+	console.log(
+		`[companion] reach-out: on (after ${config.reachOut.afterHours}h quiet, hours ${config.reachOut.hours} ${config.app.timezone})`,
+	);
+} else if (config.reachOut.enabled) {
+	console.log("[companion] reach-out: off (needs Telegram and a model)");
 }
 
 const port = config.app.port;

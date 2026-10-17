@@ -290,6 +290,15 @@ export interface CallConfig {
 	patienceMaxMs: number;
 }
 
+/** The companion messaging first. See docs/reach-out.md. */
+export interface ReachOutConfig {
+	enabled: boolean;
+	/** Local hours it may write in, "start-end" (24h, end exclusive), in TZ. */
+	hours: string;
+	/** How long the owner must have been quiet before it considers writing. */
+	afterHours: number;
+}
+
 export interface MemoryConfig {
 	contextDays: number;
 	/** Week digests that ride in context, covering the time before the days. */
@@ -298,6 +307,11 @@ export interface MemoryConfig {
 	contextMonths: number;
 	/** Whether finished weeks and months are compacted into digests at all. */
 	digests: boolean;
+	/**
+	 * Model for memory upkeep (summaries, reconciles, digests), on the same
+	 * provider as the conversation. Empty = the conversation's model.
+	 */
+	model: string;
 	memoryLimit: number;
 	summaryCron: string;
 	/**
@@ -352,6 +366,7 @@ export interface Config {
 	stt: SttConfig;
 	tts: TtsConfig;
 	memory: MemoryConfig;
+	reachOut: ReachOutConfig;
 	web: WebConfig;
 	weather: WeatherConfig;
 	persona: PersonaConfig;
@@ -465,12 +480,20 @@ export function loadConfig(): Config {
 			contextWeeks: num("MEMORY_CONTEXT_WEEKS", 4),
 			contextMonths: num("MEMORY_CONTEXT_MONTHS", 6),
 			digests: bool("MEMORY_DIGESTS", true),
+			model: str("MEMORY_MODEL", ""),
 			memoryLimit: num("MEMORY_LIMIT", 40),
 			summaryCron: str("MEMORY_SUMMARY_CRON", "55 23 * * *"),
 			rollupExtract: bool("MEMORY_ROLLUP_EXTRACT", true),
 			weekly: bool("MEMORY_WEEKLY", true),
 			// Monday 04:00 — after the week's last daily roll-up, a quiet hour.
 			weeklyCron: str("MEMORY_WEEKLY_CRON", "0 4 * * 1"),
+		},
+		// Off unless asked for: a companion that writes first is a choice the
+		// owner makes, not a default they discover.
+		reachOut: {
+			enabled: bool("REACH_OUT", false),
+			hours: str("REACH_OUT_HOURS", "10-21"),
+			afterHours: num("REACH_OUT_AFTER_HOURS", 24),
 		},
 		web: {
 			enabled: bool("WEB_ACCESS", true),

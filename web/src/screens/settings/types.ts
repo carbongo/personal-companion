@@ -95,6 +95,13 @@ export interface Form {
   memoryRollupExtract: boolean;
   memoryWeekly: boolean;
   memoryWeeklyCron: string;
+  memoryDigests: boolean;
+  memoryContextWeeks: number;
+  memoryContextMonths: number;
+  memoryModel: string;
+  reachOut: boolean;
+  reachOutHours: string;
+  reachOutAfterHours: number;
   // System
   timezone: string;
   dataDir: string;
@@ -192,6 +199,13 @@ export function formFromValues(v: SetupValues): Form {
     memoryRollupExtract: v.memoryRollupExtract,
     memoryWeekly: v.memoryWeekly,
     memoryWeeklyCron: v.memoryWeeklyCron,
+    memoryDigests: v.memoryDigests,
+    memoryContextWeeks: v.memoryContextWeeks,
+    memoryContextMonths: v.memoryContextMonths,
+    memoryModel: v.memoryModel,
+    reachOut: v.reachOut,
+    reachOutHours: v.reachOutHours,
+    reachOutAfterHours: v.reachOutAfterHours,
     timezone: v.timezone,
     dataDir: v.dataDir,
     port: v.port,
@@ -287,6 +301,13 @@ export function bodyFromForm(f: Form): Record<string, string> {
     memoryRollupExtract: b(f.memoryRollupExtract),
     memoryWeekly: b(f.memoryWeekly),
     memoryWeeklyCron: f.memoryWeeklyCron,
+    memoryDigests: b(f.memoryDigests),
+    memoryContextWeeks: s(f.memoryContextWeeks),
+    memoryContextMonths: s(f.memoryContextMonths),
+    memoryModel: f.memoryModel,
+    reachOut: b(f.reachOut),
+    reachOutHours: f.reachOutHours,
+    reachOutAfterHours: s(f.reachOutAfterHours),
     timezone: f.timezone,
     dataDir: f.dataDir,
     port: s(f.port),

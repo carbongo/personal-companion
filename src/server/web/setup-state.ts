@@ -56,6 +56,14 @@ export interface SetupValues {
 	memoryRollupExtract: boolean;
 	memoryWeekly: boolean;
 	memoryWeeklyCron: string;
+	memoryDigests: boolean;
+	memoryContextWeeks: number;
+	memoryContextMonths: number;
+	memoryModel: string;
+	// writing first
+	reachOut: boolean;
+	reachOutHours: string;
+	reachOutAfterHours: number;
 	// web access
 	webEnabled: boolean;
 	webSearchProvider: string;
@@ -152,6 +160,13 @@ export function currentSetupValues(): SetupValues {
 		memoryRollupExtract: config.memory.rollupExtract,
 		memoryWeekly: config.memory.weekly,
 		memoryWeeklyCron: config.memory.weeklyCron,
+		memoryDigests: config.memory.digests,
+		memoryContextWeeks: config.memory.contextWeeks,
+		memoryContextMonths: config.memory.contextMonths,
+		memoryModel: config.memory.model,
+		reachOut: config.reachOut.enabled,
+		reachOutHours: config.reachOut.hours,
+		reachOutAfterHours: config.reachOut.afterHours,
 		webEnabled: config.web.enabled,
 		webSearchProvider: config.web.searchProvider,
 		tavilyConfigured: !!config.web.tavilyKey,

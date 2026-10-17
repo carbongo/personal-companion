@@ -346,6 +346,13 @@ export function upsertDigest(
 		.run();
 }
 
+/** Drop a digest; the next roll-up run writes it afresh from its days. */
+export function deleteDigest(kind: Digest["kind"], start: string): void {
+	db.delete(digests)
+		.where(and(eq(digests.kind, kind), eq(digests.start, start)))
+		.run();
+}
+
 /** Every digest of a kind, newest first (a few dozen a year at most). */
 export function listDigests(kind: Digest["kind"]): Digest[] {
 	return db

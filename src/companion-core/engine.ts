@@ -8,6 +8,7 @@
  */
 import { synthesize, ttsConfigured } from "#/channels/tts.ts";
 import { config, resolveCallModel } from "#/config/index.ts";
+import type { Message } from "#/db/schema.ts";
 import {
 	createProvider,
 	type LLMProvider,
@@ -34,7 +35,7 @@ import {
 	stripSpeakTags,
 	wantsSpeak,
 } from "./speak.ts";
-import { markGaps } from "./time.ts";
+import { markGaps, spanLabel } from "./time.ts";
 import {
 	extractUrls,
 	extractWebRequests,
@@ -203,14 +204,10 @@ function webResultsMessage(results: string): string {
  * streaming and non-streaming paths. Handles history, the volatile context
  * header, and image/vision routing.
  */
-async function buildTurn(
-	turn: Turn,
-	day: string,
-): Promise<{ messages: ChatMessage[]; genOpts: GenerateOptions }> {
-	const owner = config.app.owner;
-	const history = messagesForDay(day);
-
-	const system = [
+/** What the companion is told, before it reads the day: who it is, how this
+ * works, and everything it remembers. */
+function buildSystem(): string {
+	return [
 		buildIdentity(),
 		buildInterests(),
 		buildOperating({
@@ -222,8 +219,15 @@ async function buildTurn(
 		.filter((s) => s.trim())
 		.join("\n\n")
 		.trim();
+}
 
-	const messages: ChatMessage[] = [{ role: "system", content: system }];
+/** Stands in for the owner's turn when the day opens with the companion's own
+ * message — it wrote first (see ./reach-out.ts). */
+export const WROTE_FIRST = "[you messaged first]";
+
+/** The system prompt plus the day so far, ready for the next user turn. */
+function buildHistory(history: Message[]): ChatMessage[] {
+	const messages: ChatMessage[] = [{ role: "system", content: buildSystem() }];
 	// A message that came after a pause carries a "[3 hours later]" marker, so a
 	// pause inside the day reads as one. Derived from timestamps on every turn and
 	// never stored, so the history the model sees stays deterministic.
@@ -236,9 +240,24 @@ async function buildTurn(
 	shown.forEach((m, i) => {
 		messages.push({ role: m.role, content: marked[i] ?? m.content });
 	});
-	// The first non-system message must be a user turn.
+	// The first non-system message must be a user turn. A whole day that opens
+	// with the companion's message is one it wrote first, and it has to stay
+	// visible — otherwise the owner's reply would answer something it can't see.
+	// A history cut by the limit just loses its leading assistant turns.
+	if (messages[1]?.role === "assistant" && shown.length === history.length)
+		messages.splice(1, 0, { role: "user", content: WROTE_FIRST });
 	while (messages.length > 1 && messages[1]?.role === "assistant")
 		messages.splice(1, 1);
+	return messages;
+}
+
+async function buildTurn(
+	turn: Turn,
+	day: string,
+): Promise<{ messages: ChatMessage[]; genOpts: GenerateOptions }> {
+	const owner = config.app.owner;
+	const history = messagesForDay(day);
+	const messages = buildHistory(history);
 
 	const volatile = await buildVolatile();
 	// The movement note rides on this turn only, like the volatile context — it
@@ -608,4 +627,68 @@ export async function respondClauses(
 	// A call is spoken by definition; what was *heard* is a separate question the
 	// session answers by truncating the stored reply after a barge-in.
 	return { reply, spoken: true, messageId: row?.id };
+}
+
+/** A message the companion decided to send first (see ./reach-out.ts). */
+export interface ReachOutDraft {
+	text: string;
+	/** It asked for this to be said out loud — sent as a voice note if it can be. */
+	spoken: boolean;
+}
+
+/** The reply that means "no real reason to write right now". */
+const PASS = /<pass\s*\/?>/i;
+
+function reachOutPrompt(silenceMs: number): string {
+	const owner = config.app.owner;
+	return `[a moment to yourself — nobody wrote to you; this is not ${owner}'s words]
+It's been ${spanLabel(silenceMs)} since you two last talked. You're deciding whether to message ${owner} first, the way a close friend sometimes does.
+
+Only write if there's a real reason you'd actually text them about right now: something they were going through or had coming up that should have happened by now (ask how it went), something you remember that today brushes against, something from what you're into that made you think of them, or simply that it's been long enough that you miss them. Not a check-in for its own sake, not a list of questions, not guilt about the quiet.
+
+If you write: one short message, the way you'd really text — a single thought, at most one question. If it's the kind of thing you'd rather say out loud, like a quick call, wrap it in <speak>…</speak> and it goes as a voice note.
+If there's no real reason right now, reply with exactly <pass/> and nothing else.
+[end]`;
+}
+
+/**
+ * Ask the companion whether it has a real reason to write first and, if so,
+ * what it would say. Nothing is stored here: the prompt is a private moment, not
+ * a turn, and the message only enters the log once a channel has delivered it
+ * (`logReachOut`). Returns null for a pass, or when the model is unreachable.
+ */
+export async function draftReachOut(
+	silenceMs: number,
+): Promise<ReachOutDraft | null> {
+	if (!(await provider.reachable())) return null;
+	const messages = buildHistory(messagesForDay(todayKey()));
+	const volatile = await buildVolatile();
+	messages.push({
+		role: "user",
+		content: `[context for you, not ${config.app.owner}'s words]\n${volatile}\n[end context]\n\n${reachOutPrompt(silenceMs)}`,
+	});
+	let raw: string;
+	try {
+		raw = await generate(alternate(messages), {});
+	} catch (err) {
+		if (err instanceof ProviderUnreachableError) return null;
+		throw err;
+	}
+	if (PASS.test(raw)) return null;
+	const text = commitActions(stripWebTags(raw));
+	if (!text) return null;
+	return { text, spoken: wantsSpeak(raw) && ttsConfigured() };
+}
+
+/** Log a delivered first message as the companion's turn — it really was said. */
+export function logReachOut(
+	draft: ReachOutDraft,
+	kind: "text" | "voice",
+): void {
+	appendMessage({
+		day: todayKey(),
+		role: "assistant",
+		kind,
+		content: draft.text,
+	});
 }

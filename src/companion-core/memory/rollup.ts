@@ -11,10 +11,11 @@
  */
 import { config } from "#/config/index.ts";
 import type { Memory, Message } from "#/db/schema.ts";
-import { ProviderUnreachableError, provider } from "#/llm/index.ts";
+import { ProviderUnreachableError } from "#/llm/index.ts";
 import { parseActions } from "../actions.ts";
 import { markGaps } from "../time.ts";
 import { compactPeriods } from "./digest.ts";
+import { memoryChat } from "./generate.ts";
 import {
 	addMemory,
 	confirmMemory,
@@ -63,7 +64,7 @@ export async function summarizeDay(
 	day: string,
 	messages: Message[],
 ): Promise<string> {
-	return provider.chat(
+	return memoryChat(
 		[
 			{ role: "system", content: summarySystem() },
 			{ role: "user", content: `Day ${day}:\n\n${transcriptOf(messages)}` },
@@ -181,7 +182,7 @@ export async function reconcileMemories(
 	messages: Message[],
 ): Promise<MemoryReconcile> {
 	const known = listMemories(DEDUP_SCAN);
-	const raw = await provider.chat(
+	const raw = await memoryChat(
 		[
 			{ role: "system", content: reconcileSystem(known) },
 			{ role: "user", content: `Day ${day}:\n\n${transcriptOf(messages)}` },
@@ -341,7 +342,7 @@ export async function weeklyConsolidate(): Promise<MemoryReconcile> {
 	const block = summaries
 		.map((s) => `### ${s.day}\n${s.summaryMd}`)
 		.join("\n\n");
-	const raw = await provider.chat(
+	const raw = await memoryChat(
 		[
 			{ role: "system", content: weeklySystem(known) },
 			{ role: "user", content: `This past week, day by day:\n\n${block}` },

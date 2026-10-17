@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Field, TextArea, Toggle } from "../../components/Field.tsx";
 import { Icon } from "../../components/Icon.tsx";
-import { api, type ChatMessage, type DailySummary, type Memory } from "../../lib/api.ts";
+import { api, type ChatMessage, type DailySummary, type Digest, type Memory } from "../../lib/api.ts";
 import { formatTime, renderMarkdown } from "../../lib/format.tsx";
 import { sfx } from "../../lib/sound.ts";
 import type { SectionProps } from "./types.ts";
@@ -88,6 +88,83 @@ function DayEntry({
   );
 }
 
+/** One week or month digest: read it, correct it by hand, or have it rewritten
+ *  from its days on the next roll-up. */
+function DigestEntry({
+  digest,
+  onSaved,
+  onRewrite,
+  toast,
+}: {
+  digest: Digest;
+  onSaved: (summary: string) => void;
+  onRewrite: () => void;
+  toast: SectionProps["toast"];
+}) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(digest.summary);
+  const [saving, setSaving] = useState(false);
+  const dirty = text.trim() !== digest.summary.trim();
+  const label = digest.kind === "month" ? digest.start.slice(0, 7) : `${digest.start} → ${digest.end}`;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.setDigest(digest, text);
+      onSaved(text.trim());
+      toast("Digest saved.", "ok");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const rewrite = async () => {
+    try {
+      await api.rewriteDigest(digest);
+      onRewrite();
+      toast("It'll be rewritten from its days on the next roll-up.", "ok");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-black/15">
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((o) => !o);
+          sfx.play("tap");
+        }}
+        className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left"
+      >
+        <span className="flex items-center gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-cyan/70">{digest.kind}</span>
+          <span className="font-mono text-[11px] uppercase tracking-wider text-amber/80">{label}</span>
+        </span>
+        <Icon name="chevron" size={15} className={`text-ink-faint transition ${open ? "rotate-90" : ""}`} />
+      </button>
+      {open && (
+        <div className="flex flex-col gap-2.5 px-3.5 pb-3.5">
+          <TextArea value={text} onChange={setText} rows={6} mono />
+          <div className="flex flex-wrap gap-2">
+            <button className="btn" onClick={save} disabled={!dirty || saving}>
+              <Icon name="check" size={16} />
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button className="btn ghost" onClick={rewrite}>
+              <Icon name="restart" size={16} />
+              Rewrite from its days
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function MemorySection({ form, set, toast }: SectionProps) {
   const [core, setCore] = useState("");
   const [coreDirty, setCoreDirty] = useState(false);
@@ -96,12 +173,14 @@ export function MemorySection({ form, set, toast }: SectionProps) {
   const [query, setQuery] = useState("");
   const [newMem, setNewMem] = useState("");
   const [summaries, setSummaries] = useState<DailySummary[]>([]);
+  const [digests, setDigests] = useState<Digest[]>([]);
   const [rolling, setRolling] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     api.getCore().then((r) => setCore(r.contentMd)).catch(() => {});
     api.summaries().then((r) => setSummaries(r.summaries)).catch(() => {});
+    api.digests().then((r) => setDigests(r.digests)).catch(() => {});
   }, []);
 
   const loadMemories = (q: string) =>
@@ -157,8 +236,9 @@ export function MemorySection({ form, set, toast }: SectionProps) {
     setRolling(true);
     try {
       const { summarized } = await api.rollup();
-      const r = await api.summaries();
+      const [r, d] = await Promise.all([api.summaries(), api.digests()]);
       setSummaries(r.summaries);
+      setDigests(d.digests);
       toast(summarized ? `Chronicled ${summarized} day(s).` : "Nothing new to chronicle.", "ok");
     } catch (e) {
       toast((e as Error).message, "error");
@@ -280,6 +360,42 @@ export function MemorySection({ form, set, toast }: SectionProps) {
           </div>
         </Card>
 
+        <Card title="Weeks & months — the long view">
+          <p className="-mt-1 text-[12.5px] leading-relaxed text-ink-faint">
+            Once a week or month is over, its days are compacted again into a few specifics — names,
+            dates, decisions, what was still unresolved. Older time rides along as these instead of as
+            days. Edit one by hand, or have it rewritten from its days on the next roll-up.
+          </p>
+          <ToggleRow
+            title="Compact weeks and months"
+            desc="Off: no new digests are written and none ride in context; past days stay as daily summaries only."
+          >
+            <Toggle checked={form.memoryDigests} onChange={(v) => set("memoryDigests", v)} />
+          </ToggleRow>
+          <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto pr-1">
+            {digests.length === 0 && (
+              <div className="py-4 text-center text-[13px] text-ink-faint">
+                No finished weeks or months yet.
+              </div>
+            )}
+            {digests.map((d) => (
+              <DigestEntry
+                key={`${d.kind}:${d.start}`}
+                digest={d}
+                toast={toast}
+                onSaved={(summary) =>
+                  setDigests((all) =>
+                    all.map((x) => (x.kind === d.kind && x.start === d.start ? { ...x, summary } : x)),
+                  )
+                }
+                onRewrite={() =>
+                  setDigests((all) => all.filter((x) => !(x.kind === d.kind && x.start === d.start)))
+                }
+              />
+            ))}
+          </div>
+        </Card>
+
         <Card title="Tuning">
           <Grid>
             <Field
@@ -296,7 +412,29 @@ export function MemorySection({ form, set, toast }: SectionProps) {
               inputMode="numeric"
               mono
             />
+            <Field
+              label="Weeks recalled"
+              value={String(form.memoryContextWeeks)}
+              onChange={(v) => set("memoryContextWeeks", Number(v) || 0)}
+              inputMode="numeric"
+              mono
+            />
+            <Field
+              label="Months recalled"
+              value={String(form.memoryContextMonths)}
+              onChange={(v) => set("memoryContextMonths", Number(v) || 0)}
+              inputMode="numeric"
+              mono
+            />
           </Grid>
+          <Field
+            label="Model for memory upkeep"
+            value={form.memoryModel}
+            onChange={(v) => set("memoryModel", v)}
+            placeholder="(same as the conversation)"
+            mono
+            help="Summaries, digests and memory edits are background work, so they can run on a smaller, cheaper model on the same provider (e.g. a fast alias). Empty uses the conversation's model."
+          />
           <Field
             label="Nightly roll-up schedule (cron)"
             value={form.memorySummaryCron}

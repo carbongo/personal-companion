@@ -23,16 +23,20 @@ import {
 import { runDailyRollup } from "#/companion-core/memory/rollup.ts";
 import {
 	addMemory,
+	deleteDigest,
 	deleteMemory,
 	distinctMessageDays,
 	getCore,
+	getDigest,
 	listDailySummaries,
+	listDigests,
 	messagesForDay,
 	searchMemories,
 	setCore,
 	setMessageMedia,
 	setSetting,
 	todayKey,
+	upsertDigest,
 } from "#/companion-core/memory/store.ts";
 import {
 	config,
@@ -106,6 +110,14 @@ interface SetupBody {
 	memoryRollupExtract?: string;
 	memoryWeekly?: string;
 	memoryWeeklyCron?: string;
+	memoryDigests?: string;
+	memoryContextWeeks?: string;
+	memoryContextMonths?: string;
+	memoryModel?: string;
+	// writing first
+	reachOut?: string;
+	reachOutHours?: string;
+	reachOutAfterHours?: string;
 	// web access
 	webEnabled?: string;
 	webSearchProvider?: string;
@@ -455,6 +467,44 @@ api.get("/summaries", (c) =>
 	}),
 );
 
+// Week and month digests (see docs/memory.md): read, hand-edit, or drop one so
+// the next roll-up run rewrites it from its days.
+const isKind = (k: string): k is "week" | "month" =>
+	k === "week" || k === "month";
+
+api.get("/digests", (c) =>
+	c.json({
+		digests: [...listDigests("month"), ...listDigests("week")]
+			.sort((a, b) => b.start.localeCompare(a.start))
+			.map((d) => ({
+				kind: d.kind,
+				start: d.start,
+				end: d.end,
+				summary: d.summaryMd,
+				createdAt: d.createdAt,
+			})),
+	}),
+);
+
+api.put("/digests/:kind/:start", async (c) => {
+	const kind = c.req.param("kind");
+	const start = c.req.param("start");
+	const existing = isKind(kind) ? getDigest(kind, start) : null;
+	if (!existing) return c.json({ error: "no such digest" }, 404);
+	const body = (await c.req.json().catch(() => ({}))) as { summary?: string };
+	const summary = body.summary?.trim();
+	if (!summary) return c.json({ error: "summary is required" }, 400);
+	upsertDigest(existing.kind, existing.start, existing.end, summary);
+	return c.json({ ok: true });
+});
+
+api.delete("/digests/:kind/:start", (c) => {
+	const kind = c.req.param("kind");
+	if (!isKind(kind)) return c.json({ error: "no such digest" }, 404);
+	deleteDigest(kind, c.req.param("start"));
+	return c.json({ ok: true });
+});
+
 api.post("/rollup", async (c) => {
 	try {
 		const summarized = await runDailyRollup();
@@ -555,6 +605,13 @@ api.post("/setup", async (c) => {
 		MEMORY_ROLLUP_EXTRACT: opt(b.memoryRollupExtract),
 		MEMORY_WEEKLY: opt(b.memoryWeekly),
 		MEMORY_WEEKLY_CRON: opt(b.memoryWeeklyCron),
+		MEMORY_DIGESTS: opt(b.memoryDigests),
+		MEMORY_CONTEXT_WEEKS: opt(b.memoryContextWeeks),
+		MEMORY_CONTEXT_MONTHS: opt(b.memoryContextMonths),
+		MEMORY_MODEL: opt(b.memoryModel),
+		REACH_OUT: opt(b.reachOut),
+		REACH_OUT_HOURS: opt(b.reachOutHours),
+		REACH_OUT_AFTER_HOURS: opt(b.reachOutAfterHours),
 		WEB_ACCESS: opt(b.webEnabled),
 		WEB_SEARCH_PROVIDER: opt(b.webSearchProvider),
 		WEB_STEPS: opt(b.webSteps),

@@ -51,7 +51,14 @@ people, places, numbers, dates, decisions, outcomes, what was still unresolved â
 mood and filler. In context, `selectDigests` walks back from the oldest daily summary: up to
 `MEMORY_CONTEXT_WEEKS` weeks (continuing to the next month boundary so a month never
 overlaps them by more than a few days), then up to `MEMORY_CONTEXT_MONTHS` months.
-`MEMORY_DIGESTS=false` turns it off. Not shown in the web UI yet.
+`MEMORY_DIGESTS=false` turns it off. The web UI's Memory page lists them; edit one, or
+"rewrite" it (deletes it, so the next roll-up run writes it afresh).
+
+## Model for memory upkeep
+
+`MEMORY_MODEL` runs every summary, reconcile, weekly pass and digest on a different model of
+the same provider (e.g. `haiku` under `claude-cli`) via `memory/generate.ts`; empty = the
+conversation's model.
 
 ## The nightly roll-up
 
