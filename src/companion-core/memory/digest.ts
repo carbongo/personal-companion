@@ -91,14 +91,14 @@ function digestSystem(kind: Digest["kind"]): string {
 	const span = kind === "week" ? "week" : "month";
 	const size =
 		kind === "week"
-			? "3 to 6 tight bullets"
-			: "the 3 to 5 things from this month that still matter, as tight bullets";
+			? "at most 5 bullets"
+			: "at most 5 bullets — only the things from this month that still matter";
 	return `You are ${name}. Below are your own daily summaries of one ${span} with ${owner}. Compact them into the few things worth still knowing about this ${span} months from now — the way a close friend actually remembers a stretch of someone's life: by its specifics, not its mood.
 
 Keep: names of people and places, numbers, dates, what was decided or done, what changed in ${owner}'s life, how something that was ongoing turned out, and anything still unresolved at the ${span}'s end (say plainly that it was unresolved as of then).
 Drop: greetings, generic feelings ("was tired", "felt stressed") unless they were a real turning point, anything that repeated without changing, small talk, and anything the summaries only guessed at.
 
-Use real calendar dates, never "today" or "next week". Write ${size}, in your own voice, for yourself. No preamble, no sign-off.`;
+Use real calendar dates, never "today" or "next week". Write ${size}, each one short sentence of plain facts (under 25 words), in your own voice, for yourself. No headings, no bold, no preamble, no sign-off.`;
 }
 
 async function writeDigest(
@@ -116,7 +116,7 @@ async function writeDigest(
 				content: `The ${p.kind} of ${p.start} to ${p.end}:\n\n${block}`,
 			},
 		],
-		{ think: false, maxTokens: p.kind === "week" ? 400 : 500 },
+		{ think: false, maxTokens: 300 },
 	);
 }
 
