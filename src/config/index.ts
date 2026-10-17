@@ -292,6 +292,12 @@ export interface CallConfig {
 
 export interface MemoryConfig {
 	contextDays: number;
+	/** Week digests that ride in context, covering the time before the days. */
+	contextWeeks: number;
+	/** Month digests that ride in context, covering the time before the weeks. */
+	contextMonths: number;
+	/** Whether finished weeks and months are compacted into digests at all. */
+	digests: boolean;
 	memoryLimit: number;
 	summaryCron: string;
 	/**
@@ -456,6 +462,9 @@ export function loadConfig(): Config {
 		},
 		memory: {
 			contextDays: num("MEMORY_CONTEXT_DAYS", 7),
+			contextWeeks: num("MEMORY_CONTEXT_WEEKS", 4),
+			contextMonths: num("MEMORY_CONTEXT_MONTHS", 6),
+			digests: bool("MEMORY_DIGESTS", true),
 			memoryLimit: num("MEMORY_LIMIT", 40),
 			summaryCron: str("MEMORY_SUMMARY_CRON", "55 23 * * *"),
 			rollupExtract: bool("MEMORY_ROLLUP_EXTRACT", true),

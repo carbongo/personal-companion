@@ -15,6 +15,13 @@
 			"when": 1782367430897,
 			"tag": "0001_dazzling_master_mold",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1792202165547,
+			"tag": "0002_light_dexter_bennett",
+			"breakpoints": true
 		}
 	]
 }

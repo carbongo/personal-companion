@@ -22,7 +22,9 @@
 		"lint": "biome lint .",
 		"format": "biome format --write .",
 		"check": "biome check .",
-		"test": "bun test"
+		"test": "bun test",
+		"leakscan": "scripts/leakscan.sh",
+		"hooks": "git config core.hooksPath .githooks"
 	},
 	"dependencies": {
 		"@discordjs/voice": "^0.19.2",

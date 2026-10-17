@@ -13,12 +13,17 @@ import { config } from "#/config/index.ts";
 import type { Memory, Message } from "#/db/schema.ts";
 import { ProviderUnreachableError, provider } from "#/llm/index.ts";
 import { parseActions } from "../actions.ts";
+import { markGaps } from "../time.ts";
+import { compactPeriods } from "./digest.ts";
 import {
 	addMemory,
+	confirmMemory,
+	dayKey,
 	distinctMessageDays,
 	forgetMemory,
 	getDailySummary,
 	getSetting,
+	lastMessageBefore,
 	listDailySummaries,
 	listMemories,
 	messagesForDay,
@@ -27,21 +32,30 @@ import {
 	upsertDailySummary,
 } from "./store.ts";
 
-/** Render a day's messages the way both the summary and extraction prompts read. */
+/**
+ * Render a day's messages the way both the summary and extraction prompts read,
+ * with the same "[3 hours later]" markers the live conversation shows — so a
+ * day that reopened after a long silence is summarized as one.
+ */
 function transcriptOf(messages: Message[]): string {
+	const first = messages[0];
+	const marked = markGaps(
+		messages,
+		first ? lastMessageBefore(first.createdAt) : null,
+	);
 	return messages
-		.map((m) => {
+		.map((m, i) => {
 			const who = m.role === "user" ? config.app.owner : "You";
 			const tag =
 				m.kind === "voice" ? " (voice)" : m.kind === "photo" ? " (photo)" : "";
-			return `${who}${tag}: ${m.content}`;
+			return `${who}${tag}: ${marked[i] ?? m.content}`;
 		})
 		.join("\n");
 }
 
 function summarySystem(): string {
 	const { name, owner } = config.app;
-	return `You are ${name}. Compress this one day of conversation with ${owner} into a short, durable summary you will read on later days to remember what happened between you. Capture, only where the day actually touched them: the state of the two of you and ${owner}'s mood; anything active (projects, work, plans); decisions made; genuinely open threads or promises either of you left hanging; and small details worth holding. A topic ${owner} simply stopped answering is closed, not open — don't carry it forward as a loose end for you to pick at tomorrow. Write it for yourself, in your own voice, tight and concrete. A few short paragraphs or tight bullets. No preamble, no sign-off.`;
+	return `You are ${name}. Compress this one day of conversation with ${owner} into a short, durable summary you will read on later days to remember what happened between you. Remember it the way a close friend would: by its specifics — who, where, what exactly, the numbers and dates, what was decided, what changed — not by its mood. Capture, only where the day actually touched them: what's going on in ${owner}'s life and what moved today; plans with their real dates; decisions; genuinely open threads or promises either of you left hanging; and the small concrete details worth holding. A feeling earns a line only when it was the point of the day. If the day came after a long time apart (a "[… later]" marker), say so in one line. A topic ${owner} simply stopped answering is closed, not open — don't carry it forward as a loose end for you to pick at tomorrow. Write it for yourself, in your own voice. Tight bullets, as few as the day needs. No preamble, no sign-off.`;
 }
 
 /** Summarize one day's messages into a compact conclusion. */
@@ -68,10 +82,16 @@ const DEDUP_SCAN = 500;
 /** Loose key for de-duplication: case- and whitespace-insensitive. */
 const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, " ").trim();
 
+/** A saved memory as the roll-up prompts list it: the fact and how fresh it is. */
+function memoryLine(m: Memory): string {
+	const asOf = dayKey(m.confirmedAt ?? m.createdAt, config.app.timezone);
+	return `- ${m.content}  (as of ${asOf})`;
+}
+
 export function reconcileSystem(known: Memory[]): string {
 	const { name, owner } = config.app;
 	const knownList = known.length
-		? known.map((m) => `- ${m.content}`).join("\n")
+		? known.map(memoryLine).join("\n")
 		: "(nothing saved yet)";
 	return `You are ${name}. Read this one day of conversation with ${owner} and bring your long-term memory up to date. Be a careful editor, not a hoarder: keep a small set of solid, lasting facts — and keep them correct.
 
@@ -84,13 +104,15 @@ Otherwise, what belongs in memory is durable facts that stay true for weeks or m
 
 What does NOT belong — leave these out (the daily summary already holds them): passing moods and feelings, one-off events ("slept well last night", "had a bad run"), anything tied only to today or "right now", and anything you are merely inferring.
 
-Two jobs:
+Three jobs:
 1. ADD a fact when ${owner} asked you to keep it, or when it is clearly durable, genuinely new, and not already covered above. When in doubt on an unrequested fact, leave it out — a short, true memory set beats a long, noisy one.
-2. EDIT what is already there. If the day shows a saved memory is wrong, imprecise, out of date, or too vague — even subtly — drop it, and when there is a better version save the corrected one. Editing means: forget the old wording AND remember the sharper one. Prefer fixing a memory over saving a near-duplicate beside it.
+2. EDIT what is already there. If the day shows a saved memory is wrong, imprecise, out of date, or too vague — even subtly — drop it, and when there is a better version save the corrected one. Editing means: forget the old wording AND remember the sharper one. Prefer fixing a memory over saving a near-duplicate beside it. A plan or situation that has since resolved (the move happened, the exam is over) is out of date: replace it with how it turned out.
+3. CONFIRM what still holds. If the day clearly shows a saved memory is still true — ${owner} said so, or it plainly came up as current — keep it, so its date moves forward. Only for real evidence from the day, not for things that merely weren't contradicted.
 
 Reply using ONLY these tags, each on its own line, and nothing else:
 <remember>a fact to keep, one short standalone sentence</remember>
 <forget>the exact wording of a saved memory above to drop</forget>
+<keep>the exact wording of a saved memory above that the day showed is still true</keep>
 
 Phrase facts plainly and precisely (e.g. "<remember>${owner} works at a school as a software developer</remember>"). Turn any relative dates into real calendar dates using the day's date. Watch for nuance: if ${owner} ran at night once because they had to but normally runs in the morning, do not keep "runs at night" — forget it and save that they usually run in the morning. If there is nothing to add or change, reply with nothing at all.`;
 }
@@ -100,6 +122,8 @@ export interface MemoryReconcile {
 	saved: string[];
 	/** The wording of memories that were dropped. */
 	forgotten: string[];
+	/** The wording of memories re-confirmed as still true. */
+	confirmed: string[];
 }
 
 /**
@@ -121,12 +145,23 @@ export interface MemoryReconcile {
  * the stale one it replaces. `cap` bounds each direction so a degenerate reply
  * can't flood or gut memory. Shared by the daily and weekly passes.
  */
-function applyReconcile(raw: string, cap: number): MemoryReconcile {
-	const { remember, forget } = parseActions(raw);
+function applyReconcile(
+	raw: string,
+	cap: number,
+	confirmedAt?: Date,
+): MemoryReconcile {
+	const { remember, forget, keep } = parseActions(raw);
 
 	const forgotten: string[] = [];
 	for (const query of forget.slice(0, cap))
 		for (const m of forgetMemory(query)) forgotten.push(m.content);
+
+	// Confirmations only move a date forward, so they aren't capped like edits.
+	const confirmed: string[] = [];
+	if (confirmedAt)
+		for (const query of keep)
+			for (const m of confirmMemory(query, confirmedAt))
+				confirmed.push(m.content);
 
 	const seen = new Set(listMemories(DEDUP_SCAN).map((m) => norm(m.content)));
 	const saved: string[] = [];
@@ -138,7 +173,7 @@ function applyReconcile(raw: string, cap: number): MemoryReconcile {
 		saved.push(fact);
 		if (saved.length >= cap) break;
 	}
-	return { saved, forgotten };
+	return { saved, forgotten, confirmed };
 }
 
 export async function reconcileMemories(
@@ -153,7 +188,9 @@ export async function reconcileMemories(
 		],
 		{ think: false, maxTokens: 512 },
 	);
-	return applyReconcile(raw, MAX_CHANGES_PER_DAY);
+	// A memory the day re-confirmed is true as of that day, not as of whenever the
+	// roll-up happens to run (a backfilled day is often days old).
+	return applyReconcile(raw, MAX_CHANGES_PER_DAY, messages.at(-1)?.createdAt);
 }
 
 /**
@@ -210,6 +247,16 @@ async function rollup(includeToday: boolean): Promise<number> {
 		}
 	}
 	if (done) console.log(`[companion] roll-up summarized ${done} day(s)`);
+	// Then compact any week or month that has finished into its digest. Isolated
+	// like the reconcile: it reads summaries already saved and never undoes them.
+	try {
+		await compactPeriods();
+	} catch (err) {
+		console.error(
+			"[companion] digest compaction failed:",
+			(err as Error).message,
+		);
+	}
 	return done;
 }
 
@@ -245,7 +292,7 @@ const MAX_CHANGES_PER_WEEK = 20;
 function weeklySystem(known: Memory[]): string {
 	const { name, owner } = config.app;
 	const knownList = known.length
-		? known.map((m) => `- ${m.content}`).join("\n")
+		? known.map(memoryLine).join("\n")
 		: "(nothing saved yet)";
 	return `You are ${name}. Step back over this past week with ${owner} — you'll see your own daily summaries for it below — and tidy your long-term memory. You are not logging new events here; you are looking across the whole week for what's consistent, and keeping your memory sharp and true. Be conservative: change something only when the week clearly shows a reason.
 
@@ -289,7 +336,7 @@ export function weeklyDue(): boolean {
  */
 export async function weeklyConsolidate(): Promise<MemoryReconcile> {
 	const summaries = listDailySummaries(WEEKLY_WINDOW_DAYS).slice().reverse();
-	if (!summaries.length) return { saved: [], forgotten: [] };
+	if (!summaries.length) return { saved: [], forgotten: [], confirmed: [] };
 	const known = listMemories(DEDUP_SCAN);
 	const block = summaries
 		.map((s) => `### ${s.day}\n${s.summaryMd}`)

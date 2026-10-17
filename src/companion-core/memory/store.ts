@@ -3,14 +3,16 @@
  * discrete memories, daily summaries, and a small settings key/value store. All
  * reads/writes go through here. See docs/memory.md.
  */
-import { asc, desc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt, lte, sql } from "drizzle-orm";
 
 import { config } from "#/config/index.ts";
 import { db } from "#/db/index.ts";
 import {
 	core,
 	type DailySummary,
+	type Digest,
 	dailySummaries,
+	digests,
 	type Memory,
 	type Message,
 	memories,
@@ -100,6 +102,29 @@ export function messagesForDay(day: string): Message[] {
 		.all();
 }
 
+/** The newest messages across all days, newest first. */
+export function latestMessages(limit: number): Message[] {
+	return db
+		.select()
+		.from(messages)
+		.orderBy(desc(messages.createdAt), desc(messages.id))
+		.limit(limit)
+		.all();
+}
+
+/** The last message logged strictly before `at`, if any. */
+export function lastMessageBefore(at: Date): Message | null {
+	return (
+		db
+			.select()
+			.from(messages)
+			.where(lt(messages.createdAt, at))
+			.orderBy(desc(messages.createdAt), desc(messages.id))
+			.limit(1)
+			.get() ?? null
+	);
+}
+
 /** Distinct days that have messages, oldest first. */
 export function distinctMessageDays(): string[] {
 	return db
@@ -150,23 +175,19 @@ const wordsOf = (s: string): Set<string> =>
 	);
 
 /**
- * Forget memories matching `query`, deleting and returning them. Conservative on
- * purpose so the companion can act on "forget that" without nuking the wrong
- * thing: an exact (case-insensitive) match wins and removes all such rows;
- * otherwise the single closest memory is removed — one that contains (or is
- * contained by) the query, or, failing that, one with strong word overlap
- * (≥60%). Returns [] when nothing matches closely enough.
+ * The memories `query` refers to. Conservative on purpose, so acting on "forget
+ * that" never touches the wrong thing: an exact (case-insensitive) match wins
+ * and returns all such rows; otherwise the single closest memory — one that
+ * contains (or is contained by) the query, or, failing that, one with strong
+ * word overlap (≥60%). Returns [] when nothing matches closely enough.
  */
-export function forgetMemory(query: string): Memory[] {
+function matchMemories(query: string): Memory[] {
 	const q = query.trim().toLowerCase();
 	if (!q) return [];
 	const all = listMemories(500);
 
 	const exact = all.filter((m) => m.content.trim().toLowerCase() === q);
-	if (exact.length) {
-		for (const m of exact) deleteMemory(m.id);
-		return exact;
-	}
+	if (exact.length) return exact;
 
 	const subs = all
 		.filter((m) => {
@@ -178,10 +199,7 @@ export function forgetMemory(query: string): Memory[] {
 				Math.abs(a.content.length - query.length) -
 				Math.abs(b.content.length - query.length),
 		);
-	if (subs[0]) {
-		deleteMemory(subs[0].id);
-		return [subs[0]];
-	}
+	if (subs[0]) return [subs[0]];
 
 	const qWords = wordsOf(q);
 	if (qWords.size) {
@@ -197,12 +215,31 @@ export function forgetMemory(query: string): Memory[] {
 				best = m;
 			}
 		}
-		if (best && bestScore >= 0.6) {
-			deleteMemory(best.id);
-			return [best];
-		}
+		if (best && bestScore >= 0.6) return [best];
 	}
 	return [];
+}
+
+/** Forget the memories `query` refers to (see `matchMemories`), returning them. */
+export function forgetMemory(query: string): Memory[] {
+	const found = matchMemories(query);
+	for (const m of found) deleteMemory(m.id);
+	return found;
+}
+
+/**
+ * Mark the memories `query` refers to as still true as of `at`. A fact the owner
+ * re-confirmed after time apart is worth trusting again; one nobody has touched
+ * in months is worth checking.
+ */
+export function confirmMemory(query: string, at: Date = new Date()): Memory[] {
+	const found = matchMemories(query);
+	for (const m of found)
+		db.update(memories)
+			.set({ confirmedAt: at })
+			.where(eq(memories.id, m.id))
+			.run();
+	return found;
 }
 
 export function listMemories(limit = 200): Memory[] {
@@ -270,6 +307,53 @@ export function recentSummariesBefore(
 		.limit(limit)
 		.all()
 		.reverse();
+}
+
+/** Daily summaries for days in [start, end], oldest first. */
+export function summariesBetween(start: string, end: string): DailySummary[] {
+	return db
+		.select()
+		.from(dailySummaries)
+		.where(and(gte(dailySummaries.day, start), lte(dailySummaries.day, end)))
+		.orderBy(asc(dailySummaries.day))
+		.all();
+}
+
+// --- week / month digests ----------------------------------------------------
+
+export function getDigest(kind: Digest["kind"], start: string): Digest | null {
+	return (
+		db
+			.select()
+			.from(digests)
+			.where(and(eq(digests.kind, kind), eq(digests.start, start)))
+			.get() ?? null
+	);
+}
+
+export function upsertDigest(
+	kind: Digest["kind"],
+	start: string,
+	end: string,
+	summaryMd: string,
+): void {
+	db.insert(digests)
+		.values({ kind, start, end, summaryMd })
+		.onConflictDoUpdate({
+			target: [digests.kind, digests.start],
+			set: { end, summaryMd, createdAt: new Date() },
+		})
+		.run();
+}
+
+/** Every digest of a kind, newest first (a few dozen a year at most). */
+export function listDigests(kind: Digest["kind"]): Digest[] {
+	return db
+		.select()
+		.from(digests)
+		.where(eq(digests.kind, kind))
+		.orderBy(desc(digests.start))
+		.all();
 }
 
 // --- settings (key/value) ----------------------------------------------------

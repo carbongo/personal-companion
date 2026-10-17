@@ -50,6 +50,21 @@ a user's companion is the engine *plus their private configuration*.
 
 If you are tempted to hardcode anything personal, make it a config field instead.
 
+### Pushing is gated — no exceptions
+
+This repo is **public**. Every push must pass the leak gate
+([`docs/security.md`](./docs/security.md#publishing-safely)):
+
+1. Once per clone: `bun run hooks` (installs the `pre-push` gate). Needs `gitleaks` and the
+   maintainer's machine-local denylist; without either the gate refuses, by design.
+2. Before every push: `bun run leakscan`, **and** read the full outgoing diff
+   (`git log -p @{u}..`) yourself for anything the denylist can't know — a new name, a place,
+   a date or detail lifted from a real conversation, a real example in a test or doc.
+3. **Never** `git push --no-verify`, never weaken the gate to get a push through, and never
+   paste private data into a commit message. If the gate fires, rewrite the commit.
+4. Changes made for a real deployment come here **generalized**: the mechanism, with neutral
+   examples — never the private persona, prompts tuned on a real person, or their data.
+
 ---
 
 ## 2. The `docs/` wiki — structure
@@ -67,7 +82,8 @@ docs/
   data-model.md      SQLite tables and their roles
   configuration.md   env vars, persona files, presets, providers
   channels.md        Telegram + the built-in web chat
-  memory.md          Core, memories, daily summaries, roll-up
+  memory.md          Core, memories, daily summaries, week/month digests, roll-up
+  time-sense.md      gaps between conversations: markers, the "time apart" note
   conversation-dynamics.md
                      letting a topic go: the computed per-turn read, the movement
                      rules, and the companion's own interests
@@ -142,4 +158,4 @@ docs/
 
 - `bun run check && bun run typecheck && bun test` pass.
 - Docs touched for any behaviour change; `docs/CHANGELOG.md` has a new entry.
-- No personal data introduced (see §1).
+- No personal data introduced (see §1); `bun run leakscan` is clean before any push.

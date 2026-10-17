@@ -22,6 +22,12 @@ describe("parseActions", () => {
 		expect(p.cleaned).toBe("Done — dropped that.");
 	});
 
+	it("extracts and strips keep tags", () => {
+		const p = parseActions("Noted.\n<keep>likes strong tea</keep>");
+		expect(p.keep).toEqual(["likes strong tea"]);
+		expect(p.cleaned).toBe("Noted.");
+	});
+
 	it("leaves a plain reply untouched", () => {
 		const p = parseActions("just a normal reply");
 		expect(p.remember).toEqual([]);

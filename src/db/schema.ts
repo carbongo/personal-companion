@@ -4,7 +4,13 @@
  * is tied to a particular persona. See docs/data-model.md.
  */
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	primaryKey,
+	sqliteTable,
+	text,
+} from "drizzle-orm/sqlite-core";
 
 const createdAt = () =>
 	integer("created_at", { mode: "timestamp_ms" })
@@ -48,6 +54,12 @@ export const memories = sqliteTable(
 		content: text("content").notNull(),
 		tags: text("tags"),
 		createdAt: createdAt(),
+		/**
+		 * When a later conversation last showed this was still true (null = never
+		 * re-confirmed since it was saved). How fresh a fact is tells the companion
+		 * how far to trust it after time apart.
+		 */
+		confirmedAt: integer("confirmed_at", { mode: "timestamp_ms" }),
 	},
 	(t) => [index("memories_created_idx").on(t.createdAt)],
 );
@@ -58,6 +70,25 @@ export const dailySummaries = sqliteTable("daily_summaries", {
 	summaryMd: text("summary_md").notNull(),
 	createdAt: createdAt(),
 });
+
+/**
+ * Coarser compactions of the daily summaries: one per finished week (Monday to
+ * Sunday) and one per finished month. Older stretches of time ride in context as
+ * these instead of as days, so the horizon grows while the prompt stays small.
+ */
+export const digests = sqliteTable(
+	"digests",
+	{
+		kind: text("kind", { enum: ["week", "month"] }).notNull(),
+		/** First day covered, YYYY-MM-DD. */
+		start: text("start").notNull(),
+		/** Last day covered, YYYY-MM-DD. */
+		end: text("end").notNull(),
+		summaryMd: text("summary_md").notNull(),
+		createdAt: createdAt(),
+	},
+	(t) => [primaryKey({ columns: [t.kind, t.start] })],
+);
 
 /** Key/value config edited in the web UI (e.g. a persona override). */
 export const settings = sqliteTable("settings", {
@@ -71,3 +102,4 @@ export const settings = sqliteTable("settings", {
 export type Message = typeof messages.$inferSelect;
 export type Memory = typeof memories.$inferSelect;
 export type DailySummary = typeof dailySummaries.$inferSelect;
+export type Digest = typeof digests.$inferSelect;

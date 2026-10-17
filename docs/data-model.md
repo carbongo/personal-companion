@@ -45,6 +45,7 @@ day (and dropped by it when a day makes one wrong), or added/removed by you in t
 | content    | text      | the fact |
 | tags       | text null | optional comma tags |
 | created_at | integer   | timestamp, indexed |
+| confirmed_at | integer null | last day a conversation showed it still true (roll-up `<keep>`) |
 
 ### `daily_summaries` — one compressed day each
 The nightly roll-up compresses each past day's `messages` into one summary the companion
@@ -54,6 +55,18 @@ reads on later days.
 | ---------- | ------- | ----- |
 | day        | text    | pk, `YYYY-MM-DD` |
 | summary_md | text    | the day's conclusion, in the companion's voice |
+| created_at | integer | timestamp |
+
+### `digests` — one compacted week or month each
+Finished weeks (Monday–Sunday) and months, compacted again from their daily summaries (see
+[memory.md](./memory.md#week-and-month-digests)).
+
+| column     | type    | notes |
+| ---------- | ------- | ----- |
+| kind       | text    | `week` \| `month`; pk with `start` |
+| start      | text    | first day covered, `YYYY-MM-DD` |
+| end        | text    | last day covered |
+| summary_md | text    | the digest |
 | created_at | integer | timestamp |
 
 ### `settings` — persisted configuration edited in the UI
