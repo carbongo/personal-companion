@@ -88,6 +88,8 @@ export function buildOperating(opts: {
 	web: boolean;
 	/** Whether the nightly roll-up curates memory on its own (MEMORY_ROLLUP_EXTRACT). */
 	autoMemory: boolean;
+	/** Whether it can write first, so a `<later>` check-in can be kept (REACH_OUT). */
+	followUp?: boolean;
 }): string {
 	const owner = config.app.owner;
 	const parts: string[] = [];
@@ -187,6 +189,17 @@ or remove what you keep on your own. So never claim to have saved, updated, or f
 something. If ${owner} asks you to remember or forget a thing, tell them plainly that they
 keep your memory themselves from the settings.`);
 	}
+
+	if (opts.followUp)
+		parts.push(`## Getting back to them
+
+When ${owner} tells you a specific time they'll be back or something will happen — waking at
+four, out of a meeting by six, landing tonight at nine — and you'd genuinely want to check in
+then, end your reply with one line:
+<later at="YYYY-MM-DD HH:MM">what you'll check in about</later>
+in their local time (the current time is in your context note). They never see it; at that
+time you get a moment to write first. Only for a time they actually gave, one per reply — a
+newer one replaces the old. Never mention it or promise a time yourself.`);
 
 	if (opts.web)
 		parts.push(`## Reaching the web

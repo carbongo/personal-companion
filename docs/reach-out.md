@@ -30,5 +30,16 @@ nothing to say. Nothing is stored until delivery succeeds; then it is logged as 
 turn. A day that opens with it shows the owner's side as `[you messaged first]`
 (`engine.WROTE_FIRST`), so the reply has context.
 
+## At a time the owner named
+
+When the owner gives a specific time ("up at four"), a reply may end with
+`<later at="YYYY-MM-DD HH:MM">why</later>` (or a bare `HH:MM` = next occurrence; local `TZ`;
+never shown). `engine.keepPlan` stores it in setting `reach_out_plan` (one plan, newest
+wins; ≤ 7 days ahead). `src/companion-core/later.ts` holds the rules; a 1-min tick
+(`PLAN_TICK_MS`) drafts with the reason at that time, skipping the quiet, hours and chance
+rules — it may still `<pass/>`. Dropped when the owner writes ≥ 3 h after the plan was made,
+wrote < 30 min ago at fire time, or it is 2 h stale. The persona's `## Getting back to them`
+section asks for the tag only when `REACH_OUT` is on.
+
 Delivery goes to the first `TELEGRAM_ALLOWED_USER_IDS` entry (a private chat's id is the
 user's). Telegram bots can't place calls, so a voice note is the closest thing to one.

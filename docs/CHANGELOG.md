@@ -3,6 +3,13 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
+## 2026-10-17 (evening)
+
+**Writing first at a time the owner named** ([reach-out.md](./reach-out.md#at-a-time-the-owner-named)):
+a reply's `<later at="…">why</later>` tag schedules one check-in (setting `reach_out_plan`),
+sent by a 1-min tick outside the usual quiet/hours/chance rules; cancelled when the owner
+comes back on their own.
+
 ## 2026-10-17 (later)
 
 **Writing first, a model for memory upkeep, and digests in the web UI.**
