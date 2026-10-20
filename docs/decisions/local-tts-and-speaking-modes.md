@@ -52,9 +52,8 @@ infrastructure and account-security cost of a user-bot.
 - Settings ships three toggles instead of one dropdown, which is a slightly bigger surface
   but avoids re-litigating this decision later if a fourth trigger is ever needed (it's
   additive, not a breaking enum change).
-- `speakOnRequest` currently has no trigger in plain Telegram text chat (there's no
-  composer to toggle) — left unreachable there for now rather than inventing a slash
-  command or keyword to fake one.
+- `speakOnRequest` in plain text (no composer toggle): since 2026-10-20 the model is told to
+  wrap its reply in `<speak>` on an explicit ask, in any language — no keyword list.
 - No live-call feature exists or is planned **on Telegram** under the current Bot API
   integration; anyone wanting that would need a materially different (MTProto) integration,
   which is out of scope for this project's single-user, self-hosted shape. Live calls as

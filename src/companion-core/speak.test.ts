@@ -83,7 +83,9 @@ describe("shouldSpeak", () => {
 	it("speaks when the turn asked for it", () => {
 		const m = { ...modes, speakOnRequest: true };
 		expect(shouldSpeak(m, { ...ctx, requestedVoice: true })).toBe(true);
-		expect(shouldSpeak(m, { ...ctx, modelWantsSpeak: true })).toBe(false);
+		// The model is told to write <speak> only when asked in plain text.
+		expect(shouldSpeak(m, { ...ctx, modelWantsSpeak: true })).toBe(true);
+		expect(shouldSpeak(m, ctx)).toBe(false);
 	});
 
 	it("honors the companion's own <speak> only when that mode is on", () => {

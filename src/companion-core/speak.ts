@@ -122,7 +122,10 @@ export function sanitizeForSpeech(text: string): string {
 export interface SpeakModes {
 	/** Speak back when the owner spoke first. */
 	speakMirror: boolean;
-	/** Speak when the owner asked for a voice reply on this turn. */
+	/**
+	 * Speak when the owner asked for a voice reply on this turn: the channel's
+	 * flag, or a `<speak>` the model was told to write only on an explicit ask.
+	 */
 	speakOnRequest: boolean;
 	/** Let the companion decide, via `<speak>`, when a reply is worth saying. */
 	speakSometimes: boolean;
@@ -151,7 +154,7 @@ export interface SpeakContext {
 export function shouldSpeak(modes: SpeakModes, ctx: SpeakContext): boolean {
 	return (
 		(modes.speakMirror && ctx.turnWasVoice) ||
-		(modes.speakOnRequest && ctx.requestedVoice) ||
+		(modes.speakOnRequest && (ctx.requestedVoice || ctx.modelWantsSpeak)) ||
 		(modes.speakSometimes && ctx.modelWantsSpeak) ||
 		(ctx.roll !== undefined && ctx.roll < modes.speakChance)
 	);

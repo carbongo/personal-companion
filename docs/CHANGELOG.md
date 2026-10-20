@@ -10,6 +10,8 @@ re-encoded to OGG/Opus before `sendVoice` (Piper's wav showed as a plain file). 
 `TTS_SCRIPT_MARKERS` lets `scriptLanguage()` name extra languages by their letters, and the
 `http` TTS provider sends the guessed `language`, so a self-hosted multilingual model speaks
 the right one. `TTS_SPEAK_CHANCE` (0..1, default 0) speaks any reply by a per-turn dice roll.
+`speakOnRequest` now works in plain text: the prompt tells the model to wrap its reply in
+`<speak>` when explicitly asked to talk.
 
 ## 2026-10-17 (evening)
 

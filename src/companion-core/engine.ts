@@ -215,6 +215,7 @@ function buildSystem(): string {
 			web: webConfigured(),
 			autoMemory: config.memory.rollupExtract,
 			followUp: config.reachOut.enabled,
+			speakOnAsk: config.tts.speakOnRequest && ttsConfigured(),
 		}),
 		buildKnowledge(),
 	]

@@ -36,8 +36,8 @@ needed, so it runs from anywhere, including behind NAT.
   draws a waveform only for that), and sent as a voice note via grammY's `sendVoice`, with a
   `record_voice` chat action shown while synthesis is in flight so the round-trip still feels
   continuous. Falls back to the normal split-text reply on any synthesis/send failure, or
-  whenever the gate says no. `speakOnRequest` has no natural trigger in plain Telegram text
-  chat yet, so it stays unreachable there for now. A real "call" experience (live voice
+  whenever the gate says no. In plain text, `speakOnRequest` works through the model: it is
+  told to wrap its reply in `<speak>` when explicitly asked to talk (any language). A real "call" experience (live voice
   back-and-forth) was investigated and explicitly not built — see
   [decisions/local-tts-and-speaking-modes.md](./decisions/local-tts-and-speaking-modes.md).
 
