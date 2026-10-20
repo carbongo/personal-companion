@@ -344,6 +344,7 @@ Replies can be spoken back — pick a backend with `TTS_PROVIDER`:
   default `tts-1`, and `TTS_VOICE`).
 - `http` — any OpenAI-compatible `/audio/speech`-style endpoint (e.g. a local speaches
   server); set `TTS_API_URL` (and `TTS_API_KEY`/`TTS_MODEL`/`TTS_VOICE` if it needs them).
+  The body also carries the guessed `language`, for multilingual models.
 - `local` (**default**) — [Piper](https://github.com/rhasspy/piper) run on this machine.
   No daemon and no network — nothing leaves the box, and Piper's small ONNX voice models
   synthesize a short paragraph well under the latency a round-trip would cost. Set
@@ -363,7 +364,8 @@ comma-separated `lang=path` map (e.g.
 `resolveLocalVoice(lang)` picks the entry for the language actually in play, falling back
 to `TTS_LOCAL_MODEL` when the map has no entry for it. Because a streamed reply is already
 split into clauses before it's spoken (see [channels.md](./channels.md)), and language is
-guessed per clause from its own script — Cyrillic letters mean Russian, Latin mean English
+guessed per clause from its own script — Cyrillic letters mean Russian, Latin mean English,
+unless a `TTS_SCRIPT_MARKERS` language's letters appear
 (`scriptLanguage()` in `src/channels/tts.ts`, requiring a clear majority so one borrowed
 word can't flip the whole clause) — a mixed-language reply switches voices mid-reply
 instead of committing to whichever language happened to open it. Explicitly passing
@@ -372,6 +374,7 @@ instead of committing to whichever language happened to open it. Explicitly pass
 | Var                     | Default | What it does |
 | ------------------------ | ------- | ------------ |
 | `TTS_LOCAL_MODEL_MAP`   | (empty) | Per-language Piper voice map, `lang=path,lang=path`. A language with no entry falls back to `TTS_LOCAL_MODEL`. |
+| `TTS_SCRIPT_MARKERS`    | (empty) | Extra languages by distinguishing letters, `lang=letters` (e.g. `uk=єїґі`); any of them in a clause overrides the ru/en guess. |
 
 Whether a given reply is actually spoken is controlled separately, by **three independent
 triggers** — any one being true is enough (they're OR'd, not a single mode):

@@ -9,7 +9,7 @@
 import { Bot, type Context, InputFile } from "grammy";
 
 import { sttConfigured, transcribe } from "#/channels/stt.ts";
-import { synthesize, ttsConfigured } from "#/channels/tts.ts";
+import { synthesize, toOggOpus, ttsConfigured } from "#/channels/tts.ts";
 import {
 	type ReachOutDraft,
 	respond,
@@ -120,11 +120,9 @@ export function startTelegram(): void {
 	async function trySendVoice(chatId: number, reply: string): Promise<boolean> {
 		const stopRecording = startAction(chatId, "record_voice");
 		try {
-			const audio = await synthesize(sanitizeForSpeech(reply));
-			// Telegram voice notes are normally OGG/Opus; the synthesized bytes go
-			// out as-is regardless of provider, same graceful-degradation posture
-			// as the rest of TTS — worst case the waveform/duration UI is off, not
-			// a broken reply.
+			// Telegram draws the waveform only for OGG/Opus, so re-encode whatever
+			// the provider returned (Piper writes wav).
+			const audio = await toOggOpus(await synthesize(sanitizeForSpeech(reply)));
 			await bot.api.sendVoice(chatId, new InputFile(audio, "reply.ogg"));
 			return true;
 		} catch (err) {
