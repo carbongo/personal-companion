@@ -80,4 +80,13 @@ describe("buildInterests", () => {
 		expect(buildInterests()).toBe("");
 		setSetting("persona", "");
 	});
+
+	it("explains voice-on-ask only when it can be honored", () => {
+		expect(
+			buildOperating({ web: false, autoMemory: true, speakOnAsk: true }),
+		).toContain("<speak>");
+		expect(buildOperating({ web: false, autoMemory: true })).not.toContain(
+			"<speak>",
+		);
+	});
 });

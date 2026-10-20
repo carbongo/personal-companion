@@ -228,6 +228,11 @@ export interface TtsConfig {
 	 */
 	localModelByLang: Record<string, string>;
 	/**
+	 * Extra languages told apart by letters only they use, e.g. { uk: "єїґі" },
+	 * from TTS_SCRIPT_MARKERS; refines `scriptLanguage()`'s ru/en guess.
+	 */
+	scriptMarkers: Record<string, string>;
+	/**
 	 * When a reply is spoken. Three independent triggers (see
 	 * companion-core/speak.ts): speak back when spoken to, speak when asked on
 	 * the turn, and let the companion choose via its `<speak>` tag.
@@ -235,6 +240,8 @@ export interface TtsConfig {
 	speakMirror: boolean;
 	speakOnRequest: boolean;
 	speakSometimes: boolean;
+	/** Probability (0..1) that any reply is spoken regardless of the triggers. */
+	speakChance: number;
 }
 
 export interface DiscordConfig {
@@ -468,12 +475,14 @@ export function loadConfig(): Config {
 			localBin: str("TTS_LOCAL_BIN", "piper"),
 			localModel: str("TTS_LOCAL_MODEL", ""),
 			localModelByLang: strMap("TTS_LOCAL_MODEL_MAP"),
+			scriptMarkers: strMap("TTS_SCRIPT_MARKERS"),
 			// Mirroring and asking are the unsurprising triggers: audio only ever
 			// answers audio, or an explicit request. Letting the companion speak
 			// up on its own stays off until it's wanted.
 			speakMirror: bool("TTS_SPEAK_MIRROR", true),
 			speakOnRequest: bool("TTS_SPEAK_ON_REQUEST", true),
 			speakSometimes: bool("TTS_SPEAK_SOMETIMES", false),
+			speakChance: Math.min(1, Math.max(0, num("TTS_SPEAK_CHANCE", 0))),
 		},
 		memory: {
 			contextDays: num("MEMORY_CONTEXT_DAYS", 7),

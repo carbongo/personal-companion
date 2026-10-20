@@ -8,7 +8,9 @@ import {
 	type LocalDeps,
 	piperArgs,
 	scriptLanguage,
+	synthesize,
 	synthesizeLocal,
+	toOggOpus,
 	ttsConfigured,
 } from "./tts.ts";
 
@@ -53,6 +55,80 @@ describe("scriptLanguage", () => {
 
 	it("returns undefined for empty text", () => {
 		expect(scriptLanguage("")).toBeUndefined();
+	});
+
+	it("picks a marker language by its distinguishing letters", () => {
+		config.tts.scriptMarkers = { uk: "єїґі" };
+		expect(scriptLanguage("Привіт, як справи?")).toBe("uk");
+		expect(scriptLanguage("Привет, как дела?")).toBe("ru");
+	});
+});
+
+describe("http provider", () => {
+	const realFetch = globalThis.fetch;
+	afterEach(() => {
+		globalThis.fetch = realFetch;
+	});
+
+	function capture(): { body?: Record<string, unknown> } {
+		const seen: { body?: Record<string, unknown> } = {};
+		globalThis.fetch = (async (_url: string, init: RequestInit) => {
+			seen.body = JSON.parse(String(init.body));
+			return new Response(new Uint8Array([1, 2, 3]));
+		}) as unknown as typeof fetch;
+		return seen;
+	}
+
+	it("sends the guessed language to a self-hosted endpoint", async () => {
+		Object.assign(config.tts, {
+			provider: "http",
+			apiUrl: "http://127.0.0.1:9/v1/audio/speech",
+			localModelByLang: {},
+			scriptMarkers: { uk: "єїґі" },
+		});
+		const seen = capture();
+		await synthesize("Привіт, як справи?");
+		expect(seen.body?.language).toBe("uk");
+	});
+
+	it("never sends a language field to the hosted OpenAI API", async () => {
+		Object.assign(config.tts, { provider: "openai", apiKey: "k" });
+		const seen = capture();
+		await synthesize("Hello there");
+		expect(seen.body && "language" in seen.body).toBe(false);
+	});
+});
+
+describe("toOggOpus", () => {
+	const ogg = new Uint8Array([0x4f, 0x67, 0x67, 0x53, 0, 0]);
+	const wav = new TextEncoder().encode("RIFF\0\0\0\0WAVEfmt ");
+
+	it("passes OGG through without running ffmpeg", async () => {
+		let ran = false;
+		const out = await toOggOpus(ogg, async () => {
+			ran = true;
+			return { code: 0, stdout: ogg };
+		});
+		expect(out).toBe(ogg);
+		expect(ran).toBe(false);
+	});
+
+	it("re-encodes other audio to OGG/Opus", async () => {
+		let cmd: string[] = [];
+		const out = await toOggOpus(wav, async (c) => {
+			cmd = c;
+			return { code: 0, stdout: ogg };
+		});
+		expect(out).toBe(ogg);
+		expect(cmd).toContain("libopus");
+	});
+
+	it("keeps the original bytes when ffmpeg fails", async () => {
+		const out = await toOggOpus(wav, async () => ({
+			code: 1,
+			stdout: new Uint8Array(),
+		}));
+		expect(out).toBe(wav);
 	});
 });
 

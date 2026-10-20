@@ -32,11 +32,12 @@ needed, so it runs from anywhere, including behind NAT.
   - Replies are also hard-wrapped under Telegram's 4096-character message limit.
 - **Voice replies:** when the reply should be spoken (the mirror or sometimes trigger — see
   [configuration.md](./configuration.md#speaking-text-to-speech)) and TTS is configured, the
-  whole reply is synthesized and sent as a voice note via grammY's `sendVoice`, with a
+  whole reply is synthesized, re-encoded to OGG/Opus with ffmpeg (`STT_FFMPEG_BIN`; Telegram
+  draws a waveform only for that), and sent as a voice note via grammY's `sendVoice`, with a
   `record_voice` chat action shown while synthesis is in flight so the round-trip still feels
   continuous. Falls back to the normal split-text reply on any synthesis/send failure, or
-  whenever the gate says no. `speakOnRequest` has no natural trigger in plain Telegram text
-  chat yet, so it stays unreachable there for now. A real "call" experience (live voice
+  whenever the gate says no. In plain text, `speakOnRequest` works through the model: it is
+  told to wrap its reply in `<speak>` when explicitly asked to talk (any language). A real "call" experience (live voice
   back-and-forth) was investigated and explicitly not built — see
   [decisions/local-tts-and-speaking-modes.md](./decisions/local-tts-and-speaking-modes.md).
 
@@ -97,7 +98,7 @@ picked over a PWA, SIP, Twilio, and a native CallKit app, and
   [configuration.md](./configuration.md#the-hallucination-gate-and-what-it-actually-gates-on).
 - **Voices switch by script, mid-reply.** Replies are spoken clause by clause, and each
   clause's voice is picked from `TTS_LOCAL_MODEL_MAP` by guessing the language from that
-  clause's own script (Cyrillic vs. Latin) — so a reply that mixes English and Russian is
+  clause's own script (Cyrillic vs. Latin, refined by `TTS_SCRIPT_MARKERS`) — so a reply that mixes English and Russian is
   heard in both voices instead of one voice reading the wrong language's words. Applies to
   every channel that speaks replies, not just calls. See
   [configuration.md](./configuration.md#picking-a-voice-per-clause-by-script).

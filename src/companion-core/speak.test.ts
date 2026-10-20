@@ -12,6 +12,7 @@ const modes = {
 	speakMirror: false,
 	speakOnRequest: false,
 	speakSometimes: false,
+	speakChance: 0,
 };
 const ctx = {
 	turnWasVoice: false,
@@ -65,6 +66,14 @@ describe("shouldSpeak", () => {
 		).toBe(false);
 	});
 
+	it("speaks by chance when the turn's roll lands under speakChance", () => {
+		const m = { ...modes, speakChance: 0.2 };
+		expect(shouldSpeak(m, { ...ctx, roll: 0.1 })).toBe(true);
+		expect(shouldSpeak(m, { ...ctx, roll: 0.5 })).toBe(false);
+		expect(shouldSpeak(modes, { ...ctx, roll: 0 })).toBe(false);
+		expect(shouldSpeak(m, ctx)).toBe(false);
+	});
+
 	it("mirrors a voice turn, and only a voice turn", () => {
 		const m = { ...modes, speakMirror: true };
 		expect(shouldSpeak(m, { ...ctx, turnWasVoice: true })).toBe(true);
@@ -74,7 +83,9 @@ describe("shouldSpeak", () => {
 	it("speaks when the turn asked for it", () => {
 		const m = { ...modes, speakOnRequest: true };
 		expect(shouldSpeak(m, { ...ctx, requestedVoice: true })).toBe(true);
-		expect(shouldSpeak(m, { ...ctx, modelWantsSpeak: true })).toBe(false);
+		// The model is told to write <speak> only when asked in plain text.
+		expect(shouldSpeak(m, { ...ctx, modelWantsSpeak: true })).toBe(true);
+		expect(shouldSpeak(m, ctx)).toBe(false);
 	});
 
 	it("honors the companion's own <speak> only when that mode is on", () => {

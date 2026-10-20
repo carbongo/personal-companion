@@ -90,6 +90,8 @@ export function buildOperating(opts: {
 	autoMemory: boolean;
 	/** Whether it can write first, so a `<later>` check-in can be kept (REACH_OUT). */
 	followUp?: boolean;
+	/** Whether an explicit ask for its voice gets a voice note (TTS_SPEAK_ON_REQUEST). */
+	speakOnAsk?: boolean;
 }): string {
 	const owner = config.app.owner;
 	const parts: string[] = [];
@@ -165,6 +167,14 @@ it matters to what they're saying, check it lightly in passing — "still at the
 place?", "did that ever get sorted?" — one thing at a time, and believe what they
 tell you over what you had. Whatever they confirm or correct settles into your memory
 overnight.`);
+
+	if (opts.speakOnAsk)
+		parts.push(`## Your voice
+
+You can answer with a voice note. When ${owner} explicitly asks to hear you — "I want to hear
+your voice", "say it", "send me a voice message", in any language — wrap your whole reply in
+<speak>…</speak> and it goes out as a voice note. Only on an explicit ask; otherwise just
+write. Never claim you can't send voice.`);
 
 	parts.push(`## Your memory
 

@@ -17,6 +17,7 @@ import { existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { sniffAudioExt } from "#/companion-core/media.ts";
 import { config, resolveLocalVoice } from "#/config/index.ts";
 
 const OPENAI_SPEECH = "https://api.openai.com/v1/audio/speech";
@@ -24,15 +25,14 @@ const OPENAI_SPEECH = "https://api.openai.com/v1/audio/speech";
 /** Cyrillic and Latin letter ranges, used to guess a text's script. */
 const CYRILLIC_RE = /[Ѐ-ӿ]/;
 const LATIN_RE = /[a-zA-Z]/;
-
 /**
- * Guess a language ("ru" | "en") from the text's script, or `undefined` when
- * it genuinely can't tell — empty text, digits/punctuation only, or a
+ * Guess a language ("ru" | "en", or a `TTS_SCRIPT_MARKERS` language) from the
+ * text's script, or `undefined` when it genuinely can't tell — empty text, digits/punctuation only, or a
  * near-even mix that shouldn't confidently flip the voice either way. Counts
  * letters only (ignoring whitespace, digits, punctuation) and requires a
  * clear majority so a single borrowed word doesn't swing the whole sentence.
  */
-export function scriptLanguage(text: string): "ru" | "en" | undefined {
+export function scriptLanguage(text: string): string | undefined {
 	let cyrillic = 0;
 	let latin = 0;
 	for (const ch of text) {
@@ -42,8 +42,14 @@ export function scriptLanguage(text: string): "ru" | "en" | undefined {
 	const total = cyrillic + latin;
 	if (total === 0) return undefined;
 	const ratio = cyrillic / total;
-	if (ratio >= 0.7) return "ru";
-	if (ratio <= 0.3) return "en";
+	const base = ratio >= 0.7 ? "ru" : ratio <= 0.3 ? "en" : undefined;
+	return base && (markedLanguage(text) ?? base);
+}
+
+/** The first `TTS_SCRIPT_MARKERS` language with one of its letters in the text. */
+function markedLanguage(text: string): string | undefined {
+	for (const [lang, letters] of Object.entries(config.tts.scriptMarkers))
+		if ([...letters].some((ch) => text.includes(ch))) return lang;
 	return undefined;
 }
 
@@ -173,6 +179,9 @@ async function synthesizeHttp(
 	// no meaning to an HTTP endpoint, so keep the configured default voice.
 	const voice = (lang && config.tts.localModelByLang[lang]) || config.tts.voice;
 	if (voice) body.voice = voice;
+	// A self-hosted multilingual model needs the language more than a voice
+	// name; the hosted OpenAI API rejects unknown fields, so only "http" gets it.
+	if (lang && config.tts.provider === "http") body.language = lang;
 
 	const res = await fetch(endpoint(), {
 		method: "POST",
@@ -184,6 +193,62 @@ async function synthesizeHttp(
 		throw new Error(`TTS ${res.status} ${res.statusText} ${detail}`.trim());
 	}
 	return new Uint8Array(await res.arrayBuffer());
+}
+
+// --- voice-note encoding --------------------------------------------------------
+
+/** Runs `cmd` with `input` on stdin and returns its stdout; injected in tests. */
+export type PipeRunner = (
+	cmd: string[],
+	input: Uint8Array,
+) => Promise<{ code: number; stdout: Uint8Array }>;
+
+const bunPipe: PipeRunner = async (cmd, input) => {
+	const proc = Bun.spawn(cmd, {
+		stdin: input,
+		stdout: "pipe",
+		stderr: "ignore",
+	});
+	const stdout = new Uint8Array(await new Response(proc.stdout).arrayBuffer());
+	return { code: await proc.exited, stdout };
+};
+
+/** ffmpeg args: any audio on stdin to mono OGG/Opus on stdout. */
+export function oggOpusArgs(): string[] {
+	return [
+		"-hide_banner",
+		"-loglevel",
+		"error",
+		"-i",
+		"pipe:0",
+		"-ac",
+		"1",
+		"-c:a",
+		"libopus",
+		"-b:a",
+		"48k",
+		"-f",
+		"ogg",
+		"pipe:1",
+	];
+}
+
+/**
+ * Re-encode synthesized audio as OGG/Opus, the only format Telegram renders
+ * as a voice note with a waveform. Audio that is already OGG passes through;
+ * if ffmpeg is missing or fails the original bytes are returned unchanged.
+ */
+export async function toOggOpus(
+	audio: Uint8Array,
+	run: PipeRunner = bunPipe,
+): Promise<Uint8Array> {
+	if (sniffAudioExt(audio) === ".ogg") return audio;
+	try {
+		const out = await run([config.stt.ffmpegBin, ...oggOpusArgs()], audio);
+		if (out.code === 0 && sniffAudioExt(out.stdout) === ".ogg")
+			return out.stdout;
+	} catch {}
+	return audio;
 }
 
 /**

@@ -3,6 +3,16 @@
 Newest first. Every major action (feature, schema, dependency, env var, decision, or
 ops change) gets an entry here — see the working agreement in [AGENTS.md](../AGENTS.md).
 
+## 2026-10-20
+
+**Telegram voice notes show a waveform; more voice languages.** Synthesized audio is
+re-encoded to OGG/Opus before `sendVoice` (Piper's wav showed as a plain file). New
+`TTS_SCRIPT_MARKERS` lets `scriptLanguage()` name extra languages by their letters, and the
+`http` TTS provider sends the guessed `language`, so a self-hosted multilingual model speaks
+the right one. `TTS_SPEAK_CHANCE` (0..1, default 0) speaks any reply by a per-turn dice roll.
+`speakOnRequest` now works in plain text: the prompt tells the model to wrap its reply in
+`<speak>` when explicitly asked to talk.
+
 ## 2026-10-17 (evening)
 
 **Writing first at a time the owner named** ([reach-out.md](./reach-out.md#at-a-time-the-owner-named)):
