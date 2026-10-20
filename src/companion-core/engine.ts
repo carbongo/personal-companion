@@ -482,6 +482,7 @@ export async function respond(turn: Turn): Promise<EngineReply> {
 		turnWasVoice: turn.kind === "voice",
 		requestedVoice: turn.wantsVoice ?? false,
 		modelWantsSpeak: wantsSpeak(raw),
+		roll: Math.random(),
 	});
 	return { reply: cleaned || "…", spoken, messageId: row?.id };
 }
@@ -514,6 +515,8 @@ export async function respondStream(
 	// A `<speak>` passage can span paragraphs, so its open/closed state is carried
 	// from one chunk to the next (see ./speak.ts).
 	let speakOpen = false;
+	// One draw per turn, so a chance-spoken reply is spoken whole, not in patches.
+	const roll = Math.random();
 	const sink: DraftSink = async (text, draft) => {
 		emitted++;
 		const state = speakState(draft, speakOpen);
@@ -522,6 +525,7 @@ export async function respondStream(
 			turnWasVoice: turn.kind === "voice",
 			requestedVoice: turn.wantsVoice ?? false,
 			modelWantsSpeak: state.speak,
+			roll,
 		});
 		// Synthesized here, paragraph by paragraph, so audio starts playing while
 		// the model is still writing the rest.

@@ -9,7 +9,7 @@ ops change) gets an entry here — see the working agreement in [AGENTS.md](../A
 re-encoded to OGG/Opus before `sendVoice` (Piper's wav showed as a plain file). New
 `TTS_SCRIPT_MARKERS` lets `scriptLanguage()` name extra languages by their letters, and the
 `http` TTS provider sends the guessed `language`, so a self-hosted multilingual model speaks
-the right one.
+the right one. `TTS_SPEAK_CHANCE` (0..1, default 0) speaks any reply by a per-turn dice roll.
 
 ## 2026-10-17 (evening)
 

@@ -240,6 +240,8 @@ export interface TtsConfig {
 	speakMirror: boolean;
 	speakOnRequest: boolean;
 	speakSometimes: boolean;
+	/** Probability (0..1) that any reply is spoken regardless of the triggers. */
+	speakChance: number;
 }
 
 export interface DiscordConfig {
@@ -480,6 +482,7 @@ export function loadConfig(): Config {
 			speakMirror: bool("TTS_SPEAK_MIRROR", true),
 			speakOnRequest: bool("TTS_SPEAK_ON_REQUEST", true),
 			speakSometimes: bool("TTS_SPEAK_SOMETIMES", false),
+			speakChance: Math.min(1, Math.max(0, num("TTS_SPEAK_CHANCE", 0))),
 		},
 		memory: {
 			contextDays: num("MEMORY_CONTEXT_DAYS", 7),

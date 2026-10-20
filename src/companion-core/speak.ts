@@ -126,6 +126,8 @@ export interface SpeakModes {
 	speakOnRequest: boolean;
 	/** Let the companion decide, via `<speak>`, when a reply is worth saying. */
 	speakSometimes: boolean;
+	/** Probability (0..1) that any reply is spoken anyway; 0 turns it off. */
+	speakChance: number;
 }
 
 /** What the current turn (and the model) is asking for. */
@@ -136,6 +138,8 @@ export interface SpeakContext {
 	requestedVoice: boolean;
 	/** The reply (or this paragraph of it) sat inside a `<speak>` passage. */
 	modelWantsSpeak: boolean;
+	/** A uniform 0..1 draw made once per turn, compared against `speakChance`. */
+	roll?: number;
 }
 
 /**
@@ -148,6 +152,7 @@ export function shouldSpeak(modes: SpeakModes, ctx: SpeakContext): boolean {
 	return (
 		(modes.speakMirror && ctx.turnWasVoice) ||
 		(modes.speakOnRequest && ctx.requestedVoice) ||
-		(modes.speakSometimes && ctx.modelWantsSpeak)
+		(modes.speakSometimes && ctx.modelWantsSpeak) ||
+		(ctx.roll !== undefined && ctx.roll < modes.speakChance)
 	);
 }

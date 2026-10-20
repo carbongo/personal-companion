@@ -12,6 +12,7 @@ const modes = {
 	speakMirror: false,
 	speakOnRequest: false,
 	speakSometimes: false,
+	speakChance: 0,
 };
 const ctx = {
 	turnWasVoice: false,
@@ -63,6 +64,14 @@ describe("shouldSpeak", () => {
 				modelWantsSpeak: true,
 			}),
 		).toBe(false);
+	});
+
+	it("speaks by chance when the turn's roll lands under speakChance", () => {
+		const m = { ...modes, speakChance: 0.2 };
+		expect(shouldSpeak(m, { ...ctx, roll: 0.1 })).toBe(true);
+		expect(shouldSpeak(m, { ...ctx, roll: 0.5 })).toBe(false);
+		expect(shouldSpeak(modes, { ...ctx, roll: 0 })).toBe(false);
+		expect(shouldSpeak(m, ctx)).toBe(false);
 	});
 
 	it("mirrors a voice turn, and only a voice turn", () => {

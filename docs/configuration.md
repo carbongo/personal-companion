@@ -384,6 +384,7 @@ triggers** — any one being true is enough (they're OR'd, not a single mode):
 | `TTS_SPEAK_MIRROR`      | `true`  | the owner's turn was itself a voice note — audio answers audio. |
 | `TTS_SPEAK_ON_REQUEST`  | `true`  | the channel flagged this turn as wanting a spoken reply (the web chat's composer toggle; not yet reachable from Telegram). |
 | `TTS_SPEAK_SOMETIMES`   | `false` | the companion itself decides, wrapping the worth-saying part of its reply in a `<speak>` tag. Off by default so the model can't produce unsolicited audio. |
+| `TTS_SPEAK_CHANCE`      | `0`     | Probability (0..1) that any reply is spoken anyway, drawn once per turn. `0` = off. |
 
 The same gate and backend serve every channel: the web chat plays synthesized audio back
 per streamed paragraph, and Telegram sends a voice note for the whole reply. See
